@@ -1,0 +1,14 @@
+## Interface: 11304
+## X-Min-Interface: 11302
+## Title: Suicide Kings Classic (SKC)
+## Notes: Test
+## Author: https://github.com/t-mccawley
+## Version: v0.0
+## SavedVariables: EPGP_DB
+## OptionalDeps: LibRealmInfo
+## X-Category: Guild
+## X-Website: https://github.com/jpxthu/EPGP-Classic
+## DefaultState: enabled
+
+SKC.lua
+
