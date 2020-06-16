@@ -7,9 +7,9 @@
 ## X-Category: Guild
 ## X-Website: https://github.com/t-mccawley/SKC
 ## DefaultState: enabled
-## SavedVariables: SKC_DB
+## SavedVariablesPerCharacter: SKC_DB
 
-config.lua
+main.lua
 timer.lua
 init.lua
 

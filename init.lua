@@ -65,61 +65,60 @@ local _, core = ...; -- Namespace
 -- Custom Slash Command
 --------------------------------------
 core.commands = {
-	["config"] = core.Config.Toggle, -- this is a function (no knowledge of Config object)
-	
 	["help"] = function()
 		print(" ");
-		core:Print("List of slash commands:")
-		core:Print("|cff00cc66/skc config|r - shows config menu");
+    core:Print("List of slash commands:")
+    core:Print("|cff00cc66/skc|r - shows SK lists");
 		core:Print("|cff00cc66/skc help|r - shows help info");
 		print(" ");
 	end,
 	
-	["example"] = {
-		["test"] = function(...)
-			core:Print("My Value:", tostringall(...));
-		end
-	}
+	-- ["example"] = {
+	-- 	["test"] = function(...)
+	-- 		core:Print("My Value:", tostringall(...));
+	-- 	end
+	-- }
 };
 
-local function HandleSlashCommands(str)	
-	if (#str == 0) then	
-		-- User just entered "/skc" with no additional args.
-		core.commands.help();
-		return;		
-	end	
+local function HandleSlashCommands(str)
+  if (#str == 0) then
+    core.Main:Toggle();
+  else
+    -- split out args in string
+    local args = {};
+    for _, arg in ipairs({ string.split(' ', str) }) do
+      if (#arg > 0) then
+        table.insert(args, arg);
+      end
+    end
+
+    local path = core.commands; -- required for updating found table.
 	
-	local args = {};
-	for _, arg in ipairs({ string.split(' ', str) }) do
-		if (#arg > 0) then
-			table.insert(args, arg);
-		end
-	end
-	
-	local path = core.commands; -- required for updating found table.
-	
-	for id, arg in ipairs(args) do
-		if (#arg > 0) then -- if string length is greater than 0.
-			arg = arg:lower();			
-			if (path[arg]) then
-				if (type(path[arg]) == "function") then				
-					-- all remaining args passed to our function!
-					path[arg](select(id + 1, unpack(args))); 
-					return;					
-				elseif (type(path[arg]) == "table") then				
-					path = path[arg]; -- another sub-table found!
-				end
-			else
-				-- does not exist!
-				core.commands.help();
-				return;
-			end
-		end
-	end
+    for id, arg in ipairs(args) do
+      if (#arg > 0) then -- if string length is greater than 0.
+        arg = arg:lower();			
+        if (path[arg]) then
+          if (type(path[arg]) == "function") then				
+            -- pass remaining args to function
+            path[arg](select(id + 1, unpack(args))); 
+            return;					
+          elseif (type(path[arg]) == "table") then				
+            path = path[arg]; -- another sub-table found!
+          end
+        else
+          -- does not exist!
+          core.commands.help();
+          return;
+        end
+      end
+    end
+
+  end
+  return
 end
 
 function core:Print(...)
-    local hex = select(4, self.Config:GetThemeColor());
+    local hex = select(4, self.Main:GetThemeColor());
     local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");	
     DEFAULT_CHAT_FRAME:AddMessage(string.join(" ", prefix, ...));
 end
@@ -146,9 +145,9 @@ function core:init(event, name)
 	end
 
 	SLASH_SKC1 = "/skc";
-	SlashCmdList.SKC = HandleSlashCommands;
+  SlashCmdList.SKC = HandleSlashCommands;
 	
-    core:Print("Welcome back", UnitName("player").."!");
+  core:Print("Welcome back", UnitName("player").."!");
 end
 
 local events = CreateFrame("Frame");
