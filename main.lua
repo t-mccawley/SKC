@@ -18,11 +18,67 @@ local DEFAULTS = {
 		b = 1,
 		hex = "00ccff"
 	},
-	MAIN_WIDTH = 350,
-	MAIN_HEIGHT = 600,
+	CLASS_COLORS = {
+		Druid = {
+			r = 1.0, 
+			g = 0.49,
+			b = 0.04,
+			hex = "FF7D0A"
+		},
+		Hunter = {
+			r = 0.67, 
+			g = 0.83,
+			b = 0.45,
+			hex = "ABD473"
+		},
+		Mage = {
+			r = 0.41, 
+			g = 0.80,
+			b = 0.94,
+			hex = "69CCF0"
+		},
+		Paladin = {
+			r = 0.96, 
+			g = 0.55,
+			b = 0.73,
+			hex = "F58CBA"
+		},
+		Priest = {
+			r = 1.00, 
+			g = 1.00,
+			b = 1.00,
+			hex = "FFFFFF"
+		},
+		Rogue = {
+			r = 1.00, 
+			g = 0.96,
+			b = 0.41,
+			hex = "FFF569"
+		},
+		Shaman = {
+			r = 0.96, 
+			g = 0.55,
+			b = 0.73,
+			hex = "F58CBA"
+		},
+		Warlock = {
+			r = 0.58, 
+			g = 0.51,
+			b = 0.79,
+			hex = "9482C9"
+		},
+		Warrior = {
+			r = 0.78, 
+			g = 0.61,
+			b = 0.43,
+			hex = "C79C6E"
+		},
+	},
+	MAIN_WIDTH = 450,
+	MAIN_HEIGHT = 450,
 	SK_LIST_WIDTH = 150,
 	SK_LIST_HEIGHT = 325,
-	SK_CARD_SPACING = 5,
+	SK_CARD_SPACING = 6,
 	SK_CARD_WIDTH = 100,
 	SK_CARD_HEIGHT = 20,
 }
@@ -30,19 +86,34 @@ local DEFAULTS = {
 --------------------------------------
 -- Main functions
 --------------------------------------
-function Main:VarLoad()
-	Main.VarsLoaded = true;
+function Main:FetchGuildInfo()
+	SKC_DB.InGuild = IsInGuild();
+	SKC_DB.NumGuildMembers = GetNumGuildMembers()
+	-- Determine # of level 60s
+	local cnt = 0;
+	for idx = 1, SKC_DB.NumGuildMembers do
+		full_name, rank, rankIndex, level, class, zone, note, 
+		officernote, online, status, classFileName, 
+		achievementPoints, achievementRank, isMobile, isSoREligible, standingID = GetGuildRosterInfo(idx);
+		if level == 60 then
+			cnt = cnt + 1;
+		end
+	end
+	SKC_DB.Count60 = cnt;
+end
+
+function Main:AddonLoad()
+	Main.AddonLoaded = true;
 	if (SKC_DB == nil or #SKC_DB == 0) then
 		SKC_DB = {}
 	end
-	SKC_DB.InGuild = IsInGuild();
-	SKC_DB.NumGuildMembers = GetNumGuildMembers()
 end
 
 function Main:PopulateSK_Cards()
-	-- Variables not yet loaded, return
-	if not Main.VarsLoaded then return end
+	-- Addon not yet loaded, return
+	if not Main.AddonLoaded then return end
 
+	-- Check if character is in guild
 	if SKC_DB.InGuild then
 		SKC_DB.SK_List = {}
 		local order = 1;
@@ -55,9 +126,13 @@ function Main:PopulateSK_Cards()
 				SKC_DB.SK_List[name_tmp] = {};
 				SKC_DB.SK_List[name_tmp]["name"] = name_tmp;
 				SKC_DB.SK_List[name_tmp]["order"] = order;
+				SKC_DB.SK_List[name_tmp]["class"] = class;
+				SKC_DB.SK_List[name_tmp]["role"] = "";
+				SKC_DB.SK_List[name_tmp]["main"] = true;
 				order = order + 1;
 			end
 		end
+		DEFAULT_CHAT_FRAME:AddMessage("SKC: Initialized from guild roster!");
 	else
 		DEFAULT_CHAT_FRAME:AddMessage("SKC Error: You are not in a guild!");
 		return;
@@ -66,17 +141,21 @@ function Main:PopulateSK_Cards()
 	-- Create SK card
 	local print_order = {}
 	for key, value in pairs(SKC_DB.SK_List) do
-		print_order[value.order] = value.name;
+		print_order[value.order] = value;
 	end
 	local i_card = 0;
 	for key,value in ipairs(print_order) do
-		UIMain.SK_List.SK_Card = CreateFrame("Frame",nil,UIMain.SK_List.SK_List_SF,"InsetFrameTemplate3");
+		UIMain.SK_List.SK_Card = CreateFrame("Frame",nil,UIMain.SK_List.SK_List_SF,"InsetFrameTemplate");
 		UIMain.SK_List.SK_Card:SetSize(DEFAULTS.SK_CARD_WIDTH,DEFAULTS.SK_CARD_HEIGHT);
 		UIMain.SK_List.SK_Card:SetPoint("TOPLEFT",UIMain.SK_List.SK_List_SF:GetScrollChild(),"TOPLEFT",15,-1*(i_card*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING) + DEFAULTS.SK_CARD_SPACING));
 		UIMain.SK_List.SK_Card.Text = UIMain.SK_List.SK_Card:CreateFontString(nil,"ARTWORK")
 		UIMain.SK_List.SK_Card.Text:SetFont("Fonts\\ARIALN.ttf", 13, "OUTLINE")
 		UIMain.SK_List.SK_Card.Text:SetPoint("CENTER",0,0)
-		UIMain.SK_List.SK_Card.Text:SetText(value)
+		UIMain.SK_List.SK_Card.Text:SetText(value.name)
+		-- create class color background
+		UIMain.SK_List.SK_Card.bg = UIMain.SK_List.SK_Card:CreateTexture(nil,"BACKGROUND");
+		UIMain.SK_List.SK_Card.bg:SetAllPoints(true);
+		UIMain.SK_List.SK_Card.bg:SetColorTexture(DEFAULTS.CLASS_COLORS[value.class].r,DEFAULTS.CLASS_COLORS[value.class].g,DEFAULTS.CLASS_COLORS[value.class].b,0.25);
 		i_card = i_card + 1;
 	end
 end
@@ -118,6 +197,9 @@ local function ScrollFrame_OnVerticalScroll(self,scroll)
 end
 
 function Main:CreateMenu()
+	-- Fetch guild info into SK DB
+	Main:FetchGuildInfo()
+
     UIMain = CreateFrame("Frame", "UIMain", UIParent, "UIPanelDialogTemplate");
 	UIMain:SetSize(DEFAULTS.MAIN_WIDTH,DEFAULTS.MAIN_HEIGHT);
 	UIMain:SetPoint("CENTER");
@@ -126,16 +208,23 @@ function Main:CreateMenu()
 	-- UIMain:RegisterForDrag("LeftButton")
 	-- UIMain:SetScript("OnDragStart", UIMain.StartMoving)
 	-- UIMain:SetScript("OnDragStop", UIMain.StopMovingOrSizing)
-    UIMain:SetAlpha(0.8);
-
-    UIMain.Title:ClearAllPoints();
-	UIMain.Title:SetPoint("LEFT", SKC_MainTitleBG, "LEFT", 6, 0);
-	UIMain.Title:SetText("SKC");
+	UIMain:SetAlpha(0.8);
 	
+	-- Add title
+    UIMain.Title:ClearAllPoints();
+	UIMain.Title:SetPoint("LEFT", UIMainTitleBG, "LEFT", 6, 0);
+	UIMain.Title:SetText("SKC");
+
 	-- Create SK list panel
 	UIMain.SK_List = CreateFrame("Frame","SK_List",UIMain,"InsetFrameTemplate");
 	UIMain.SK_List:SetSize(DEFAULTS.SK_LIST_WIDTH,DEFAULTS.SK_LIST_HEIGHT);
-	UIMain.SK_List:SetPoint("TOP",UIMain,"TOP",0,-50);
+	UIMain.SK_List:SetPoint("TOPLEFT",UIMain,"TOP",30,-65);
+
+	-- Create filter panel
+	UIMain.Filter_Panel = CreateFrame("Frame","Filter_Panel",UIMain,"TranslucentFrameTemplate");
+	UIMain.Filter_Panel:SetSize(DEFAULTS.SK_LIST_WIDTH,DEFAULTS.SK_LIST_HEIGHT);
+	UIMain.Filter_Panel:SetPoint("TOPRIGHT",UIMain,"TOP",-30,-65);
+	UIMain.Filter_Panel.Bg:SetAlpha(0.0);
 	
 	-- Create scroll frame on SK list
     UIMain.SK_List.SK_List_SF = CreateFrame("ScrollFrame","SK_List_SF",UIMain.SK_List,"UIPanelScrollFrameTemplate2");
@@ -158,7 +247,7 @@ function Main:CreateMenu()
 
 	-- Create scroll child
 	local scroll_child = CreateFrame("Frame",nil,UIMain.SK_List.ScrollFrame);
-	local scroll_max = DEFAULTS.SK_CARD_SPACING + (SKC_DB.NumGuildMembers + 1)*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING)
+	local scroll_max = DEFAULTS.SK_CARD_SPACING + (SKC_DB.Count60 + 1)*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING)
 	scroll_child:SetSize(DEFAULTS.SK_LIST_WIDTH,scroll_max);
 	UIMain.SK_List.SK_List_SF:SetScrollChild(scroll_child);
 
@@ -214,7 +303,7 @@ function Main:CreateMenu()
 	return UIMain;
 end
 
--- Monitor variables loaded event
+-- Monitor addon loaded event
 local events = CreateFrame("Frame");
-events:RegisterEvent("VARIABLES_LOADED");
-events:SetScript("OnEvent", Main.VarLoad);
+events:RegisterEvent("ADDON_LOADED");
+events:SetScript("OnEvent", Main.AddonLoad);
