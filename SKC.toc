@@ -10,6 +10,5 @@
 ## SavedVariablesPerCharacter: SKC_DB
 
 main.lua
-timer.lua
 init.lua
 

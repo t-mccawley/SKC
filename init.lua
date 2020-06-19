@@ -82,7 +82,7 @@ core.commands = {
 
 local function HandleSlashCommands(str)
   if (#str == 0) then
-    core.Main:Toggle();
+    core.SKC_Main:Toggle();
   else
     -- split out args in string
     local args = {};
@@ -118,7 +118,7 @@ local function HandleSlashCommands(str)
 end
 
 function core:Print(...)
-    local hex = select(4, self.Main:GetThemeColor());
+    local hex = select(4, self.SKC_Main:GetThemeColor());
     local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");	
     DEFAULT_CHAT_FRAME:AddMessage(string.join(" ", prefix, ...));
 end
