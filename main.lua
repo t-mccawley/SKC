@@ -260,7 +260,13 @@ end
 
 local function SK_Card_MouseDown(self, button)
 	if button=='LeftButton' then 
-		DEFAULT_CHAT_FRAME:AddMessage(self.Text:GetText());
+		local data = SKC_DB.GuildData[self.Text:GetText()];
+		SKC_UIMain.Details["Name"].Text:SetText(data.name);
+		SKC_UIMain.Details["Class"].Text:SetText(data.class);
+		SKC_UIMain.Details["Raid Role"].Text:SetText(data.raid_role);
+		SKC_UIMain.Details["Guild Role"].Text:SetText(data.guild_role);
+		SKC_UIMain.Details["Status"].Text:SetText(data.status);
+		SKC_UIMain.Details["Activity"].Text:SetText(data.activity);
 	end
 end
 
@@ -356,13 +362,13 @@ end
 
 function Main:CreateUIBorder(title,width,height,x_pos,y_pos)
 	-- Create Border
-	local border_key = title.."_Border";
+	local border_key = title;
 	SKC_UIMain[border_key] = CreateFrame("Frame",border_key,SKC_UIMain,"TranslucentFrameTemplate");
 	SKC_UIMain[border_key]:SetSize(width,height);
 	SKC_UIMain[border_key]:SetPoint("TOP",SKC_UIMain,"TOP",x_pos,y_pos);
 	SKC_UIMain[border_key].Bg:SetAlpha(0.0);
 	-- Create Title
-	local title_key = title.."_Title";
+	local title_key = "title";
 	SKC_UIMain[border_key][title_key] = CreateFrame("Frame",title_key,SKC_UIMain[border_key],"TranslucentFrameTemplate");
 	SKC_UIMain[border_key][title_key]:SetSize(DEFAULTS.SK_TAB_TITLE_CARD_WIDTH,DEFAULTS.SK_TAB_TITLE_CARD_HEIGHT);
 	SKC_UIMain[border_key][title_key]:SetPoint("BOTTOM",SKC_UIMain[border_key],"TOP",0,-20);
@@ -408,9 +414,6 @@ function Main:CreateMenu()
 	SKC_UIMain.SK_List.SK_List_SF:SetScript("OnMouseWheel",ScrollFrame_OnMouseWheel);
 	SKC_UIMain.SK_List.SK_List_SF.ScrollBar:SetPoint("TOPLEFT",SKC_UIMain.SK_List.SK_List_SF,"TOPRIGHT",-22,-21);
 
-	-- Create details panel
-	Main:CreateUIBorder("Details",DEFAULTS.SK_DETAILS_WIDTH,DEFAULTS.SK_DETAILS_HEIGHT,250,DEFAULTS.SK_TAB_TOP_OFFST)
-
 	-- Create scroll child
 	local scroll_child = CreateFrame("Frame",nil,SKC_UIMain.SK_List.ScrollFrame);
 	local scroll_max = DEFAULTS.SK_CARD_SPACING + (SKC_DB.Count60 + 1)*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING)
@@ -419,6 +422,24 @@ function Main:CreateMenu()
 
 	-- Populate SK cards
 	Main:PopulateSK_Cards()
+
+	-- Create details panel
+	local details_title = "Details";
+	Main:CreateUIBorder(details_title,DEFAULTS.SK_DETAILS_WIDTH,DEFAULTS.SK_DETAILS_HEIGHT,250,DEFAULTS.SK_TAB_TOP_OFFST);
+	-- create details fields
+	local details_fields = {"Name","Class","Raid Role","Guild Role","Status","Activity","Loot History"};
+	for idx,value in ipairs(details_fields) do
+		SKC_UIMain[details_title][value] = SKC_UIMain[details_title]:CreateFontString(nil,"ARTWORK");
+		SKC_UIMain[details_title][value]:SetFontObject("GameFontNormal");
+		SKC_UIMain[details_title][value]:SetPoint("RIGHT",SKC_UIMain[details_title],"TOPLEFT",100,-20*idx-10);
+		SKC_UIMain[details_title][value]:SetText(value..":");
+		SKC_UIMain[details_title][value].Text = SKC_UIMain[details_title]:CreateFontString(nil,"ARTWORK");
+		SKC_UIMain[details_title][value].Text:SetFontObject("GameFontHighlight");
+		SKC_UIMain[details_title][value].Text:SetPoint("LEFT",SKC_UIMain[details_title][value],"RIGHT",5,0);
+	end
+	
+	
+	
 	
 	-- ----------------------------------
 	-- -- Buttons
