@@ -453,9 +453,51 @@ end
 --------------------------------------
 -- SKC_Main functions
 --------------------------------------
+function SKC_Main.LootOpened()
+	if not IsMasterLooter() then return end
+	--[[ LOOT TESTING
+	GetItemInfo
+	http://wowprogramming.com/docs/api/GetItemInfo.html
+	SetLootPortrait(texture)
+	http://wowprogramming.com/docs/api/SetLootPortrait.html
+	
+
+	--]]
+	-- DEFAULT_CHAT_FRAME:AddMessage("GetLootThreshold(): "..GetLootThreshold())
+	-- DEFAULT_CHAT_FRAME:AddMessage("GetNumLootItems(): "..GetNumLootItems())
+	-- DEFAULT_CHAT_FRAME:AddMessage("GetNumGroupMembers(): "..GetNumGroupMembers())
+	local itemLinkText
+	for i_loot = 1, GetNumLootItems() do
+		local loot_type = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
+		local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
+		local lootLink = GetLootSlotLink(i_loot);
+		local i_prty = 1;
+		-- DEFAULT_CHAT_FRAME:AddMessage("i_loot: "..i_loot);
+		if loot_type == 1 then
+			if GetMasterLootCandidate(i_loot,i_prty) == UnitName("player") and lootQuality >= 2 then
+				GiveMasterLoot(i_loot, i_prty);
+				DEFAULT_CHAT_FRAME:AddMessage("Master Looter gave "..lootLink.." to: "..UnitName("player"));
+				DEFAULT_CHAT_FRAME:AddMessage("lootName: "..lootName);
+				DEFAULT_CHAT_FRAME:AddMessage("lootIcon: "..lootIcon);
+				DEFAULT_CHAT_FRAME:AddMessage("lootQuantity: "..lootQuantity);
+				DEFAULT_CHAT_FRAME:AddMessage("lootQuality: "..lootQuality);
+			end
+		end
+	end
+	-- for ci = 1, GetNumGroupMembers() do
+	-- 	if (GetMasterLootCandidate(ci) == UnitName("player")) then
+	-- 	 for li = 1, GetNumLootItems() do
+	-- 	  GiveMasterLoot(li, ci);
+	-- 	 end
+	-- 	end
+	--    end
+	-- GiveMasterLoot()
+	CloseLoot();
+	return;
+end
 function SKC_Main:AddonLoad()
 	SKC_Main.AddonLoaded = true;
-	local hard_reset = true;
+	local hard_reset = false;
 	-- Initialize 
 	if SKC_DB == nil or hard_reset then 
 		SKC_DB = {};
@@ -761,7 +803,11 @@ function SKC_Main:CreateMenu()
 	return SKC_UIMain;
 end
 
--- Monitor addon loaded event
-local events = CreateFrame("Frame");
-events:RegisterEvent("ADDON_LOADED");
-events:SetScript("OnEvent", SKC_Main.AddonLoad);
+-- Monitor events
+local AddonLoaded = CreateFrame("Frame");
+AddonLoaded:RegisterEvent("ADDON_LOADED");
+AddonLoaded:SetScript("OnEvent", SKC_Main.AddonLoad);
+
+local LootOpened = CreateFrame("Frame");
+LootOpened:RegisterEvent("OPEN_MASTER_LOOT_LIST");
+LootOpened:SetScript("OnEvent", SKC_Main.LootOpened);
