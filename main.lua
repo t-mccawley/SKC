@@ -5,6 +5,8 @@ local _, core = ...; -- returns name of addon and namespace (core)
 core.SKC_Main = {}; -- adds SKC_Main table to addon namespace
 
 local SKC_Main = core.SKC_Main; -- assignment by reference in lua, ugh
+local SKC_UIMain;
+
 SKC_Main.VarsLoaded = false;
 SKC_Main.FilterStates = {
 	SK1 = {
@@ -14,20 +16,18 @@ SKC_Main.FilterStates = {
 		Main = true,
 		Alt = true,
 		Active = true,
-		Inactive = true,
+		Inactive = false,
 		Druid = true,
 		Hunter = true,
 		Mage = true,
-		Paladin = true,
+		Paladin = UnitFactionGroup("player") == "Alliance",
 		Priest = true;
 		Rogue = true,
-		Shaman = true,
+		Shaman = UnitFactionGroup("player") == "Horde",
 		Warlock = true,
 		Warrior = true,
 	},
 };
-local SKC_UIMain;
-
 --------------------------------------
 -- DEFAULTS (usually a database!)
 --------------------------------------
@@ -96,12 +96,16 @@ local DEFAULTS = {
 		},
 	},
 	MAIN_WIDTH = 820,
-	MAIN_HEIGHT = 470,
+	MAIN_HEIGHT = 450,
 	SK_TAB_TOP_OFFST = -60,
 	SK_TAB_TITLE_CARD_WIDTH = 80,
 	SK_TAB_TITLE_CARD_HEIGHT = 40,
 	SK_FILTER_WIDTH = 250,
-	SK_FILTER_HEIGHT = 180,
+	SK_FILTER_HEIGHT = 155,
+	DECISION_WIDTH = 250,
+	DECISION_HEIGHT = 180,
+	ITEM_WIDTH = 40,
+	ITEM_HEIGHT = 40,
 	SK_LIST_WIDTH = 175,
 	SK_LIST_HEIGHT = 325,
 	SK_LIST_BORDER_OFFST = 15,
@@ -439,7 +443,7 @@ local function OnClick_EditDetails(self, button)
 	return;
 end
 
-function OnClick_FullSK(self)
+local function OnClick_FullSK(self)
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	-- Execute full SK
 	local sk_list = "SK1";
@@ -450,18 +454,50 @@ function OnClick_FullSK(self)
 	return;
 end
 
+local function OnMouseDown_ShowItemTooltip(self, button)
+	--[[
+		function ChatFrame_OnHyperlinkShow(chatFrame, link, text, button)
+			SetItemRef(link, text, button, chatFrame);
+		end
+		https://wowwiki.fandom.com/wiki/API_ChatFrame_OnHyperlinkShow
+		https://wowwiki.fandom.com/wiki/API_strfind
+
+		chatFrame 
+			table (Frame) - ChatFrame in which the link was clicked.
+		link 
+			String - The link component of the clicked hyperlink. (e.g. "item:6948:0:0:0...")
+		text 
+			String - The label component of the clicked hyperlink. (e.g. "[Hearthstone]")
+		button 
+			String - Button clicking the hyperlink button. (e.g. "LeftButton")
+		
+		itemLink ex:
+			|cff9d9d9d|Hitem:3299::::::::20:257::::::|h[Fractured Canine]|h|r
+		itemString ex:
+			item:3299::::::::20:257::::::
+		itemLabel ex:
+			[Fractured Canine]
+	--]]
+	local decision_border_key = "Decision_border";
+	local frame = SKC_UIMain[decision_border_key];
+	local itemLink = SKC_UIMain[decision_border_key].ItemLink:GetText();
+	local itemString = string.match(itemLink,"item[%-?%d:]+");
+	local itemLabel = string.match(itemLink,"|h.+|h");
+	SetItemRef(itemString, itemLabel, button, frame);
+end
+
+local function GetScrollMax()
+	return((SKC_DB.UnFilteredCnt)*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING));
+end
+
 --------------------------------------
 -- SKC_Main functions
 --------------------------------------
-function SKC_Main.LootOpened()
+function SKC_Main:MasterLooter()
 	if not IsMasterLooter() then return end
 	--[[ LOOT TESTING
 	GetItemInfo
 	http://wowprogramming.com/docs/api/GetItemInfo.html
-	SetLootPortrait(texture)
-	http://wowprogramming.com/docs/api/SetLootPortrait.html
-	
-
 	--]]
 	-- DEFAULT_CHAT_FRAME:AddMessage("GetLootThreshold(): "..GetLootThreshold())
 	-- DEFAULT_CHAT_FRAME:AddMessage("GetNumLootItems(): "..GetNumLootItems())
@@ -508,6 +544,7 @@ function SKC_Main:AddonLoad()
 	-- Initialize or refresh metatables
 	SKC_DB.SK_Lists["SK1"] = SK_List:new(SKC_DB.SK_Lists["SK1"]);
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
+	SKC_DB.UnFilteredCnt = 0;
 end
 
 function SKC_Main:FetchGuildInfo()
@@ -534,6 +571,7 @@ function SKC_Main:FetchGuildInfo()
 		end
 	end
 	SKC_DB.Count60 = cnt;
+	SKC_DB.UnFilteredCnt = cnt;
 end
 
 function SKC_Main:UpdateSK(sk_list)
@@ -571,6 +609,9 @@ function SKC_Main:UpdateSK(sk_list)
 			idx = idx + 1;
 		end
 	end
+	SKC_DB.UnFilteredCnt = idx;
+	-- update scroll length
+	SKC_UIMain[sk_list].SK_List_SF:GetScrollChild():SetSize(DEFAULTS.SK_LIST_WIDTH,GetScrollMax());
 end
 
 function SKC_Main:Toggle()
@@ -628,7 +669,7 @@ function SKC_Main:CreateMenu()
 	-- Create filter panel
 	local filter_border_key = SKC_Main:CreateUIBorder("Filters",DEFAULTS.SK_FILTER_WIDTH,DEFAULTS.SK_FILTER_HEIGHT,-250,DEFAULTS.SK_TAB_TOP_OFFST)
 	-- create details fields
-	local filter_roles = {"DPS","Healer","Tank","Main","Alt","SKIP","Active","Inactive","SKIP","Druid","Hunter","Mage","Paladin","Priest","Rogue","Shaman","Warlock","Warrior"};
+	local filter_roles = {"DPS","Healer","Tank","Main","Alt","Inactive","Druid","Hunter","Mage","Paladin","Priest","Rogue","Shaman","Warlock","Warrior"};
 	for idx,value in ipairs(filter_roles) do
 		if value ~= "SKIP" then
 			local row = math.floor((idx - 1) / 3); -- zero based
@@ -640,7 +681,7 @@ function SKC_Main:CreateMenu()
 			SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
 			SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
 			SKC_UIMain[filter_border_key][value].text:SetText(value);
-			if idx > 9 then
+			if idx > 6 then
 				-- assign class colors
 				SKC_UIMain[filter_border_key][value].text:SetTextColor(DEFAULTS.CLASS_COLORS[value].r,DEFAULTS.CLASS_COLORS[value].g,DEFAULTS.CLASS_COLORS[value].b,1.0);
 			end
@@ -664,8 +705,7 @@ function SKC_Main:CreateMenu()
 
 	-- Create scroll child
 	local scroll_child = CreateFrame("Frame",nil,SKC_UIMain[sk_list].SK_List_SF);
-	local scroll_max = DEFAULTS.SK_CARD_SPACING + (SKC_DB.Count60 + 1)*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING)
-	scroll_child:SetSize(DEFAULTS.SK_LIST_WIDTH,scroll_max);
+	scroll_child:SetSize(DEFAULTS.SK_LIST_WIDTH,GetScrollMax());
 	SKC_UIMain[sk_list].SK_List_SF:SetScrollChild(scroll_child);
 
 	-- Create SK cards
@@ -750,7 +790,59 @@ function SKC_Main:CreateMenu()
 	SKC_UIMain[details_border_key].FullSK_Btn:SetHighlightFontObject("GameFontHighlight");
 	SKC_UIMain[details_border_key].FullSK_Btn:SetScript("OnMouseDown",OnClick_FullSK);
 	SKC_UIMain[details_border_key].FullSK_Btn:Disable();
-	
+
+	-- Decision region
+	local decision_border_key = SKC_Main:CreateUIBorder("Decision",DEFAULTS.DECISION_WIDTH,DEFAULTS.DECISION_HEIGHT,-250,DEFAULTS.SK_TAB_TOP_OFFST-DEFAULTS.SK_FILTER_HEIGHT-20);
+	-- Test
+	-- https://wow.gamepedia.com/ItemMixin
+	local itemID = 19395;
+	local item = Item:CreateFromItemID(itemID);
+	item:ContinueOnItemLoad(function() item:GetItemLink() end); -- Continue querying database until you get item
+	name, link, quality, iLevel, reqLevel, class, subclass, maxStack, equipSlot, texture, vendorPrice = GetItemInfo(itemID);
+	-- set texture / hidden frame for button click
+	SKC_UIMain[decision_border_key].ItemTexture = SKC_UIMain[decision_border_key]:CreateTexture(nil, "ARTWORK");
+	SKC_UIMain[decision_border_key].ItemTexture:SetSize(DEFAULTS.ITEM_WIDTH,DEFAULTS.ITEM_HEIGHT);
+	SKC_UIMain[decision_border_key].ItemTexture:SetPoint("TOP",SKC_UIMain[decision_border_key],"TOP",0,-45)
+	SKC_UIMain[decision_border_key].ItemTexture:SetTexture(texture);
+	SKC_UIMain[decision_border_key].ItemClickBox = CreateFrame("Frame", nil, SKC_UIMain);
+	SKC_UIMain[decision_border_key].ItemClickBox:SetSize(DEFAULTS.ITEM_WIDTH,DEFAULTS.ITEM_HEIGHT);
+	SKC_UIMain[decision_border_key].ItemClickBox:SetPoint("CENTER",SKC_UIMain[decision_border_key].ItemTexture,"CENTER");
+	SKC_UIMain[decision_border_key].ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
+	-- set name / link
+	SKC_UIMain[decision_border_key].ItemLink = SKC_UIMain[decision_border_key]:CreateFontString(nil,"ARTWORK");
+	SKC_UIMain[decision_border_key].ItemLink:SetFontObject("GameFontNormal");
+	SKC_UIMain[decision_border_key].ItemLink:SetPoint("TOP",SKC_UIMain[decision_border_key],"TOP",0,-25);
+	SKC_UIMain[decision_border_key].ItemLink:SetText(link);
+	SKC_UIMain[decision_border_key]:SetHyperlinksEnabled(true)
+	SKC_UIMain[decision_border_key]:SetScript("OnHyperlinkClick", ChatFrame_OnHyperlinkShow)
+	-- set decision buttons
+	-- Pass
+	SKC_UIMain[decision_border_key].Pass_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[decision_border_key].Pass_Btn:SetPoint("TOPRIGHT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",-40,-5);
+	SKC_UIMain[decision_border_key].Pass_Btn:SetSize(65,40);
+	SKC_UIMain[decision_border_key].Pass_Btn:SetText("Pass");
+	SKC_UIMain[decision_border_key].Pass_Btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[decision_border_key].Pass_Btn:SetHighlightFontObject("GameFontHighlight");
+	-- SKC_UIMain[decision_border_key].Pass_Btn:SetScript("OnMouseDown",OnClick_FullSK);
+	-- SKC_UIMain[decision_border_key].Pass_Btn:Disable();
+	-- SK
+	SKC_UIMain[decision_border_key].SK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[decision_border_key].SK_Btn:SetPoint("TOP",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",0,-5);
+	SKC_UIMain[decision_border_key].SK_Btn:SetSize(65,40);
+	SKC_UIMain[decision_border_key].SK_Btn:SetText("SK");
+	SKC_UIMain[decision_border_key].SK_Btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[decision_border_key].SK_Btn:SetHighlightFontObject("GameFontHighlight");
+	-- SKC_UIMain[decision_border_key].SK_Btn:SetScript("OnMouseDown",OnClick_FullSK);
+	-- SKC_UIMain[decision_border_key].SK_Btn:Disable();
+	-- Roll
+	SKC_UIMain[decision_border_key].Roll_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[decision_border_key].Roll_Btn:SetPoint("TOPLEFT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",40,-5);
+	SKC_UIMain[decision_border_key].Roll_Btn:SetSize(65,40);
+	SKC_UIMain[decision_border_key].Roll_Btn:SetText("Roll");
+	SKC_UIMain[decision_border_key].Roll_Btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[decision_border_key].Roll_Btn:SetHighlightFontObject("GameFontHighlight");
+	-- SKC_UIMain[decision_border_key].Roll_Btn:SetScript("OnMouseDown",OnClick_FullSK);
+	SKC_UIMain[decision_border_key].Roll_Btn:Disable();
 	
 	
 	
@@ -810,4 +902,4 @@ AddonLoaded:SetScript("OnEvent", SKC_Main.AddonLoad);
 
 local LootOpened = CreateFrame("Frame");
 LootOpened:RegisterEvent("OPEN_MASTER_LOOT_LIST");
-LootOpened:SetScript("OnEvent", SKC_Main.LootOpened);
+LootOpened:SetScript("OnEvent", SKC_Main.MasterLooter);
