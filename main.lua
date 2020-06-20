@@ -11,6 +11,10 @@ SKC_Main.FilterStates = {
 		DPS = true,
 		Healer = true,
 		Tank = true,
+		Main = true,
+		Alt = true,
+		Active = true,
+		Inactive = true,
 		Druid = true,
 		Hunter = true,
 		Mage = true,
@@ -27,6 +31,7 @@ local SKC_UIMain;
 --------------------------------------
 -- DEFAULTS (usually a database!)
 --------------------------------------
+local OnClick_EditDropDownOption;
 local DEFAULTS = {
 	THEME = {
 		r = 0, 
@@ -95,8 +100,8 @@ local DEFAULTS = {
 	SK_TAB_TOP_OFFST = -60,
 	SK_TAB_TITLE_CARD_WIDTH = 80,
 	SK_TAB_TITLE_CARD_HEIGHT = 40,
-	SK_FILTER_WIDTH = 260,
-	SK_FILTER_HEIGHT = 150,
+	SK_FILTER_WIDTH = 250,
+	SK_FILTER_HEIGHT = 180,
 	SK_LIST_WIDTH = 175,
 	SK_LIST_HEIGHT = 325,
 	SK_LIST_BORDER_OFFST = 15,
@@ -105,6 +110,48 @@ local DEFAULTS = {
 	SK_CARD_SPACING = 6,
 	SK_CARD_WIDTH = 100,
 	SK_CARD_HEIGHT = 20,
+	DD_OPTIONS = {
+		dps = {
+			text = "DPS",
+			func = function (self) OnClick_EditDropDownOption("raid_role","DPS") end,
+		},
+		healer = {
+			text = "Healer",
+			func = function (self) OnClick_EditDropDownOption("raid_role","Healer") end,
+		},
+		tank = {
+			text = "Tank",
+			func = function (self) OnClick_EditDropDownOption("raid_role","Tank") end,
+		},
+		de = {
+			text = "DE",
+			func = function (self) OnClick_EditDropDownOption("guild_role","DE") end,
+		},
+		gb = {
+			text = "GB",
+			func = function (self) OnClick_EditDropDownOption("guild_role","GB") end,
+		},
+		none = {
+			text = "None",
+			func = function (self) OnClick_EditDropDownOption("guild_role","None") end,
+		},
+		main = {
+			text = "Main",
+			func = function (self) OnClick_EditDropDownOption("status","Main") end,
+		},
+		alt = {
+			text = "Alt",
+			func = function (self) OnClick_EditDropDownOption("status","Alt") end,
+		},
+		active = {
+			text = "Active",
+			func = function (self) OnClick_EditDropDownOption("activity","Active") end,
+		},
+		inactive = {
+			text = "Inactive",
+			func = function (self) OnClick_EditDropDownOption("activity","Inactive") end,
+		},
+	}
 }
 
 --------------------------------------
@@ -182,7 +229,7 @@ end
 function SK_List:ReturnList()
 	-- Returns list in ordered array
 	local list_out = {};
-	local idx = 0;
+	local idx = 1;
 	local current_name = self.top;
 	-- check data integrity
 	local bot_name = self.bottom;
@@ -200,21 +247,23 @@ end
 
 function SK_List:FullSK(name)
 	-- check if name is in SK list
-	if (self.list[name] == nil) or (#self.list == 0) or (self.list[name] == self.bottom) then
+	if self.list[name] == nil then
 		-- name is not in SK list
-		-- OR list is empty
-		-- OR name is already the bottom of list
-		-- do nothing
-		return;
+		DEFAULT_CHAT_FRAME:AddMessage("Rejected");
+		return false;
+	elseif name == self.bottom then
+		return true;
 	end
 	-- make current above name point to below name and vice versa
 	local above_tmp = self.list[name].above;
 	local below_tmp = self.list[name].below;
 	self.list[above_tmp].below = below_tmp;
 	self.list[below_tmp].above = above_tmp;
+	-- remove character from list (will be recreated in PushBack)
+	self.list[name] = nil;
 	-- push to bottom
-	self.list:PushBack(name);
-	return;
+	self:PushBack(name);
+	return true;
 end
 
 -- CharacterData class
@@ -236,10 +285,10 @@ function CharacterData:new(character_data,name,class)
 		setmetatable(obj,CharacterData);
 		obj.name = name or nil;
 		obj.class = class or nil;
-		obj.raid_role = "DPS";
-		obj.guild_role = nil;
-		obj.status = "Main";
-		obj.activity = "Active";
+		obj.raid_role = DEFAULTS.DD_OPTIONS.dps.text;
+		obj.guild_role = DEFAULTS.DD_OPTIONS.none.text;
+		obj.status = DEFAULTS.DD_OPTIONS.main.text;
+		obj.activity = DEFAULTS.DD_OPTIONS.active.text;
 		obj.loot_history = {};
 		return obj;
 	else
@@ -279,15 +328,139 @@ function GuildData:Add(name,class)
 end
 
 --------------------------------------
+-- local functions
+--------------------------------------
+local function OnMouseWheel_ScrollFrame(self,delta)
+    -- delta: 1 scroll up, -1 scroll down
+	-- value at top is 0, value at bottom is size of child
+	-- scroll so that one wheel is 3 SK cards
+	local scroll_range = self:GetVerticalScrollRange();
+	local inc = 3 * (DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING)
+    local newValue = math.min( scroll_range , math.max( 0 , self:GetVerticalScroll() - (inc*delta) ) );
+    self:SetVerticalScroll(newValue);
+    return
+end
+
+local function OnCheck_FilterFunction (self, button)
+	SKC_Main.FilterStates["SK1"][self.text:GetText()] = self:GetChecked();
+	SKC_Main:UpdateSK("SK1");
+	return;
+end
+
+local function Refresh_Details(name)
+	local data = SKC_DB.GuildData[name];
+	SKC_UIMain["Details_border"]["Name"].Data:SetText(data.name);
+	SKC_UIMain["Details_border"]["Class"].Data:SetText(data.class);
+	SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(DEFAULTS.CLASS_COLORS[data.class].r,DEFAULTS.CLASS_COLORS[data.class].g,DEFAULTS.CLASS_COLORS[data.class].b,1.0);
+	SKC_UIMain["Details_border"]["Raid Role"].Data:SetText(data.raid_role);
+	SKC_UIMain["Details_border"]["Guild Role"].Data:SetText(data.guild_role);
+	SKC_UIMain["Details_border"]["Status"].Data:SetText(data.status);
+	SKC_UIMain["Details_border"]["Activity"].Data:SetText(data.activity);
+end
+
+local function OnClick_SK_Card(self, button)
+	if button=='LeftButton' and self.Text:GetText() ~= nill then 
+		-- Populate data
+		Refresh_Details(self.Text:GetText());
+		-- Enable edit buttons
+		SKC_UIMain["Details_border"]["Raid Role"].Btn:Enable();
+		SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
+		SKC_UIMain["Details_border"]["Status"].Btn:Enable();
+		SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
+		SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
+		SKC_UIMain["Details_border"].FullSK_Btn:Enable();
+	end
+end
+
+local function OnLoad_EditDropDown_RaidRole(self)
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.dps);
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.healer);
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.tank);
+	return;
+end
+
+local function OnLoad_EditDropDown_GuildRole(self)
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.de);
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.gb);
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.none);
+	return;
+end
+
+local function OnLoad_EditDropDown_Status(self)
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.alt);
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.main);
+	return;
+end
+
+local function OnLoad_EditDropDown_Activity(self)
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.active);
+	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.inactive);
+	return;
+end
+
+function OnClick_EditDropDownOption(field,value)
+	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+	-- Edit GuildData
+	SKC_DB.GuildData[name][field] = value;
+	-- Refresh details
+	Refresh_Details(name);
+	-- Reset menu toggle
+	DD_State = 0;
+	return;
+end
+
+local DD_State = 0; -- used to track state of drop down menu
+local function OnClick_EditDetails(self, button)
+	if not self:IsEnabled() then return end
+	-- SKC_UIMain.EditFrame:Show();
+	local ID = self:GetID();
+	-- Populate drop down options
+	local field;
+	if ID == 3 then
+		field = "Raid Role";
+		if DD_State ~= ID then UIDropDownMenu_Initialize(SKC_UIMain["Details_border"][field].DD,OnLoad_EditDropDown_RaidRole) end
+	elseif ID == 4 then
+		-- Guild Role
+		field = "Guild Role";
+		if DD_State ~= ID then UIDropDownMenu_Initialize(SKC_UIMain["Details_border"][field].DD,OnLoad_EditDropDown_GuildRole) end
+	elseif ID == 5 then
+		-- Status
+		field = "Status";
+		if DD_State ~= ID then UIDropDownMenu_Initialize(SKC_UIMain["Details_border"][field].DD,OnLoad_EditDropDown_Status) end
+	elseif ID == 6 then
+		-- Activity
+		field = "Activity";
+		if DD_State ~= ID then UIDropDownMenu_Initialize(SKC_UIMain["Details_border"][field].DD,OnLoad_EditDropDown_Activity) end
+	else
+		return;
+	end
+	ToggleDropDownMenu(1, nil, SKC_UIMain["Details_border"][field].DD, SKC_UIMain["Details_border"][field].DD, 0, 0);
+	DD_State = ID;
+	return;
+end
+
+function OnClick_FullSK(self)
+	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+	-- Execute full SK
+	local sk_list = "SK1";
+	DEFAULT_CHAT_FRAME:AddMessage("Full SK: "..name);
+	local success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
+	-- Refresh SK List
+	SKC_Main:UpdateSK(sk_list);
+	return;
+end
+
+--------------------------------------
 -- SKC_Main functions
 --------------------------------------
 function SKC_Main:AddonLoad()
 	SKC_Main.AddonLoaded = true;
+	local hard_reset = true;
 	-- Initialize 
-	if SKC_DB == nil then 
+	if SKC_DB == nil or hard_reset then 
 		SKC_DB = {};
 	end
-	if SKC_DB.SK_Lists == nil then 
+	if SKC_DB.SK_Lists == nil or hard_reset then 
 		SKC_DB.SK_Lists = {};
 	end
 	-- Initialize or refresh metatables
@@ -314,41 +487,11 @@ function SKC_Main:FetchGuildInfo()
 				-- new player, add to DB and SK list
 				SKC_DB.GuildData:Add(name,class);
 				SKC_DB.SK_Lists["SK1"]:PushBack(name);
-				-- local above = SKC_DB.SK_Lists["SK1"].list[name].above;
-				-- local below = SKC_DB.SK_Lists["SK1"].list[name].below;
-				-- DEFAULT_CHAT_FRAME:AddMessage("SKC: ["..cnt.."] "..name.." added to database!");
-				-- if above == nil then
-				-- 	DEFAULT_CHAT_FRAME:AddMessage("    TOP!")
-				-- else
-				-- 	DEFAULT_CHAT_FRAME:AddMessage("    Below: "..above);
-				-- end
-				-- if below == nil then
-				-- 	DEFAULT_CHAT_FRAME:AddMessage("    BOTTOM!")
-				-- else
-				-- 	DEFAULT_CHAT_FRAME:AddMessage("    Above: "..below);
-				-- end
+				DEFAULT_CHAT_FRAME:AddMessage("SKC: ["..cnt.."] "..name.." added to database!");
 			end
 		end
 	end
 	SKC_DB.Count60 = cnt;
-end
-
-local function SK_Card_MouseDown(self, button)
-	if button=='LeftButton' and self.Text:GetText() ~= nill then 
-		local data = SKC_DB.GuildData[self.Text:GetText()];
-		SKC_UIMain["Details_border"]["Name"].Text:SetText(data.name);
-		SKC_UIMain["Details_border"]["Class"].Text:SetText(data.class);
-		SKC_UIMain["Details_border"]["Raid Role"].Text:SetText(data.raid_role);
-		SKC_UIMain["Details_border"]["Guild Role"].Text:SetText(data.guild_role);
-		SKC_UIMain["Details_border"]["Status"].Text:SetText(data.status);
-		SKC_UIMain["Details_border"]["Activity"].Text:SetText(data.activity);
-	end
-end
-
-local function FilterClickFunction(self, button)
-	SKC_Main.FilterStates["SK1"][self.text:GetText()] = self:GetChecked();
-	SKC_Main:UpdateSK("SK1");
-	return;
 end
 
 function SKC_Main:UpdateSK(sk_list)
@@ -367,8 +510,13 @@ function SKC_Main:UpdateSK(sk_list)
 	for key,value in ipairs(print_order) do
 		local class_tmp = SKC_DB.GuildData[value].class;
 		local raid_role_tmp = SKC_DB.GuildData[value].raid_role;
+		local status_tmp = SKC_DB.GuildData[value].status;
+		local activity_tmp = SKC_DB.GuildData[value].activity;
 		-- only add cards to list which are not being filtered
-		if SKC_Main.FilterStates["SK1"][class_tmp] and SKC_Main.FilterStates["SK1"][raid_role_tmp] then
+		if SKC_Main.FilterStates["SK1"][class_tmp] and 
+		   SKC_Main.FilterStates["SK1"][raid_role_tmp] and
+		   SKC_Main.FilterStates["SK1"][status_tmp] and
+		   SKC_Main.FilterStates["SK1"][activity_tmp] then
 			-- Add number text
 			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(key)
 			SKC_UIMain[sk_list].NumberFrame[idx]:Show();
@@ -391,32 +539,6 @@ end
 function SKC_Main:GetThemeColor()
 	local c = DEFAULTS.THEME;
 	return c.r, c.g, c.b, c.hex;
-end
-
--- function SKC_Main:CreateButton(point, relativeFrame, relativePoint, yOffset, text)
--- 	local btn = CreateFrame("Button", nil, SKC_UIMain.ScrollFrame, "GameMenuButtonTemplate");
--- 	btn:SetPoint(point, relativeFrame, relativePoint, 0, yOffset);
--- 	btn:SetSize(140, 40);
--- 	btn:SetText(text);
--- 	btn:SetNormalFontObject("GameFontNormalLarge");
--- 	btn:SetHighlightFontObject("GameFontHighlightLarge");
--- 	return btn;
--- end
-
-local function ScrollFrame_OnMouseWheel(self,delta)
-    -- delta: 1 scroll up, -1 scroll down
-	-- value at top is 0, value at bottom is size of child
-	-- scroll so that one wheel is 3 SK cards
-	local scroll_range = self:GetVerticalScrollRange();
-	local inc = 3 * (DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING)
-    local newValue = math.min( scroll_range , math.max( 0 , self:GetVerticalScroll() - (inc*delta) ) );
-    self:SetVerticalScroll(newValue);
-    return
-end
-
-local function ScrollFrame_OnVerticalScroll(self,scroll)
-    self:SetVerticalScroll(scroll);
-    return
 end
 
 function SKC_Main:CreateUIBorder(title,width,height,x_pos,y_pos)
@@ -464,19 +586,22 @@ function SKC_Main:CreateMenu()
 	-- Create filter panel
 	local filter_border_key = SKC_Main:CreateUIBorder("Filters",DEFAULTS.SK_FILTER_WIDTH,DEFAULTS.SK_FILTER_HEIGHT,-250,DEFAULTS.SK_TAB_TOP_OFFST)
 	-- create details fields
-	local filter_roles = {"DPS","Healer","Tank","Druid","Hunter","Mage","Paladin","Priest","Rogue","Shaman","Warlock","Warrior"};
+	local filter_roles = {"DPS","Healer","Tank","Main","Alt","SKIP","Active","Inactive","SKIP","Druid","Hunter","Mage","Paladin","Priest","Rogue","Shaman","Warlock","Warrior"};
 	for idx,value in ipairs(filter_roles) do
-		local row = math.floor((idx - 1) / 3); -- zero based
-		local col = (idx - 1) % 3; -- zero based
-		SKC_UIMain[filter_border_key][value] = CreateFrame("CheckButton", nil, SKC_UIMain[filter_border_key], "UICheckButtonTemplate");
-		SKC_UIMain[filter_border_key][value]:SetChecked(SKC_Main.FilterStates["SK1"][value]);
-		SKC_UIMain[filter_border_key][value]:SetScript("OnClick",FilterClickFunction)
-		SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 15 + 75*col , -15 + -30*row);
-		SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
-		SKC_UIMain[filter_border_key][value].text:SetText(value);
-		if idx > 3 then
-			-- assign class colors
-			SKC_UIMain[filter_border_key][value].text:SetTextColor(DEFAULTS.CLASS_COLORS[value].r,DEFAULTS.CLASS_COLORS[value].g,DEFAULTS.CLASS_COLORS[value].b,1.0);
+		if value ~= "SKIP" then
+			local row = math.floor((idx - 1) / 3); -- zero based
+			local col = (idx - 1) % 3; -- zero based
+			SKC_UIMain[filter_border_key][value] = CreateFrame("CheckButton", nil, SKC_UIMain[filter_border_key], "UICheckButtonTemplate");
+			SKC_UIMain[filter_border_key][value]:SetSize(25,25);
+			SKC_UIMain[filter_border_key][value]:SetChecked(SKC_Main.FilterStates["SK1"][value]);
+			SKC_UIMain[filter_border_key][value]:SetScript("OnClick",OnCheck_FilterFunction)
+			SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
+			SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
+			SKC_UIMain[filter_border_key][value].text:SetText(value);
+			if idx > 9 then
+				-- assign class colors
+				SKC_UIMain[filter_border_key][value].text:SetTextColor(DEFAULTS.CLASS_COLORS[value].r,DEFAULTS.CLASS_COLORS[value].g,DEFAULTS.CLASS_COLORS[value].b,1.0);
+			end
 		end
 	end
 
@@ -492,7 +617,7 @@ function SKC_Main:CreateMenu()
     SKC_UIMain[sk_list].SK_List_SF:SetPoint("TOPLEFT",SKC_UIMain[sk_list],"TOPLEFT",0,-2);
 	SKC_UIMain[sk_list].SK_List_SF:SetPoint("BOTTOMRIGHT",SKC_UIMain[sk_list],"BOTTOMRIGHT",0,2);
 	SKC_UIMain[sk_list].SK_List_SF:SetClipsChildren(true);
-	SKC_UIMain[sk_list].SK_List_SF:SetScript("OnMouseWheel",ScrollFrame_OnMouseWheel);
+	SKC_UIMain[sk_list].SK_List_SF:SetScript("OnMouseWheel",OnMouseWheel_ScrollFrame);
 	SKC_UIMain[sk_list].SK_List_SF.ScrollBar:SetPoint("TOPLEFT",SKC_UIMain[sk_list].SK_List_SF,"TOPRIGHT",-22,-21);
 
 	-- Create scroll child
@@ -524,7 +649,7 @@ function SKC_Main:CreateMenu()
 		SKC_UIMain[sk_list].NameFrame[idx].bg = SKC_UIMain[sk_list].NameFrame[idx]:CreateTexture(nil,"BACKGROUND");
 		SKC_UIMain[sk_list].NameFrame[idx].bg:SetAllPoints(true);
 		-- Bind function for click event
-		SKC_UIMain[sk_list].NameFrame[idx]:SetScript("OnMouseDown",SK_Card_MouseDown);
+		SKC_UIMain[sk_list].NameFrame[idx]:SetScript("OnMouseDown",OnClick_SK_Card);
 	end
 
 	-- Update SK cards
@@ -535,14 +660,54 @@ function SKC_Main:CreateMenu()
 	-- create details fields
 	local details_fields = {"Name","Class","Raid Role","Guild Role","Status","Activity","Loot History"};
 	for idx,value in ipairs(details_fields) do
-		SKC_UIMain[details_border_key][value] = SKC_UIMain[details_border_key]:CreateFontString(nil,"ARTWORK");
-		SKC_UIMain[details_border_key][value]:SetFontObject("GameFontNormal");
-		SKC_UIMain[details_border_key][value]:SetPoint("RIGHT",SKC_UIMain[details_border_key],"TOPLEFT",100,-20*idx-10);
-		SKC_UIMain[details_border_key][value]:SetText(value..":");
-		SKC_UIMain[details_border_key][value].Text = SKC_UIMain[details_border_key]:CreateFontString(nil,"ARTWORK");
-		SKC_UIMain[details_border_key][value].Text:SetFontObject("GameFontHighlight");
-		SKC_UIMain[details_border_key][value].Text:SetPoint("LEFT",SKC_UIMain[details_border_key][value],"RIGHT",5,0);
+		-- fields
+		SKC_UIMain[details_border_key][value] = CreateFrame("Frame",SKC_UIMain[details_border_key])
+		SKC_UIMain[details_border_key][value].Field = SKC_UIMain[details_border_key]:CreateFontString(nil,"ARTWORK");
+		SKC_UIMain[details_border_key][value].Field:SetFontObject("GameFontNormal");
+		SKC_UIMain[details_border_key][value].Field:SetPoint("RIGHT",SKC_UIMain[details_border_key],"TOPLEFT",100,-20*idx-10);
+		SKC_UIMain[details_border_key][value].Field:SetText(value..":");
+		-- data
+		SKC_UIMain[details_border_key][value].Data = SKC_UIMain[details_border_key]:CreateFontString(nil,"ARTWORK");
+		SKC_UIMain[details_border_key][value].Data:SetFontObject("GameFontHighlight");
+		SKC_UIMain[details_border_key][value].Data:SetPoint("LEFT",SKC_UIMain[details_border_key][value].Field,"RIGHT",5,0);
+		if idx > 2 and idx < 7 then
+			-- edit buttons
+			SKC_UIMain[details_border_key][value].Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+			SKC_UIMain[details_border_key][value].Btn:SetID(idx);
+			SKC_UIMain[details_border_key][value].Btn:SetPoint("LEFT",SKC_UIMain[details_border_key][value].Field,"RIGHT",55,0);
+			SKC_UIMain[details_border_key][value].Btn:SetSize(40, 20);
+			SKC_UIMain[details_border_key][value].Btn:SetText("Edit");
+			SKC_UIMain[details_border_key][value].Btn:SetNormalFontObject("GameFontNormalSmall");
+			SKC_UIMain[details_border_key][value].Btn:SetHighlightFontObject("GameFontHighlightSmall");
+			SKC_UIMain[details_border_key][value].Btn:SetScript("OnMouseDown",OnClick_EditDetails);
+			SKC_UIMain[details_border_key][value].Btn:Disable();
+			-- associated drop down menu
+			SKC_UIMain[details_border_key][value].DD = CreateFrame("Frame",nil, SKC_UIMain, "UIDropDownMenuTemplate");
+			UIDropDownMenu_SetAnchor(SKC_UIMain[details_border_key][value].DD, 0, 0, "TOPLEFT", SKC_UIMain[details_border_key][value].Btn, "TOPRIGHT");
+		end
 	end
+	-- Initialize with instructions
+	SKC_UIMain[details_border_key]["Name"].Data:SetText("Click on a character.")
+
+	-- Add SK buttons
+	-- single SK
+	SKC_UIMain[details_border_key].SingleSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetPoint("BOTTOMRIGHT",SKC_UIMain[details_border_key],"BOTTOM",-5,15);
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetSize(100, 40);
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetText("Single SK");
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetScript("OnMouseDown",TODO);
+	SKC_UIMain[details_border_key].SingleSK_Btn:Disable();
+	-- full SK
+	SKC_UIMain[details_border_key].FullSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[details_border_key].FullSK_Btn:SetPoint("BOTTOMLEFT",SKC_UIMain[details_border_key],"BOTTOM",5,15);
+	SKC_UIMain[details_border_key].FullSK_Btn:SetSize(100, 40);
+	SKC_UIMain[details_border_key].FullSK_Btn:SetText("Full SK");
+	SKC_UIMain[details_border_key].FullSK_Btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[details_border_key].FullSK_Btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[details_border_key].FullSK_Btn:SetScript("OnMouseDown",OnClick_FullSK);
+	SKC_UIMain[details_border_key].FullSK_Btn:Disable();
 	
 	
 	
