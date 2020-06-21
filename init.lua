@@ -67,15 +67,15 @@ local _, core = ...; -- Namespace
 core.commands = {
 	["help"] = function()
 		print(" ");
-    core:Print("List of slash commands:")
-    core:Print("|cff00cc66/skc|r - shows SK lists");
-		core:Print("|cff00cc66/skc help|r - shows help info");
+    core.SKC_Main:Print("NORMAL","List of slash commands:")
+    core.SKC_Main:Print("NORMAL","|cff00cc66/skc|r - shows SK lists");
+		core.SKC_Main:Print("NORMAL","|cff00cc66/skc help|r - shows help info");
 		print(" ");
 	end,
 	
 	-- ["example"] = {
 	-- 	["test"] = function(...)
-	-- 		core:Print("My Value:", tostringall(...));
+	-- 		core.SKC_Main:Print("NORMAL","My Value:", tostringall(...));
 	-- 	end
 	-- }
 };
@@ -117,12 +117,6 @@ local function HandleSlashCommands(str)
   return
 end
 
-function core:Print(...)
-    local hex = select(4, self.SKC_Main:GetThemeColor());
-    local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");	
-    DEFAULT_CHAT_FRAME:AddMessage(string.join(" ", prefix, ...));
-end
-
 -- WARNING: self automatically becomes events frame!
 function core:init(event, name)
 	if (name ~= "SKC") then return end 
@@ -141,15 +135,20 @@ function core:init(event, name)
 	SLASH_FRAMESTK1 = "/fs"; -- new slash command for showing framestack tool
 	SlashCmdList.FRAMESTK = function()
 		LoadAddOn("Blizzard_DebugTools");
-		FrameStackTooltip_Toggle();
+		FrameStackTooltip_Toggle(false);
 	end
 
 	SLASH_SKC1 = "/skc";
   SlashCmdList.SKC = HandleSlashCommands;
 	
-  core:Print("Welcome back", UnitName("player").."!");
+  core.SKC_Main:Print("NORMAL","Welcome back", UnitName("player").."!");
 end
 
 local events = CreateFrame("Frame");
 events:RegisterEvent("ADDON_LOADED");
 events:SetScript("OnEvent", core.init);
+
+-- Register addon message prefixs
+C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.DISTRIBUTION_CHANNEL);
+C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.DECISION_CHANNEL);
+C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.SYNC_CHANNEL);

@@ -8,6 +8,15 @@ local SKC_Main = core.SKC_Main; -- assignment by reference in lua, ugh
 local SKC_UIMain;
 
 SKC_Main.VarsLoaded = false;
+SKC_Main.DISTRIBUTION_CHANNEL = "xBPE9,-Fjbc+A#rm";
+SKC_Main.SYNC_CHANNEL = "&95n%nR2!&;QZJSh";
+SKC_Main.DECISION_CHANNEL = "ksg(AkE.*/@&+`8Q";
+SKC_Main.RARITY_THRESHOLD = 2; -- greens
+SKC_Main.LootDecision = nil;
+SKC_Main.MasterLooter = nil;
+SKC_Main.SK_Item = nil;
+SKC_Main.SK_MessagesSent = 0;
+SKC_Main.SK_MessagesReceived = 0;
 SKC_Main.FilterStates = {
 	SK1 = {
 		DPS = true,
@@ -33,12 +42,20 @@ SKC_Main.FilterStates = {
 --------------------------------------
 local OnClick_EditDropDownOption;
 local DEFAULTS = {
-	THEME = {
-		r = 0, 
-		g = 0.8, -- 204/255
-		b = 1,
-		hex = "00ccff"
+	THEME = { 
+		NORMAL = {r = 0, g = 0.8, b = 1, hex = "00ccff"},
+		WARN = {r = 1, g = 0.8, b = 0, hex = "ffcc00"},
+		ERROR = {r = 1, g = 0.2, b = 0, hex = "ff3300"},
+		ML = {r = 1, g = 0, b = 1, hex = "ff00ff"},
 	},
+	STATUS_BAR_COLOR = {0.0,0.6,0.0},
+	LOOT_DECISIONS = {
+		PASS = "PASS",
+		SK = "SK",
+		ROLL = "ROLL",
+	},
+	LOOT_DECISION_TIME_MAX = 30,
+	LOOT_DECISION_TIME_STEP = 1,
 	CLASS_COLORS = {
 		Druid = {
 			r = 1.0,
@@ -294,6 +311,7 @@ function CharacterData:new(character_data,name,class)
 		obj.status = DEFAULTS.DD_OPTIONS.main.text;
 		obj.activity = DEFAULTS.DD_OPTIONS.active.text;
 		obj.loot_history = {};
+		obj.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS;
 		return obj;
 	else
 		-- set metatable of existing table
@@ -328,6 +346,11 @@ end
 
 function GuildData:Add(name,class)
 	self[name] = CharacterData:new(nil,name,class);
+	return;
+end
+
+function GuildData:ResetLootDecisions()
+	for _,value in pairs(self) do value.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS end
 	return;
 end
 
@@ -490,11 +513,208 @@ local function GetScrollMax()
 	return((SKC_DB.UnFilteredCnt)*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING));
 end
 
+local function SetSKItem()
+	-- https://wow.gamepedia.com/ItemMixin
+	-- local itemID = 19395; -- Rejuv
+	-- Need to wrap in callback function to wait for item data to load
+	local item = Item:CreateFromItemLink(SKC_Main.SK_Item)
+	item:ContinueOnItemLoad(function()
+		-- item:GetItemLink();
+		local name, link, quality, iLevel, reqLevel, class, subclass, maxStack, equipSlot, texture, vendorPrice = GetItemInfo(SKC_Main.SK_Item);
+		-- Set texture icon and link
+		local decision_border_key = "Decision_border";
+		SKC_UIMain[decision_border_key].ItemTexture:SetTexture(texture);
+		SKC_UIMain[decision_border_key].ItemLink:SetText(link);
+	end)
+end
+
+local function SendLootDecision()
+	C_ChatInfo.SendAddonMessage(SKC_Main.DECISION_CHANNEL,SKC_Main.LootDecision,"WHISPER",SKC_Main.MasterLooter);
+end
+
+local function InitTimerBarValue()
+	SKC_UIMain["Decision_border"].TimerBar:SetValue(0);
+	SKC_UIMain["Decision_border"].TimerText:SetText(DEFAULTS.LOOT_DECISION_TIME_MAX);
+end
+
+local function TimerBarHandler()
+	local time_elapsed = SKC_UIMain["Decision_border"].TimerBar:GetValue() + DEFAULTS.LOOT_DECISION_TIME_STEP;
+
+	-- updated timer bar
+	SKC_UIMain["Decision_border"].TimerBar:SetValue(time_elapsed);
+	SKC_UIMain["Decision_border"].TimerText:SetText(DEFAULTS.LOOT_DECISION_TIME_MAX - time_elapsed);
+
+	if time_elapsed >= DEFAULTS.LOOT_DECISION_TIME_MAX then
+		-- out of time
+		-- send loot response
+		SKC_Main:Print("WARN","Time expired. You PASS on "..SKC_Main.SK_Item);
+		SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.PASS;
+	end
+
+	return;
+end
+
+local LootTimer = nil;
+local function StartLootTimer()
+	InitTimerBarValue();
+	if LootTimer ~= nil and not LootTimer:IsCancelled() then LootTimer:Cancel() end
+	-- start new timer
+	LootTimer = C_Timer.NewTicker(DEFAULTS.LOOT_DECISION_TIME_STEP, TimerBarHandler, DEFAULTS.LOOT_DECISION_TIME_MAX/DEFAULTS.LOOT_DECISION_TIME_STEP);
+	return;
+end
+
+local function StripRealmName(full_name)
+	local name,_ = strsplit("-",full_name,2);
+	return(name);
+end
+
+local function OnClick_PASS(self,button)
+	if self:IsEnabled() then
+		SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.PASS;
+		LootTimer:Cancel()
+		SendLootDecision();
+	end
+	return;
+end
+
+local function OnClick_SK(self,button)
+	if self:IsEnabled() then
+		SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.SK;
+		LootTimer:Cancel()
+		SendLootDecision();
+	end
+	return;
+end
+
+local function OnClick_ROLL(self,button)
+	if self:IsEnabled() then
+		SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.ROLL;
+		LootTimer:Cancel()
+		SendLootDecision();
+	end
+	return;
+end
+
 --------------------------------------
 -- SKC_Main functions
 --------------------------------------
+function SKC_Main:Toggle(force_show)
+	local menu = SKC_UIMain or SKC_Main:CreateMenu();
+	menu:SetShown(force_show or not menu:IsShown());
+end
+
+function SKC_Main:GetThemeColor(type)
+	local c = DEFAULTS.THEME[type];
+	return c.r, c.g, c.b, c.hex;
+end
+
+function SKC_Main:Print(type,...)
+    local hex = select(4, SKC_Main:GetThemeColor(type));
+	local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");
+    DEFAULT_CHAT_FRAME:AddMessage(string.join(" ", prefix, ...));
+end
+
+function SKC_Main:StartLootDecision()
+	SKC_Main:Print("ML","Would you like to SK for "..SKC_Main.SK_Item.."?");
+	SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.PASS;
+	-- Show UI
+	SKC_Main:Toggle(true);
+	-- Enable buttons
+	SKC_UIMain["Decision_border"].Pass_Btn:Enable();
+	SKC_UIMain["Decision_border"].SK_Btn:Enable();
+	-- Set item
+	SetSKItem();
+	-- Initiate timer
+	StartLootTimer();
+	return;
+end
+
+function SKC_Main:AddonMessageRead(self,prefix,msg,channel,sender)
+	-- DEFAULT_CHAT_FRAME:AddMessage("prefix: "..prefix);
+	-- DEFAULT_CHAT_FRAME:AddMessage("message: "..msg);
+	-- DEFAULT_CHAT_FRAME:AddMessage("channel: "..channel);
+	-- DEFAULT_CHAT_FRAME:AddMessage("sender: "..sender);
+	if prefix == SKC_Main.SYNC_CHANNEL then
+		DEFAULT_CHAT_FRAME:AddMessage("We should: "..msg);
+	elseif prefix == SKC_Main.DISTRIBUTION_CHANNEL then
+		--[[ 
+			Listening: Everyone
+		 	Talking: ML
+		 --]]
+		-- save master looter
+		SKC_Main.MasterLooter = StripRealmName(sender);
+		-- save item
+		SKC_Main.SK_Item = msg;
+		-- initiate loot decision
+		SKC_Main:StartLootDecision();
+	elseif prefix == SKC_Main.DECISION_CHANNEL then
+		--[[ 
+			Listening: ML
+		 	Talking: Everyone
+		 --]]
+		SKC_Main:Print("NORMAL",StripRealmName(sender).." wants to "..msg..".");
+		-- check if all messages received
+		SKC_Main.SK_MessagesReceived = SKC_Main.SK_MessagesReceived + 1;
+		if SKC_Main.SK_MessagesReceived >= SKC_Main.SK_MessagesSent then
+			-- Check if anyone SKd!
+			-- If no one SKd, initiate Rolls requests
+			-- If roll request started, take highest roll
+			-- If no one
+		end
+	end
+	return;
+end
+
 function SKC_Main:MasterLooter()
+	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
 	if not IsMasterLooter() then return end
+	-- Reset guild loot decisions
+	SKC_DB.GuildData:ResetLootDecisions();
+	-- Reset message received count
+	SKC_Main.SK_MessagesReceived = 0;
+	-- Determine item to start distribution event
+	-- Scan all items
+	for i_loot = 1, GetNumLootItems() do
+		-- get item data
+		local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
+		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot)
+		-- Only perform SK for items of rarity threshold or higher
+		if lootType == 1 and lootRarity >= SKC_Main.RARITY_THRESHOLD then
+			-- Valid item
+			local lootLink = GetLootSlotLink(i_loot);
+			SKC_Main:Print("NORMAL","Distributing "..lootLink);
+			-- determine valid characters and send message to initiate SK
+			SKC_Main.SK_MessagesSent = 0;
+			for i_char = 1,40 do
+				local char_name = GetMasterLootCandidate(i_loot,i_char)
+				if char_name ~= nil then
+					SKC_Main.SK_MessagesSent = SKC_Main.SK_MessagesSent + 1;
+					C_ChatInfo.SendAddonMessage(SKC_Main.DISTRIBUTION_CHANNEL,lootLink,"WHISPER",char_name);
+				 end
+			end
+		end
+	end
+
+	-- Determine who is elligible to receive loot
+
+	-- Send messages to them to initiate SK
+
+	-- Start timer
+
+	-- Confirm they got the message / have the addon
+
+	-- Wait for responses
+
+	-- Determine who receives loot
+
+	-- Allocate loot
+
+	-- end
+	-- CloseLoot();
+
+
+	-- Test addon messages
+	-- C_ChatInfo.SendAddonMessage(SKC_Main.SYNC_CHANNEL,"Sync!","GUILD");
 	--[[ LOOT TESTING
 	GetItemInfo
 	http://wowprogramming.com/docs/api/GetItemInfo.html
@@ -502,24 +722,23 @@ function SKC_Main:MasterLooter()
 	-- DEFAULT_CHAT_FRAME:AddMessage("GetLootThreshold(): "..GetLootThreshold())
 	-- DEFAULT_CHAT_FRAME:AddMessage("GetNumLootItems(): "..GetNumLootItems())
 	-- DEFAULT_CHAT_FRAME:AddMessage("GetNumGroupMembers(): "..GetNumGroupMembers())
-	local itemLinkText
-	for i_loot = 1, GetNumLootItems() do
-		local loot_type = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
-		local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
-		local lootLink = GetLootSlotLink(i_loot);
-		local i_prty = 1;
-		-- DEFAULT_CHAT_FRAME:AddMessage("i_loot: "..i_loot);
-		if loot_type == 1 then
-			if GetMasterLootCandidate(i_loot,i_prty) == UnitName("player") and lootQuality >= 2 then
-				GiveMasterLoot(i_loot, i_prty);
-				DEFAULT_CHAT_FRAME:AddMessage("Master Looter gave "..lootLink.." to: "..UnitName("player"));
-				DEFAULT_CHAT_FRAME:AddMessage("lootName: "..lootName);
-				DEFAULT_CHAT_FRAME:AddMessage("lootIcon: "..lootIcon);
-				DEFAULT_CHAT_FRAME:AddMessage("lootQuantity: "..lootQuantity);
-				DEFAULT_CHAT_FRAME:AddMessage("lootQuality: "..lootQuality);
-			end
-		end
-	end
+	-- for i_loot = 1, GetNumLootItems() do
+	-- 	local loot_type = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
+	-- 	local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
+	-- 	local lootLink = GetLootSlotLink(i_loot);
+	-- 	local i_prty = 1;
+	-- 	-- DEFAULT_CHAT_FRAME:AddMessage("i_loot: "..i_loot);
+	-- 	if loot_type == 1 then
+	-- 		if GetMasterLootCandidate(i_loot,i_prty) == UnitName("player") and lootQuality >= 2 then
+	-- 			GiveMasterLoot(i_loot, i_prty);
+	-- 			DEFAULT_CHAT_FRAME:AddMessage("Master Looter gave "..lootLink.." to: "..UnitName("player"));
+	-- 			DEFAULT_CHAT_FRAME:AddMessage("lootName: "..lootName);
+	-- 			DEFAULT_CHAT_FRAME:AddMessage("lootIcon: "..lootIcon);
+	-- 			DEFAULT_CHAT_FRAME:AddMessage("lootQuantity: "..lootQuantity);
+	-- 			DEFAULT_CHAT_FRAME:AddMessage("lootQuality: "..lootQuality);
+	-- 		end
+	-- 	end
+	-- end
 	-- for ci = 1, GetNumGroupMembers() do
 	-- 	if (GetMasterLootCandidate(ci) == UnitName("player")) then
 	-- 	 for li = 1, GetNumLootItems() do
@@ -528,7 +747,7 @@ function SKC_Main:MasterLooter()
 	-- 	end
 	--    end
 	-- GiveMasterLoot()
-	CloseLoot();
+	
 	return;
 end
 function SKC_Main:AddonLoad()
@@ -550,7 +769,7 @@ end
 function SKC_Main:FetchGuildInfo()
 	SKC_DB.InGuild = IsInGuild();
 	if not SKC_DB.InGuild then
-		DEFAULT_CHAT_FRAME:AddMessage("SKC Error: You are not in a guild!");
+		SKC_Main:Print("ERROR","You are not in a guild.")
 	end
 	SKC_DB.NumGuildMembers = GetNumGuildMembers()
 	-- Determine # of level 60s and add any new 60s
@@ -561,7 +780,7 @@ function SKC_Main:FetchGuildInfo()
 		achievementPoints, achievementRank, isMobile, isSoREligible, standingID = GetGuildRosterInfo(idx);
 		if level == 60 then
 			cnt = cnt + 1;
-			local name,_ = strsplit("-",full_name,2);
+			local name = StripRealmName(full_name);
 			if SKC_DB.GuildData[name] == nil then
 				-- new player, add to DB and SK list
 				SKC_DB.GuildData:Add(name,class);
@@ -612,16 +831,6 @@ function SKC_Main:UpdateSK(sk_list)
 	SKC_DB.UnFilteredCnt = idx;
 	-- update scroll length
 	SKC_UIMain[sk_list].SK_List_SF:GetScrollChild():SetSize(DEFAULTS.SK_LIST_WIDTH,GetScrollMax());
-end
-
-function SKC_Main:Toggle()
-	local menu = SKC_UIMain or SKC_Main:CreateMenu();
-	menu:SetShown(not menu:IsShown());
-end
-
-function SKC_Main:GetThemeColor()
-	local c = DEFAULTS.THEME;
-	return c.r, c.g, c.b, c.hex;
 end
 
 function SKC_Main:CreateUIBorder(title,width,height,x_pos,y_pos)
@@ -793,17 +1002,11 @@ function SKC_Main:CreateMenu()
 
 	-- Decision region
 	local decision_border_key = SKC_Main:CreateUIBorder("Decision",DEFAULTS.DECISION_WIDTH,DEFAULTS.DECISION_HEIGHT,-250,DEFAULTS.SK_TAB_TOP_OFFST-DEFAULTS.SK_FILTER_HEIGHT-20);
-	-- Test
-	-- https://wow.gamepedia.com/ItemMixin
-	local itemID = 19395;
-	local item = Item:CreateFromItemID(itemID);
-	item:ContinueOnItemLoad(function() item:GetItemLink() end); -- Continue querying database until you get item
-	name, link, quality, iLevel, reqLevel, class, subclass, maxStack, equipSlot, texture, vendorPrice = GetItemInfo(itemID);
+
 	-- set texture / hidden frame for button click
 	SKC_UIMain[decision_border_key].ItemTexture = SKC_UIMain[decision_border_key]:CreateTexture(nil, "ARTWORK");
 	SKC_UIMain[decision_border_key].ItemTexture:SetSize(DEFAULTS.ITEM_WIDTH,DEFAULTS.ITEM_HEIGHT);
 	SKC_UIMain[decision_border_key].ItemTexture:SetPoint("TOP",SKC_UIMain[decision_border_key],"TOP",0,-45)
-	SKC_UIMain[decision_border_key].ItemTexture:SetTexture(texture);
 	SKC_UIMain[decision_border_key].ItemClickBox = CreateFrame("Frame", nil, SKC_UIMain);
 	SKC_UIMain[decision_border_key].ItemClickBox:SetSize(DEFAULTS.ITEM_WIDTH,DEFAULTS.ITEM_HEIGHT);
 	SKC_UIMain[decision_border_key].ItemClickBox:SetPoint("CENTER",SKC_UIMain[decision_border_key].ItemTexture,"CENTER");
@@ -812,37 +1015,64 @@ function SKC_Main:CreateMenu()
 	SKC_UIMain[decision_border_key].ItemLink = SKC_UIMain[decision_border_key]:CreateFontString(nil,"ARTWORK");
 	SKC_UIMain[decision_border_key].ItemLink:SetFontObject("GameFontNormal");
 	SKC_UIMain[decision_border_key].ItemLink:SetPoint("TOP",SKC_UIMain[decision_border_key],"TOP",0,-25);
-	SKC_UIMain[decision_border_key].ItemLink:SetText(link);
 	SKC_UIMain[decision_border_key]:SetHyperlinksEnabled(true)
 	SKC_UIMain[decision_border_key]:SetScript("OnHyperlinkClick", ChatFrame_OnHyperlinkShow)
 	-- set decision buttons
 	-- Pass
 	SKC_UIMain[decision_border_key].Pass_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
 	SKC_UIMain[decision_border_key].Pass_Btn:SetPoint("TOPRIGHT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",-40,-5);
-	SKC_UIMain[decision_border_key].Pass_Btn:SetSize(65,40);
+	SKC_UIMain[decision_border_key].Pass_Btn:SetSize(65,35);
 	SKC_UIMain[decision_border_key].Pass_Btn:SetText("Pass");
 	SKC_UIMain[decision_border_key].Pass_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[decision_border_key].Pass_Btn:SetHighlightFontObject("GameFontHighlight");
-	-- SKC_UIMain[decision_border_key].Pass_Btn:SetScript("OnMouseDown",OnClick_FullSK);
-	-- SKC_UIMain[decision_border_key].Pass_Btn:Disable();
+	SKC_UIMain[decision_border_key].Pass_Btn:SetScript("OnMouseDown",OnClick_PASS);
+	SKC_UIMain[decision_border_key].Pass_Btn:Disable();
 	-- SK
 	SKC_UIMain[decision_border_key].SK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
 	SKC_UIMain[decision_border_key].SK_Btn:SetPoint("TOP",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",0,-5);
-	SKC_UIMain[decision_border_key].SK_Btn:SetSize(65,40);
+	SKC_UIMain[decision_border_key].SK_Btn:SetSize(65,35);
 	SKC_UIMain[decision_border_key].SK_Btn:SetText("SK");
 	SKC_UIMain[decision_border_key].SK_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[decision_border_key].SK_Btn:SetHighlightFontObject("GameFontHighlight");
-	-- SKC_UIMain[decision_border_key].SK_Btn:SetScript("OnMouseDown",OnClick_FullSK);
-	-- SKC_UIMain[decision_border_key].SK_Btn:Disable();
+	SKC_UIMain[decision_border_key].SK_Btn:SetScript("OnMouseDown",OnClick_SK);
+	SKC_UIMain[decision_border_key].SK_Btn:Disable();
 	-- Roll
 	SKC_UIMain[decision_border_key].Roll_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
 	SKC_UIMain[decision_border_key].Roll_Btn:SetPoint("TOPLEFT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",40,-5);
-	SKC_UIMain[decision_border_key].Roll_Btn:SetSize(65,40);
+	SKC_UIMain[decision_border_key].Roll_Btn:SetSize(65,35);
 	SKC_UIMain[decision_border_key].Roll_Btn:SetText("Roll");
 	SKC_UIMain[decision_border_key].Roll_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[decision_border_key].Roll_Btn:SetHighlightFontObject("GameFontHighlight");
-	-- SKC_UIMain[decision_border_key].Roll_Btn:SetScript("OnMouseDown",OnClick_FullSK);
+	SKC_UIMain[decision_border_key].Roll_Btn:SetScript("OnMouseDown",OnClick_ROLL);
 	SKC_UIMain[decision_border_key].Roll_Btn:Disable();
+	-- timer bar
+	SKC_UIMain[decision_border_key].TimerBorder = CreateFrame("Frame",nil,SKC_UIMain,"TranslucentFrameTemplate");
+	SKC_UIMain[decision_border_key].TimerBorder:SetSize(210,40);
+	SKC_UIMain[decision_border_key].TimerBorder:SetPoint("TOP",SKC_UIMain[decision_border_key].SK_Btn,"BOTTOM",0,-3);
+	SKC_UIMain[decision_border_key].TimerBorder.Bg:SetAlpha(1.0);
+	-- status bar
+	SKC_UIMain[decision_border_key].TimerBar = CreateFrame("StatusBar",nil,SKC_UIMain);
+	SKC_UIMain[decision_border_key].TimerBar:SetSize(186,16);
+	SKC_UIMain[decision_border_key].TimerBar:SetPoint("CENTER",SKC_UIMain[decision_border_key].TimerBorder,"CENTER",0,-1);
+	-- background texture
+	SKC_UIMain[decision_border_key].TimerBar.bg = SKC_UIMain[decision_border_key].TimerBar:CreateTexture(nil,"BACKGROUND",nil,-7);
+	SKC_UIMain[decision_border_key].TimerBar.bg:SetAllPoints(SKC_UIMain[decision_border_key].TimerBar);
+	SKC_UIMain[decision_border_key].TimerBar.bg:SetColorTexture(unpack(DEFAULTS.STATUS_BAR_COLOR));
+	SKC_UIMain[decision_border_key].TimerBar.bg:SetAlpha(0.8);
+	-- bar texture
+	SKC_UIMain[decision_border_key].TimerBar.Bar = SKC_UIMain[decision_border_key].TimerBar:CreateTexture(nil,"BACKGROUND",nil,-6);
+	SKC_UIMain[decision_border_key].TimerBar.Bar:SetColorTexture(0,0,0);
+	SKC_UIMain[decision_border_key].TimerBar.Bar:SetAlpha(1.0);
+	-- set status texture
+	SKC_UIMain[decision_border_key].TimerBar:SetStatusBarTexture(SKC_UIMain[decision_border_key].TimerBar.Bar);
+	-- add text
+	SKC_UIMain[decision_border_key].TimerText = SKC_UIMain[decision_border_key]:CreateFontString(nil,"ARTWORK")
+	SKC_UIMain[decision_border_key].TimerText:SetFontObject("GameFontHighlightSmall")
+	SKC_UIMain[decision_border_key].TimerText:SetPoint("CENTER",SKC_UIMain[decision_border_key].TimerBar,"CENTER")
+	SKC_UIMain[decision_border_key].TimerText:SetText(DEFAULTS.LOOT_DECISION_TIME_MAX)
+	-- values
+	SKC_UIMain[decision_border_key].TimerBar:SetMinMaxValues(0,DEFAULTS.LOOT_DECISION_TIME_MAX);
+	SKC_UIMain[decision_border_key].TimerBar:SetValue(0);
 	
 	
 	
@@ -903,3 +1133,7 @@ AddonLoaded:SetScript("OnEvent", SKC_Main.AddonLoad);
 local LootOpened = CreateFrame("Frame");
 LootOpened:RegisterEvent("OPEN_MASTER_LOOT_LIST");
 LootOpened:SetScript("OnEvent", SKC_Main.MasterLooter);
+
+local AddonMessageReceived = CreateFrame("Frame");
+AddonMessageReceived:RegisterEvent("CHAT_MSG_ADDON");
+AddonMessageReceived:SetScript("OnEvent", SKC_Main.AddonMessageRead);
