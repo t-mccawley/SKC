@@ -46,7 +46,7 @@ local DEFAULTS = {
 		NORMAL = {r = 0, g = 0.8, b = 1, hex = "00ccff"},
 		WARN = {r = 1, g = 0.8, b = 0, hex = "ffcc00"},
 		ERROR = {r = 1, g = 0.2, b = 0, hex = "ff3300"},
-		ML = {r = 1, g = 0, b = 1, hex = "ff00ff"},
+		IMPORTANT = {r = 1, g = 0, b = 1, hex = "ff00ff"},
 	},
 	STATUS_BAR_COLOR = {0.0,0.6,0.0},
 	LOOT_DECISIONS = {
@@ -112,38 +112,26 @@ local DEFAULTS = {
 			hex = "C79C6E"
 		},
 	},
-	MAIN_WIDTH = 820,
+	MAIN_WIDTH = 840,
 	MAIN_HEIGHT = 450,
 	SK_TAB_TOP_OFFST = -60,
 	SK_TAB_TITLE_CARD_WIDTH = 80,
 	SK_TAB_TITLE_CARD_HEIGHT = 40,
-	SK_FILTER_WIDTH = 250,
+	SK_FILTER_WIDTH = 270,
 	SK_FILTER_HEIGHT = 155,
-	DECISION_WIDTH = 250,
+	DECISION_WIDTH = 270,
 	DECISION_HEIGHT = 180,
+	SK_DETAILS_WIDTH = 270,
+	SK_DETAILS_HEIGHT = 355,
 	ITEM_WIDTH = 40,
 	ITEM_HEIGHT = 40,
 	SK_LIST_WIDTH = 175,
 	SK_LIST_HEIGHT = 325,
 	SK_LIST_BORDER_OFFST = 15,
-	SK_DETAILS_WIDTH = 250,
-	SK_DETAILS_HEIGHT = 355,
 	SK_CARD_SPACING = 6,
 	SK_CARD_WIDTH = 100,
 	SK_CARD_HEIGHT = 20,
-	DD_OPTIONS = {
-		dps = {
-			text = "DPS",
-			func = function (self) OnClick_EditDropDownOption("raid_role","DPS") end,
-		},
-		healer = {
-			text = "Healer",
-			func = function (self) OnClick_EditDropDownOption("raid_role","Healer") end,
-		},
-		tank = {
-			text = "Tank",
-			func = function (self) OnClick_EditDropDownOption("raid_role","Tank") end,
-		},
+	DET_OPTIONS = {
 		de = {
 			text = "DE",
 			func = function (self) OnClick_EditDropDownOption("guild_role","DE") end,
@@ -172,16 +160,170 @@ local DEFAULTS = {
 			text = "Inactive",
 			func = function (self) OnClick_EditDropDownOption("activity","Inactive") end,
 		},
-	}
+	},
+	SPECS = {
+		Druid = {
+			Balance = {
+				text = "Balance",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Balance") end,
+			},
+			Resto = {
+				text = "Resto",
+				RR = "Healer",
+				func = function (self) OnClick_EditDropDownOption("spec","Resto") end
+			},
+		},
+		Hunter = {
+			Any = {
+				text = "Any",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+			},
+		},
+		Mage = {
+			Any = {
+				text = "Any",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+			},
+		},
+		Priest = {
+			Holy = {
+				text = "Holy",
+				RR = "Healer",
+				func = function (self) OnClick_EditDropDownOption("spec","Holy") end
+			},
+			Shadow = {
+				text = "Shadow",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Shadow") end
+			},
+		},
+		Rogue = {
+			Any = {
+				text = "Any",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+			},
+			Daggers = {
+				text = "Daggers",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Daggers") end
+			},
+			Swords = {
+				text = "Swords",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Swords") end
+			},
+		},
+		Warlock = {
+			Any = {
+				text = "Any",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+			},
+		},
+		Warrior = {
+			DPS = {
+				text = "DPS",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","DPS") end
+			},
+			Prot = {
+				text = "Prot",
+				RR = "Tank",
+				func = function (self) OnClick_EditDropDownOption("spec","Prot") end
+			},
+		},
+		Shaman = {
+			Ele = {
+				text = "Ele",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Ele") end
+			},
+			Enh = {
+				text = "Enh",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Enh") end
+			},
+			Resto = {
+				text = "Resto",
+				RR = "Healer",
+				func = function (self) OnClick_EditDropDownOption("spec","Resto") end
+			},
+		},
+		Paladin = {
+			Holy = {
+				text = "Holy",
+				RR = "Healer",
+				func = function (self) OnClick_EditDropDownOption("spec","Holy") end
+			},
+			Prot = {
+				text = "Prot",
+				RR = "Tank",
+				func = function (self) OnClick_EditDropDownOption("spec","Prot") end
+			},
+			Ret = {
+				text = "Ret",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Ret") end
+			},
+		},
+	},
 }
-
+-- Add names with spaces
+DEFAULTS.SPECS["Druid"]["Feral Tank"] = {};
+DEFAULTS.SPECS["Druid"]["Feral Tank"].text = "Feral Tank";
+DEFAULTS.SPECS["Druid"]["Feral Tank"].RR = "Tank";
+DEFAULTS.SPECS["Druid"]["Feral Tank"].func = function (self) OnClick_EditDropDownOption("spec","Feral Tank") end
+DEFAULTS.SPECS["Druid"]["Feral DPS"] = {};
+DEFAULTS.SPECS["Druid"]["Feral DPS"].text = "Feral DPS";
+DEFAULTS.SPECS["Druid"]["Feral DPS"].RR = "DPS";
+DEFAULTS.SPECS["Druid"]["Feral DPS"].func = function (self) OnClick_EditDropDownOption("spec","Feral DPS") end
+DEFAULTS.SPECS["Warrior"]["2H Swords"] = {};
+DEFAULTS.SPECS["Warrior"]["2H Swords"].text = "2H Swords";
+DEFAULTS.SPECS["Warrior"]["2H Swords"].RR = "DPS";
+DEFAULTS.SPECS["Warrior"]["2H Swords"].func = function (self) OnClick_EditDropDownOption("spec","2H Swords") end
+DEFAULTS.SPECS["Warrior"]["2H Axes"] = {};
+DEFAULTS.SPECS["Warrior"]["2H Axes"].text = "2H Axes";
+DEFAULTS.SPECS["Warrior"]["2H Axes"].RR = "DPS";
+DEFAULTS.SPECS["Warrior"]["2H Axes"].func = function (self) OnClick_EditDropDownOption("spec","2H Axes") end
+DEFAULTS.SPECS["Warrior"]["2H Maces"] = {};
+DEFAULTS.SPECS["Warrior"]["2H Maces"].text = "2H Maces";
+DEFAULTS.SPECS["Warrior"]["2H Maces"].RR = "DPS";
+DEFAULTS.SPECS["Warrior"]["2H Maces"].func = function (self) OnClick_EditDropDownOption("spec","2H Maces") end
+DEFAULTS.SPECS["Warrior"]["DW Swords"] = {};
+DEFAULTS.SPECS["Warrior"]["DW Swords"].text = "DW Swords";
+DEFAULTS.SPECS["Warrior"]["DW Swords"].RR = "DPS";
+DEFAULTS.SPECS["Warrior"]["DW Swords"].func = function (self) OnClick_EditDropDownOption("spec","DW Swords") end
+DEFAULTS.SPECS["Warrior"]["DW Axes"] = {};
+DEFAULTS.SPECS["Warrior"]["DW Axes"].text = "DW Axes";
+DEFAULTS.SPECS["Warrior"]["DW Axes"].RR = "DPS";
+DEFAULTS.SPECS["Warrior"]["DW Axes"].func = function (self) OnClick_EditDropDownOption("spec","DW Axes") end
+DEFAULTS.SPECS["Warrior"]["DW Maces"] = {};
+DEFAULTS.SPECS["Warrior"]["DW Maces"].text = "DW Maces";
+DEFAULTS.SPECS["Warrior"]["DW Maces"].RR = "DPS";
+DEFAULTS.SPECS["Warrior"]["DW Maces"].func = function (self) OnClick_EditDropDownOption("spec","DW Maces") end
+-- Specify default spec for initialization
+DEFAULTS.SPECS["Druid"].Default = DEFAULTS.SPECS["Druid"].Resto;
+DEFAULTS.SPECS["Hunter"].Default = DEFAULTS.SPECS["Hunter"].Any;
+DEFAULTS.SPECS["Mage"].Default = DEFAULTS.SPECS["Mage"].Any;
+DEFAULTS.SPECS["Priest"].Default = DEFAULTS.SPECS["Priest"].Holy;
+DEFAULTS.SPECS["Rogue"].Default = DEFAULTS.SPECS["Rogue"].Any;
+DEFAULTS.SPECS["Warlock"].Default = DEFAULTS.SPECS["Warlock"].Any;
+DEFAULTS.SPECS["Warrior"].Default = DEFAULTS.SPECS["Warrior"].DPS;
+DEFAULTS.SPECS["Shaman"].Default = DEFAULTS.SPECS["Shaman"].Resto;
+DEFAULTS.SPECS["Paladin"].Default = DEFAULTS.SPECS["Paladin"].Holy;
 --------------------------------------
 -- Classes
 --------------------------------------
 -- SK_Node class
 SK_Node = {
-	above = nil, --player name above this player in ths SK list
-	below = nil, --player name below this player in the SK list
+	above = nil, -- character name above this character in ths SK list
+	below = nil, -- character name below this character in the SK list
+	loot_decision = DEFAULTS.LOOT_DECISIONS.PASS, -- character current loot decision (PASS, SK, ROLL)
+	-- loot_prio = 
 }
 SK_Node.__index = SK_Node;
 
@@ -192,6 +334,7 @@ function SK_Node:new(sk_node,above,below)
 		setmetatable(obj,SK_Node);
 		obj.above = above or nil;
 		obj.below = below or nil;
+		obj.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS;
 		return obj;
 	else
 		-- set metatable of existing table
@@ -227,6 +370,21 @@ function SK_List:new(sk_list)
 	end
 end
 
+function SK_List:CheckIfFucked()
+	-- checks integrity of list
+	if self.list[self.bottom].below ~= nil then
+		SKC_Main:Print("ERROR","Your database is fucked.")
+		return true;
+	end
+	return false;
+end
+
+function SK_List:ResetLootDecisions()
+	-- Resets all player loot decisions to PASS
+	for _,value in pairs(self.list) do value.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS end
+	return;
+end
+
 function SK_List:PushBack(name)
 	-- Push item to back of list (instantiate if doesnt exist)
 	self.list[name] = SK_Node:new(self.list[name],nil,nil);
@@ -249,28 +407,25 @@ end
 
 function SK_List:ReturnList()
 	-- Returns list in ordered array
+	-- check data integrity
+	if self:CheckIfFucked() then return({}) end;
+	-- Scan list in order
 	local list_out = {};
 	local idx = 1;
 	local current_name = self.top;
-	-- check data integrity
-	local bot_name = self.bottom;
-	if self.list[bot_name].below ~= nil then
-		DEFAULT_CHAT_FRAME:AddMessage("SKC: Your database is fucked.")
-		return list_out;
-	end
 	while (current_name ~= nil) do
 		list_out[idx] = current_name;
 		current_name = self.list[current_name].below;
 		idx = idx + 1;
 	end
-	return list_out;
+	return(list_out);
 end
 
 function SK_List:FullSK(name)
 	-- check if name is in SK list
 	if self.list[name] == nil then
 		-- name is not in SK list
-		DEFAULT_CHAT_FRAME:AddMessage("Rejected");
+		SKC_Main:Print("ERROR","Rejected, "..name.." not in SK List")
 		return false;
 	elseif name == self.bottom then
 		return true;
@@ -278,7 +433,7 @@ function SK_List:FullSK(name)
 	-- make current above name point to below name and vice versa
 	local above_tmp = self.list[name].above;
 	local below_tmp = self.list[name].below;
-	self.list[above_tmp].below = below_tmp;
+	self.list[above_tmp].below = below_tmp; --TODO: FIX THIS FOR TOP SK
 	self.list[below_tmp].above = above_tmp;
 	-- remove character from list (will be recreated in PushBack)
 	self.list[name] = nil;
@@ -291,6 +446,7 @@ end
 CharacterData = {
 	name = nil, -- character name
 	class = nil, -- character class
+	spec = nil, -- character specialization
 	raid_role = nil, --DPS, Healer, or Tank
 	guild_role = nil, --Disenchanter, Guild Banker, or None
 	status = nil, -- Main or Alt
@@ -306,12 +462,12 @@ function CharacterData:new(character_data,name,class)
 		setmetatable(obj,CharacterData);
 		obj.name = name or nil;
 		obj.class = class or nil;
-		obj.raid_role = DEFAULTS.DD_OPTIONS.dps.text;
-		obj.guild_role = DEFAULTS.DD_OPTIONS.none.text;
-		obj.status = DEFAULTS.DD_OPTIONS.main.text;
-		obj.activity = DEFAULTS.DD_OPTIONS.active.text;
+		obj.spec = DEFAULTS.SPECS[class].Default.text;
+		obj.raid_role = DEFAULTS.SPECS[class].Default.RR;
+		obj.guild_role = DEFAULTS.DET_OPTIONS.none.text;
+		obj.status = DEFAULTS.DET_OPTIONS.main.text;
+		obj.activity = DEFAULTS.DET_OPTIONS.active.text;
 		obj.loot_history = {};
-		obj.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS;
 		return obj;
 	else
 		-- set metatable of existing table
@@ -349,11 +505,6 @@ function GuildData:Add(name,class)
 	return;
 end
 
-function GuildData:ResetLootDecisions()
-	for _,value in pairs(self) do value.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS end
-	return;
-end
-
 --------------------------------------
 -- local functions
 --------------------------------------
@@ -379,56 +530,50 @@ local function Refresh_Details(name)
 	SKC_UIMain["Details_border"]["Name"].Data:SetText(data.name);
 	SKC_UIMain["Details_border"]["Class"].Data:SetText(data.class);
 	SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(DEFAULTS.CLASS_COLORS[data.class].r,DEFAULTS.CLASS_COLORS[data.class].g,DEFAULTS.CLASS_COLORS[data.class].b,1.0);
+	SKC_UIMain["Details_border"]["Spec"].Data:SetText(data.spec);
 	SKC_UIMain["Details_border"]["Raid Role"].Data:SetText(data.raid_role);
 	SKC_UIMain["Details_border"]["Guild Role"].Data:SetText(data.guild_role);
 	SKC_UIMain["Details_border"]["Status"].Data:SetText(data.status);
 	SKC_UIMain["Details_border"]["Activity"].Data:SetText(data.activity);
 end
 
-local function OnClick_SK_Card(self, button)
-	if button=='LeftButton' and self.Text:GetText() ~= nill then 
-		-- Populate data
-		Refresh_Details(self.Text:GetText());
-		-- Enable edit buttons
-		SKC_UIMain["Details_border"]["Raid Role"].Btn:Enable();
-		SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
-		SKC_UIMain["Details_border"]["Status"].Btn:Enable();
-		SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
-		SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
-		SKC_UIMain["Details_border"].FullSK_Btn:Enable();
+local function OnLoad_EditDropDown_Spec(self)
+	local class = SKC_UIMain["Details_border"]["Class"].Data:GetText();
+	for key,value in pairs(DEFAULTS.SPECS[class]) do
+		if key ~= "Default" then
+			UIDropDownMenu_AddButton(value);
+		end
 	end
-end
-
-local function OnLoad_EditDropDown_RaidRole(self)
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.dps);
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.healer);
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.tank);
 	return;
 end
 
 local function OnLoad_EditDropDown_GuildRole(self)
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.de);
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.gb);
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.none);
+	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.de);
+	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.gb);
+	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.none);
 	return;
 end
 
 local function OnLoad_EditDropDown_Status(self)
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.alt);
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.main);
+	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.alt);
+	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.main);
 	return;
 end
 
 local function OnLoad_EditDropDown_Activity(self)
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.active);
-	UIDropDownMenu_AddButton(DEFAULTS.DD_OPTIONS.inactive);
+	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.active);
+	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.inactive);
 	return;
 end
 
 function OnClick_EditDropDownOption(field,value)
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+	local class = SKC_UIMain["Details_border"]["Class"].Data:GetText();
 	-- Edit GuildData
 	SKC_DB.GuildData[name][field] = value;
+	-- Ensure Raid Role is in sync
+	local spec = SKC_DB.GuildData[name]["spec"];
+	SKC_DB.GuildData[name].raid_role = (DEFAULTS.SPECS[class][spec].RR);
 	-- Refresh details
 	Refresh_Details(name);
 	-- Reset menu toggle
@@ -444,37 +589,88 @@ local function OnClick_EditDetails(self, button)
 	-- Populate drop down options
 	local field;
 	if ID == 3 then
-		field = "Raid Role";
-		if DD_State ~= ID then UIDropDownMenu_Initialize(SKC_UIMain["Details_border"][field].DD,OnLoad_EditDropDown_RaidRole) end
-	elseif ID == 4 then
+		field = "Spec";
+		if DD_State ~= ID then UIDropDownMenu_Initialize(SKC_UIMain["Details_border"][field].DD,OnLoad_EditDropDown_Spec) end
+	elseif ID == 5 then
 		-- Guild Role
 		field = "Guild Role";
 		if DD_State ~= ID then UIDropDownMenu_Initialize(SKC_UIMain["Details_border"][field].DD,OnLoad_EditDropDown_GuildRole) end
-	elseif ID == 5 then
+	elseif ID == 6 then
 		-- Status
 		field = "Status";
 		if DD_State ~= ID then UIDropDownMenu_Initialize(SKC_UIMain["Details_border"][field].DD,OnLoad_EditDropDown_Status) end
-	elseif ID == 6 then
+	elseif ID == 7 then
 		-- Activity
 		field = "Activity";
 		if DD_State ~= ID then UIDropDownMenu_Initialize(SKC_UIMain["Details_border"][field].DD,OnLoad_EditDropDown_Activity) end
 	else
+		SKC_Main:Print("ERROR","Menu not found.");
 		return;
 	end
 	ToggleDropDownMenu(1, nil, SKC_UIMain["Details_border"][field].DD, SKC_UIMain["Details_border"][field].DD, 0, 0);
-	DD_State = ID;
+	if DD_State == ID then
+		DD_State = 0;
+	else
+		DD_State = ID;
+	end
 	return;
 end
 
+local function OnClick_SK_Card(self, button)
+	if button=='LeftButton' and self.Text:GetText() ~= nill and DD_State == 0 then
+		-- Populate data
+		Refresh_Details(self.Text:GetText());
+		-- Enable edit buttons
+		SKC_UIMain["Details_border"]["Spec"].Btn:Enable();
+		SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
+		SKC_UIMain["Details_border"]["Status"].Btn:Enable();
+		SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
+		SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
+		SKC_UIMain["Details_border"].FullSK_Btn:Enable();
+	end
+end
+
 local function OnClick_FullSK(self)
+	-- On click event for full SK of details targeted character
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	-- Execute full SK
 	local sk_list = "SK1";
-	DEFAULT_CHAT_FRAME:AddMessage("Full SK: "..name);
+	SKC_Main:Print("IMPORTANT","Full SK on "..name);
 	local success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
 	-- Refresh SK List
 	SKC_Main:UpdateSK(sk_list);
 	return;
+end
+
+local function OnClick_SingleSK(self)
+	-- On click event for single SK of details targeted character
+	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+	-- Execute single SK
+	local sk_list = "SK1";
+	SKC_Main:Print("IMPORTANT","Single SK on "..name);
+	-- local success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
+	-- Refresh SK List
+	SKC_Main:UpdateSK(sk_list);
+	return;
+end
+
+local SetSK_Flag = false;
+local function OnClick_SetSK(self)
+	-- On click event to set SK position of details targeted character
+	-- Prompt user to click desired position number in list
+	SetSK_Flag = true;
+	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+	SKC_Main:Print("IMPORTANT","Click desired position in SK list for "..name);
+	return;
+end
+
+local function OnClick_NumberCard(self)
+	-- On click event for number card in SK list
+	if SetSK_Flag then
+		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+		-- Refresh SK List
+		SKC_Main:UpdateSK(sk_list);
+	end
 end
 
 local function OnMouseDown_ShowItemTooltip(self, button)
@@ -614,8 +810,9 @@ function SKC_Main:Print(type,...)
     DEFAULT_CHAT_FRAME:AddMessage(string.join(" ", prefix, ...));
 end
 
-function SKC_Main:StartLootDecision()
-	SKC_Main:Print("ML","Would you like to SK for "..SKC_Main.SK_Item.."?");
+function SKC_Main:StartPersonalLootDecision()
+	-- Begins personal loot decision process
+	SKC_Main:Print("IMPORTANT","Would you like to SK for "..SKC_Main.SK_Item.."?");
 	SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.PASS;
 	-- Show UI
 	SKC_Main:Toggle(true);
@@ -627,6 +824,41 @@ function SKC_Main:StartLootDecision()
 	-- Initiate timer
 	StartLootTimer();
 	return;
+end
+
+function SKC_Main:DetermineWinner()
+	-- Determine winner of loot decison
+	-- TODO: Add loot prio logic here (
+	-- 		for SK guys, store top SK char with highest prio (smallest number)
+	--		add roll guys to list
+	--		if SK heap isnt empty, pop top for winner
+	--		if SK heap is empty, do rolls
+	--		if roll list is empty, allocate to GB or DE
+	--		if no DE, allocate to GB
+	-- 		if no GB, give to ML
+	-- Ensure data integrity of list before scanning
+	-- if self:CheckIfFucked() then return(false) end;
+	-- -- scan list in order
+	-- local roll_list = {};
+	-- local name_tmp = self.top;
+	-- local idx = 1;
+	-- while name_tmp ~= nil do
+	-- 	local loot_decision_tmp = self.list[name_tmp].loot_decision;
+	-- 	if loot_decision_tmp == DEFAULTS.LOOT_DECISIONS.SK then
+	-- 		-- If character SK'd, they win!
+	-- 		SKC_Main:Print("IMPORTANT",winner.." won "..SKC_Main.SK_Item.." by SK!");
+	-- 		-- SK character
+	-- 		local sk_success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
+	-- 		-- Give loot!
+	-- 		local awarded_success = SKC_Main:AwardLoot(name);
+	-- 		return(sk_success and awarded_success);
+
+	-- 	elseif loot_decision_tmp == DEFAULTS.LOOT_DECISIONS.ROLL then
+	-- 		-- Add character to roll list
+	-- 		roll_list[idx] = name_tmp;
+	-- 	end
+	-- 	name_tmp = self.list[name_tmp].below;
+	-- end
 end
 
 function SKC_Main:AddonMessageRead(self,prefix,msg,channel,sender)
@@ -645,31 +877,49 @@ function SKC_Main:AddonMessageRead(self,prefix,msg,channel,sender)
 		SKC_Main.MasterLooter = StripRealmName(sender);
 		-- save item
 		SKC_Main.SK_Item = msg;
-		-- initiate loot decision
-		SKC_Main:StartLootDecision();
+		-- initiate personal loot decision
+		SKC_Main:StartPersonalLootDecision();
 	elseif prefix == SKC_Main.DECISION_CHANNEL then
 		--[[ 
 			Listening: ML
 		 	Talking: Everyone
 		 --]]
-		SKC_Main:Print("NORMAL",StripRealmName(sender).." wants to "..msg..".");
-		-- check if all messages received
 		SKC_Main.SK_MessagesReceived = SKC_Main.SK_MessagesReceived + 1;
+		local name = StripRealmName(sender);
+		SKC_Main:Print("NORMAL",name.." wants to "..msg..".");
+		SKC_DB.SK_Lists["SK1"].list[name].loot_decision = msg;
+		-- check if all messages received
 		if SKC_Main.SK_MessagesReceived >= SKC_Main.SK_MessagesSent then
-			-- Check if anyone SKd!
-			-- If no one SKd, initiate Rolls requests
-			-- If roll request started, take highest roll
-			-- If no one
+			-- Determine winner and allocate loot
+			local success = SKC_Main:DetermineWinner();
 		end
 	end
 	return;
 end
 
-function SKC_Main:MasterLooter()
+function SKC_Main:AwardLoot(name)
+	-- Awards SKC_Main.SK_Item to given character
+	for i_loot = 1, GetNumLootItems() do
+		if GetLootSlotLink(i_loot) == SKC_Main.SK_Item then
+			for i_char = 1,40 do
+				if StripRealmName(GetMasterLootCandidate(i_loot,i_char)) == name then
+					GiveMasterLoot(i_loot, i_char);
+					SKC_Main:Print("IMPORTANT","Awarded "..SKC_Main.SK_Item.." to "..name..".");
+					return true;
+				end
+			end
+		end
+	end
+	SKC_Main:Print("ERROR","Could not award "..SKC_Main.SK_Item.." to "..name..".");
+	return false;
+end
+
+function SKC_Main:InitiateLootDecision()
+	-- Scans items / characters and initiates loot decisions for valid characters
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
 	if not IsMasterLooter() then return end
 	-- Reset guild loot decisions
-	SKC_DB.GuildData:ResetLootDecisions();
+	SKC_DB.SK_Lists["SK1"]:ResetLootDecisions();
 	-- Reset message received count
 	SKC_Main.SK_MessagesReceived = 0;
 	-- Determine item to start distribution event
@@ -681,15 +931,18 @@ function SKC_Main:MasterLooter()
 		-- Only perform SK for items of rarity threshold or higher
 		if lootType == 1 and lootRarity >= SKC_Main.RARITY_THRESHOLD then
 			-- Valid item
-			local lootLink = GetLootSlotLink(i_loot);
-			SKC_Main:Print("NORMAL","Distributing "..lootLink);
-			-- determine valid characters and send message to initiate SK
+			SKC_Main.SK_Item = GetLootSlotLink(i_loot);
+			SKC_Main:Print("NORMAL","Distributing "..SKC_Main.SK_Item);
+			-- Scan all possible characters to distribute loot
 			SKC_Main.SK_MessagesSent = 0;
 			for i_char = 1,40 do
-				local char_name = GetMasterLootCandidate(i_loot,i_char)
+				local char_name = GetMasterLootCandidate(i_loot,i_char);
+				-- determine if character is valid for given loot item / prio
+				-- TODO add prio management
 				if char_name ~= nil then
+					-- send loot decision message
 					SKC_Main.SK_MessagesSent = SKC_Main.SK_MessagesSent + 1;
-					C_ChatInfo.SendAddonMessage(SKC_Main.DISTRIBUTION_CHANNEL,lootLink,"WHISPER",char_name);
+					C_ChatInfo.SendAddonMessage(SKC_Main.DISTRIBUTION_CHANNEL,SKC_Main.SK_Item,"WHISPER",char_name);
 				 end
 			end
 		end
@@ -785,7 +1038,7 @@ function SKC_Main:FetchGuildInfo()
 				-- new player, add to DB and SK list
 				SKC_DB.GuildData:Add(name,class);
 				SKC_DB.SK_Lists["SK1"]:PushBack(name);
-				DEFAULT_CHAT_FRAME:AddMessage("SKC: ["..cnt.."] "..name.." added to database!");
+				SKC_Main:Print("NORMAL","["..cnt.."] "..name.." added to database!");
 			end
 		end
 	end
@@ -878,7 +1131,9 @@ function SKC_Main:CreateMenu()
 	-- Create filter panel
 	local filter_border_key = SKC_Main:CreateUIBorder("Filters",DEFAULTS.SK_FILTER_WIDTH,DEFAULTS.SK_FILTER_HEIGHT,-250,DEFAULTS.SK_TAB_TOP_OFFST)
 	-- create details fields
-	local filter_roles = {"DPS","Healer","Tank","Main","Alt","Inactive","Druid","Hunter","Mage","Paladin","Priest","Rogue","Shaman","Warlock","Warrior"};
+	local faction_class;
+	if UnitFactionGroup("player") == "Horde" then faction_class="Shaman" else faction_class="Paladin" end
+	local filter_roles = {"DPS","Healer","Tank","Main","Alt","Inactive","Active","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
 	for idx,value in ipairs(filter_roles) do
 		if value ~= "SKIP" then
 			local row = math.floor((idx - 1) / 3); -- zero based
@@ -890,7 +1145,7 @@ function SKC_Main:CreateMenu()
 			SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
 			SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
 			SKC_UIMain[filter_border_key][value].text:SetText(value);
-			if idx > 6 then
+			if idx > 7 then
 				-- assign class colors
 				SKC_UIMain[filter_border_key][value].text:SetTextColor(DEFAULTS.CLASS_COLORS[value].r,DEFAULTS.CLASS_COLORS[value].g,DEFAULTS.CLASS_COLORS[value].b,1.0);
 			end
@@ -949,7 +1204,7 @@ function SKC_Main:CreateMenu()
 	-- Create details panel
 	local details_border_key = SKC_Main:CreateUIBorder("Details",DEFAULTS.SK_DETAILS_WIDTH,DEFAULTS.SK_DETAILS_HEIGHT,250,DEFAULTS.SK_TAB_TOP_OFFST);
 	-- create details fields
-	local details_fields = {"Name","Class","Raid Role","Guild Role","Status","Activity","Loot History"};
+	local details_fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Loot History"};
 	for idx,value in ipairs(details_fields) do
 		-- fields
 		SKC_UIMain[details_border_key][value] = CreateFrame("Frame",SKC_UIMain[details_border_key])
@@ -960,12 +1215,15 @@ function SKC_Main:CreateMenu()
 		-- data
 		SKC_UIMain[details_border_key][value].Data = SKC_UIMain[details_border_key]:CreateFontString(nil,"ARTWORK");
 		SKC_UIMain[details_border_key][value].Data:SetFontObject("GameFontHighlight");
-		SKC_UIMain[details_border_key][value].Data:SetPoint("LEFT",SKC_UIMain[details_border_key][value].Field,"RIGHT",5,0);
-		if idx > 2 and idx < 7 then
+		SKC_UIMain[details_border_key][value].Data:SetPoint("CENTER",SKC_UIMain[details_border_key][value].Field,"RIGHT",45,0);
+		if idx == 3 or 
+		   idx == 5 or
+		   idx == 6 or
+		   idx == 7 then
 			-- edit buttons
 			SKC_UIMain[details_border_key][value].Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
 			SKC_UIMain[details_border_key][value].Btn:SetID(idx);
-			SKC_UIMain[details_border_key][value].Btn:SetPoint("LEFT",SKC_UIMain[details_border_key][value].Field,"RIGHT",55,0);
+			SKC_UIMain[details_border_key][value].Btn:SetPoint("LEFT",SKC_UIMain[details_border_key][value].Field,"RIGHT",95,0);
 			SKC_UIMain[details_border_key][value].Btn:SetSize(40, 20);
 			SKC_UIMain[details_border_key][value].Btn:SetText("Edit");
 			SKC_UIMain[details_border_key][value].Btn:SetNormalFontObject("GameFontNormalSmall");
@@ -978,27 +1236,37 @@ function SKC_Main:CreateMenu()
 		end
 	end
 	-- Initialize with instructions
-	SKC_UIMain[details_border_key]["Name"].Data:SetText("Click on a character.")
+	SKC_UIMain[details_border_key]["Name"].Data:SetText("            Click on a character."); -- lol, so elegant
 
 	-- Add SK buttons
-	-- single SK
-	SKC_UIMain[details_border_key].SingleSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetPoint("BOTTOMRIGHT",SKC_UIMain[details_border_key],"BOTTOM",-5,15);
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetSize(100, 40);
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetText("Single SK");
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetScript("OnMouseDown",TODO);
-	SKC_UIMain[details_border_key].SingleSK_Btn:Disable();
 	-- full SK
 	SKC_UIMain[details_border_key].FullSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[details_border_key].FullSK_Btn:SetPoint("BOTTOMLEFT",SKC_UIMain[details_border_key],"BOTTOM",5,15);
-	SKC_UIMain[details_border_key].FullSK_Btn:SetSize(100, 40);
+	SKC_UIMain[details_border_key].FullSK_Btn:SetPoint("BOTTOM",SKC_UIMain[details_border_key],"BOTTOM",0,15);
+	SKC_UIMain[details_border_key].FullSK_Btn:SetSize(75, 40);
 	SKC_UIMain[details_border_key].FullSK_Btn:SetText("Full SK");
 	SKC_UIMain[details_border_key].FullSK_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[details_border_key].FullSK_Btn:SetHighlightFontObject("GameFontHighlight");
 	SKC_UIMain[details_border_key].FullSK_Btn:SetScript("OnMouseDown",OnClick_FullSK);
 	SKC_UIMain[details_border_key].FullSK_Btn:Disable();
+	-- single SK
+	SKC_UIMain[details_border_key].SingleSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetPoint("RIGHT",SKC_UIMain[details_border_key].FullSK_Btn,"LEFT",-5,0);
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetSize(75, 40);
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetText("Single SK");
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetScript("OnMouseDown",OnClick_SingleSK);
+	SKC_UIMain[details_border_key].SingleSK_Btn:Disable();
+	-- set SK
+	SKC_UIMain[details_border_key].SetSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[details_border_key].SetSK_Btn:SetPoint("LEFT",SKC_UIMain[details_border_key].FullSK_Btn,"RIGHT",5,0);
+	SKC_UIMain[details_border_key].SetSK_Btn:SetSize(75, 40);
+	SKC_UIMain[details_border_key].SetSK_Btn:SetText("Set SK");
+	SKC_UIMain[details_border_key].SetSK_Btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[details_border_key].SetSK_Btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[details_border_key].SetSK_Btn:SetScript("OnMouseDown",OnClick_SetSK);
+	SKC_UIMain[details_border_key].SetSK_Btn:Disable();
+
 
 	-- Decision region
 	local decision_border_key = SKC_Main:CreateUIBorder("Decision",DEFAULTS.DECISION_WIDTH,DEFAULTS.DECISION_HEIGHT,-250,DEFAULTS.SK_TAB_TOP_OFFST-DEFAULTS.SK_FILTER_HEIGHT-20);
@@ -1018,37 +1286,37 @@ function SKC_Main:CreateMenu()
 	SKC_UIMain[decision_border_key]:SetHyperlinksEnabled(true)
 	SKC_UIMain[decision_border_key]:SetScript("OnHyperlinkClick", ChatFrame_OnHyperlinkShow)
 	-- set decision buttons
-	-- Pass
-	SKC_UIMain[decision_border_key].Pass_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].Pass_Btn:SetPoint("TOPRIGHT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",-40,-5);
-	SKC_UIMain[decision_border_key].Pass_Btn:SetSize(65,35);
-	SKC_UIMain[decision_border_key].Pass_Btn:SetText("Pass");
-	SKC_UIMain[decision_border_key].Pass_Btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[decision_border_key].Pass_Btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[decision_border_key].Pass_Btn:SetScript("OnMouseDown",OnClick_PASS);
-	SKC_UIMain[decision_border_key].Pass_Btn:Disable();
-	-- SK
+	-- SK 
 	SKC_UIMain[decision_border_key].SK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].SK_Btn:SetPoint("TOP",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",0,-5);
+	SKC_UIMain[decision_border_key].SK_Btn:SetPoint("TOPRIGHT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",-40,-5);
 	SKC_UIMain[decision_border_key].SK_Btn:SetSize(65,35);
 	SKC_UIMain[decision_border_key].SK_Btn:SetText("SK");
 	SKC_UIMain[decision_border_key].SK_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[decision_border_key].SK_Btn:SetHighlightFontObject("GameFontHighlight");
 	SKC_UIMain[decision_border_key].SK_Btn:SetScript("OnMouseDown",OnClick_SK);
 	SKC_UIMain[decision_border_key].SK_Btn:Disable();
-	-- Roll
+	-- Roll 
 	SKC_UIMain[decision_border_key].Roll_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].Roll_Btn:SetPoint("TOPLEFT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",40,-5);
+	SKC_UIMain[decision_border_key].Roll_Btn:SetPoint("TOP",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",0,-5);
 	SKC_UIMain[decision_border_key].Roll_Btn:SetSize(65,35);
 	SKC_UIMain[decision_border_key].Roll_Btn:SetText("Roll");
 	SKC_UIMain[decision_border_key].Roll_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[decision_border_key].Roll_Btn:SetHighlightFontObject("GameFontHighlight");
 	SKC_UIMain[decision_border_key].Roll_Btn:SetScript("OnMouseDown",OnClick_ROLL);
 	SKC_UIMain[decision_border_key].Roll_Btn:Disable();
+	-- Pass
+	SKC_UIMain[decision_border_key].Pass_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[decision_border_key].Pass_Btn:SetPoint("TOPLEFT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",40,-5);
+	SKC_UIMain[decision_border_key].Pass_Btn:SetSize(65,35);
+	SKC_UIMain[decision_border_key].Pass_Btn:SetText("Pass");
+	SKC_UIMain[decision_border_key].Pass_Btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[decision_border_key].Pass_Btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[decision_border_key].Pass_Btn:SetScript("OnMouseDown",OnClick_PASS);
+	SKC_UIMain[decision_border_key].Pass_Btn:Disable();
 	-- timer bar
 	SKC_UIMain[decision_border_key].TimerBorder = CreateFrame("Frame",nil,SKC_UIMain,"TranslucentFrameTemplate");
 	SKC_UIMain[decision_border_key].TimerBorder:SetSize(210,40);
-	SKC_UIMain[decision_border_key].TimerBorder:SetPoint("TOP",SKC_UIMain[decision_border_key].SK_Btn,"BOTTOM",0,-3);
+	SKC_UIMain[decision_border_key].TimerBorder:SetPoint("TOP",SKC_UIMain[decision_border_key].Roll_Btn,"BOTTOM",0,-3);
 	SKC_UIMain[decision_border_key].TimerBorder.Bg:SetAlpha(1.0);
 	-- status bar
 	SKC_UIMain[decision_border_key].TimerBar = CreateFrame("StatusBar",nil,SKC_UIMain);
@@ -1132,7 +1400,7 @@ AddonLoaded:SetScript("OnEvent", SKC_Main.AddonLoad);
 
 local LootOpened = CreateFrame("Frame");
 LootOpened:RegisterEvent("OPEN_MASTER_LOOT_LIST");
-LootOpened:SetScript("OnEvent", SKC_Main.MasterLooter);
+LootOpened:SetScript("OnEvent", SKC_Main.InitiateLootDecision);
 
 local AddonMessageReceived = CreateFrame("Frame");
 AddonMessageReceived:RegisterEvent("CHAT_MSG_ADDON");
