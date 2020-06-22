@@ -67,16 +67,22 @@ local _, core = ...; -- Namespace
 core.commands = {
 	["help"] = function()
 		print(" ");
-    core.SKC_Main:Print("NORMAL","List of slash commands:")
-    core.SKC_Main:Print("NORMAL","|cff00cc66/skc|r - shows SK lists");
-		core.SKC_Main:Print("NORMAL","|cff00cc66/skc help|r - shows help info");
+    core.SKC_Main:Print("NORMAL","List of slash commands:");
+    core.SKC_Main:Print("NORMAL","|cff00cc66/skc help|r - shows help info");
+    core.SKC_Main:Print("NORMAL","|cff00cc66/skc|r - toggles SKC GUI");
+    core.SKC_Main:Print("NORMAL","|cff00cc66/skc prio itemName|r - displays loot prio for given itemName");
 		print(" ");
 	end,
-	
-	-- ["example"] = {
-	-- 	["test"] = function(...)
-	-- 		core.SKC_Main:Print("NORMAL","My Value:", tostringall(...));
-	-- 	end
+  ["prio"] = function(...)
+    SKC_DB.LootPrio:PrintPrio(...)
+  end,
+  -- ["prio"] = {
+  --   ["default"] = function(...)
+  --     SKC_DB.LootPrio:PrintPrio(itemName)
+  --     -- for key,value in pairs(SKC_DB.LootPrio.default.prio) do
+  --     --   core.SKC_Main:Print("NORMAL",key);
+  --     -- end 
+  --   end,
 	-- }
 };
 

@@ -174,6 +174,16 @@ local DEFAULTS = {
 				RR = "Healer",
 				func = function (self) OnClick_EditDropDownOption("spec","Resto") end
 			},
+			FeralTank = {
+				text = "FeralTank",
+				RR = "Tank",
+				func = function (self) OnClick_EditDropDownOption("spec","FeralTank") end
+			},
+			FeralDPS = {
+				text = "FeralDPS",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","FeralDPS") end
+			},
 		},
 		Hunter = {
 			Any = {
@@ -188,21 +198,21 @@ local DEFAULTS = {
 				RR = "DPS",
 				func = function (self) OnClick_EditDropDownOption("spec","Any") end
 			},
-			Arcane = {
-				text = "Arcane",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Arcane") end
-			},
-			Fire = {
-				text = "Fire",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Fire") end
-			},
-			Frost = {
-				text = "Frost",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Frost") end
-			},
+			-- Arcane = {
+			-- 	text = "Arcane",
+			-- 	RR = "DPS",
+			-- 	func = function (self) OnClick_EditDropDownOption("spec","Arcane") end
+			-- },
+			-- Fire = {
+			-- 	text = "Fire",
+			-- 	RR = "DPS",
+			-- 	func = function (self) OnClick_EditDropDownOption("spec","Fire") end
+			-- },
+			-- Frost = {
+			-- 	text = "Frost",
+			-- 	RR = "DPS",
+			-- 	func = function (self) OnClick_EditDropDownOption("spec","Frost") end
+			-- },
 		},
 		Priest = {
 			Holy = {
@@ -251,6 +261,16 @@ local DEFAULTS = {
 				RR = "Tank",
 				func = function (self) OnClick_EditDropDownOption("spec","Prot") end
 			},
+			TwoHanded = {
+				text = "TwoHanded",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","TwoHanded") end
+			},
+			DualWield = {
+				text = "DualWield",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","DualWield") end
+			},
 		},
 		Shaman = {
 			Ele = {
@@ -288,47 +308,6 @@ local DEFAULTS = {
 		},
 	},
 }
--- Add names with spaces
-DEFAULTS.SPECS["Druid"]["Feral Tank"] = {};
-DEFAULTS.SPECS["Druid"]["Feral Tank"].text = "Feral Tank";
-DEFAULTS.SPECS["Druid"]["Feral Tank"].RR = "Tank";
-DEFAULTS.SPECS["Druid"]["Feral Tank"].func = function (self) OnClick_EditDropDownOption("spec","Feral Tank") end
-DEFAULTS.SPECS["Druid"]["Feral DPS"] = {};
-DEFAULTS.SPECS["Druid"]["Feral DPS"].text = "Feral DPS";
-DEFAULTS.SPECS["Druid"]["Feral DPS"].RR = "DPS";
-DEFAULTS.SPECS["Druid"]["Feral DPS"].func = function (self) OnClick_EditDropDownOption("spec","Feral DPS") end
-DEFAULTS.SPECS["Warrior"]["Two-handed"] = {};
-DEFAULTS.SPECS["Warrior"]["Two-handed"].text = "Two-handed";
-DEFAULTS.SPECS["Warrior"]["Two-handed"].RR = "DPS";
-DEFAULTS.SPECS["Warrior"]["Two-handed"].func = function (self) OnClick_EditDropDownOption("spec","Two-handed") end
-DEFAULTS.SPECS["Warrior"]["Dual Wield"] = {};
-DEFAULTS.SPECS["Warrior"]["Dual Wield"].text = "Dual Wield";
-DEFAULTS.SPECS["Warrior"]["Dual Wield"].RR = "DPS";
-DEFAULTS.SPECS["Warrior"]["Dual Wield"].func = function (self) OnClick_EditDropDownOption("spec","Dual Wield") end
--- DEFAULTS.SPECS["Warrior"]["2H Swords"] = {};
--- DEFAULTS.SPECS["Warrior"]["2H Swords"].text = "2H Swords";
--- DEFAULTS.SPECS["Warrior"]["2H Swords"].RR = "DPS";
--- DEFAULTS.SPECS["Warrior"]["2H Swords"].func = function (self) OnClick_EditDropDownOption("spec","2H Swords") end
--- DEFAULTS.SPECS["Warrior"]["2H Axes"] = {};
--- DEFAULTS.SPECS["Warrior"]["2H Axes"].text = "2H Axes";
--- DEFAULTS.SPECS["Warrior"]["2H Axes"].RR = "DPS";
--- DEFAULTS.SPECS["Warrior"]["2H Axes"].func = function (self) OnClick_EditDropDownOption("spec","2H Axes") end
--- DEFAULTS.SPECS["Warrior"]["2H Maces"] = {};
--- DEFAULTS.SPECS["Warrior"]["2H Maces"].text = "2H Maces";
--- DEFAULTS.SPECS["Warrior"]["2H Maces"].RR = "DPS";
--- DEFAULTS.SPECS["Warrior"]["2H Maces"].func = function (self) OnClick_EditDropDownOption("spec","2H Maces") end
--- DEFAULTS.SPECS["Warrior"]["DW Swords"] = {};
--- DEFAULTS.SPECS["Warrior"]["DW Swords"].text = "DW Swords";
--- DEFAULTS.SPECS["Warrior"]["DW Swords"].RR = "DPS";
--- DEFAULTS.SPECS["Warrior"]["DW Swords"].func = function (self) OnClick_EditDropDownOption("spec","DW Swords") end
--- DEFAULTS.SPECS["Warrior"]["DW Axes"] = {};
--- DEFAULTS.SPECS["Warrior"]["DW Axes"].text = "DW Axes";
--- DEFAULTS.SPECS["Warrior"]["DW Axes"].RR = "DPS";
--- DEFAULTS.SPECS["Warrior"]["DW Axes"].func = function (self) OnClick_EditDropDownOption("spec","DW Axes") end
--- DEFAULTS.SPECS["Warrior"]["DW Maces"] = {};
--- DEFAULTS.SPECS["Warrior"]["DW Maces"].text = "DW Maces";
--- DEFAULTS.SPECS["Warrior"]["DW Maces"].RR = "DPS";
--- DEFAULTS.SPECS["Warrior"]["DW Maces"].func = function (self) OnClick_EditDropDownOption("spec","DW Maces") end
 -- Specify default spec for initialization
 DEFAULTS.SPECS["Druid"].Default = DEFAULTS.SPECS["Druid"].Resto;
 DEFAULTS.SPECS["Hunter"].Default = DEFAULTS.SPECS["Hunter"].Any;
@@ -355,14 +334,42 @@ Prio = {
 };
 Prio.__index = Prio;
 
+local function GetAllSpecClass()
+	-- Return a table of all SpecClass combinations
+	local tbl_out = {};
+	local idx = 1;
+	for key1,value1 in pairs(DEFAULTS.SPECS) do
+		local class = key1;
+		for key2,value2 in pairs(DEFAULTS.SPECS[class]) do
+			local spec = value2.text;
+			if key2 ~= "Default" then
+				tbl_out[idx] = spec..class;
+				idx = idx + 1;
+			end
+		end
+	end
+	return(tbl_out);
+end
+
+local function GetSpecClassColor(spec_class)
+	-- Returns color code for given SpecClass
+	for class,tbl in pairs(DEFAULTS.CLASS_COLORS) do
+		if string.find(spec_class,class) ~= nil then
+			return tbl.r, tbl.g, tbl.b, tbl.hex;
+		end
+	end
+	return nil,nil,nil,nil;
+end
+
 function Prio:new(prio)
 	if prio == nil then
 		-- initalize fresh
 		local obj = {};
 		setmetatable(obj,Prio);
-		ob.prio = {};
-		for key,value in pairs(GetAllSpecClass()) do
-			obj[value] = {1}; -- default is equal prio for all
+		obj.prio = {};
+		local all_class_prio = GetAllSpecClass();
+		for key,value in pairs(all_class_prio) do
+			obj.prio[value] = 1; -- default is equal prio for all
 		end
 		obj.reserved = false;
 		obj.DE = true;
@@ -375,13 +382,18 @@ function Prio:new(prio)
 end
 
 -- LootPrio
-LootPrio = {}; -- hash table mapping lootLink to Prio object
+LootPrio = {
+	items = {},-- hash table mapping itemName to Prio object
+	default = nil; -- default prio used when item is not in items
+}; 
 LootPrio.__index = LootPrio;
 
 function LootPrio:new(loot_prio)
 	if loot_prio == nil then
 		-- initalize fresh
 		local obj = {};
+		obj.items = {};
+		obj.default = Prio:new(nil);
 		setmetatable(obj,LootPrio);
 		return obj;
 	else
@@ -392,6 +404,44 @@ function LootPrio:new(loot_prio)
 		end
 		return loot_prio;
 	end
+end
+
+function LootPrio:PrintPrio(itemName)
+	-- prints the prio of given item
+	-- prints default if nil
+	local data;
+	if itemName == nil or self.items[itemName] == nil then
+		data = self.default;
+		SKC_Main:Print("IMPORTANT","Default Loot Prio:")
+	else
+		data = self.items[itemName];
+		SKC_Main:Print("IMPORTANT","Loot Prio for "..itemName..":")
+	end
+	-- print reserved states
+	if data.reserved then
+		SKC_Main:Print("IMPORTANT","Reserved: TRUE");
+	else
+		SKC_Main:Print("IMPORTANT","Reserved: FALSE");
+	end
+	-- create map from prio level to concatenated string of SpecClass's
+	local spec_class_map = {};
+	for i = 1,SKC_Main.MaxPrioTiers do
+		spec_class_map[i] = {};
+	end
+	-- SKC_Main:Print("NORMAL",#(spec_class_map[1]));
+	for key,value in pairs(data.prio) do
+		-- SKC_Main:Print("NORMAL","Prio");
+		-- SKC_Main:Print("NORMAL","Prio Tier ["..key.."]: "..value);
+		spec_class_map[value][#(spec_class_map[value]) + 1] = key;
+	end
+	for tier,tbl in ipairs(spec_class_map) do
+		SKC_Main:Print("IMPORTANT","Prio Tier ["..tier.."]:");
+		for idx,spec_class in pairs(tbl) do
+			local hex = select(4, GetSpecClassColor(spec_class));
+			DEFAULT_CHAT_FRAME:AddMessage("  "..string.format("|cff%s%s|r",hex:upper(),spec_class));
+		end
+	end
+	return;
 end
 
 -- SK_Node class
@@ -587,22 +637,6 @@ end
 --------------------------------------
 -- local functions
 --------------------------------------
-local function GetAllSpecClass()
-	-- Return a table of all SpecClass combinations
-	local tbl_out = {};
-	local idx = 1;
-	for key1,value1 in pairs(DEFAULTS.SPECS) do
-		local class = key1;
-		for key2,value2 in pairs(DEFAULTS.SPECS[class]) do
-			local spec = value2.text;
-			if key2 ~= "Default" then
-				tbl_out[idx] = spec..class;
-			end
-		end
-	end
-	return(tbl_out);
-end
-
 local function OnMouseWheel_ScrollFrame(self,delta)
     -- delta: 1 scroll up, -1 scroll down
 	-- value at top is 0, value at bottom is size of child
@@ -1060,10 +1094,14 @@ function SKC_Main:AddonLoad()
 	if SKC_DB.SK_Lists == nil or hard_reset then 
 		SKC_DB.SK_Lists = {};
 	end
+	if SKC_DB.LootPrio == nil or hard_reset then 
+		SKC_DB.LootPrio = {};
+	end
 	-- Initialize or refresh metatables
 	SKC_DB.SK_Lists["SK1"] = SK_List:new(SKC_DB.SK_Lists["SK1"]);
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
-	-- SK_DB.LootPrio = GuildData:new(SKC_DB.LootPrio);
+	-- SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
+	SKC_DB.LootPrio = LootPrio:new(nil);
 	SKC_DB.UnFilteredCnt = 0;
 end
 
