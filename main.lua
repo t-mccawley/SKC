@@ -12,6 +12,7 @@ SKC_Main.DISTRIBUTION_CHANNEL = "xBPE9,-Fjbc+A#rm";
 SKC_Main.SYNC_CHANNEL = "&95n%nR2!&;QZJSh";
 SKC_Main.DECISION_CHANNEL = "ksg(AkE.*/@&+`8Q";
 SKC_Main.RARITY_THRESHOLD = 2; -- greens
+SKC_Main.MaxPrioTiers = 5;
 SKC_Main.LootDecision = nil;
 SKC_Main.MasterLooter = nil;
 SKC_Main.SK_Item = nil;
@@ -348,9 +349,9 @@ local DD_State = 0; -- used to track state of drop down menu
 --------------------------------------
 -- Prio class
 Prio = {
-	{}, {}, {}, {}, {}, -- lists of SpecClass at each prio level (1 is highest prio)
-	reserved = false,
-	DE = true,
+	reserved = false, -- true if main prio over alts
+	DE = true, -- true if item should be disenchanted before going to guild bank
+	prio = {}, -- map of SpecClass to prio level (1 is highest prio)
 };
 Prio.__index = Prio;
 
@@ -359,7 +360,10 @@ function Prio:new(prio)
 		-- initalize fresh
 		local obj = {};
 		setmetatable(obj,Prio);
-		obj[1] = GetAllSpecClass();
+		ob.prio = {};
+		for key,value in pairs(GetAllSpecClass()) do
+			obj[value] = {1}; -- default is equal prio for all
+		end
 		obj.reserved = false;
 		obj.DE = true;
 		return obj;
@@ -371,23 +375,22 @@ function Prio:new(prio)
 end
 
 -- LootPrio
-LootPrio = {}; -- hash table mapping lootLink to Prio
-Loot.__index = Loot;
+LootPrio = {}; -- hash table mapping lootLink to Prio object
+LootPrio.__index = LootPrio;
 
-function Loot:new(loot)
-	if loot == nil then
+function LootPrio:new(loot_prio)
+	if loot_prio == nil then
 		-- initalize fresh
 		local obj = {};
-		setmetatable(obj,Loot);
-		obj.prio = { {}, {}, {}, {}, {}, };
-		obj.prio = GetAllSpecClass();
-		obj.reserved = false;
-		obj.DE = true;
+		setmetatable(obj,LootPrio);
 		return obj;
 	else
 		-- set metatable of existing table
-		setmetatable(loot,Loot);
-		return loot;
+		setmetatable(loot_prio,LootPrio);
+		for key,value in pairs(loot_prio) do
+			loot_prio[key] = Prio:new(value);
+		end
+		return loot_prio;
 	end
 end
 
@@ -889,7 +892,6 @@ function SKC_Main:Toggle(force_show)
 	local menu = SKC_UIMain or SKC_Main:CreateMenu();
 	menu:SetShown(force_show or not menu:IsShown());
 	DD_State = 0;
-	GetAllSpecClass();
 end
 
 function SKC_Main:GetThemeColor(type)
