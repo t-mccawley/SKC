@@ -187,6 +187,21 @@ local DEFAULTS = {
 				RR = "DPS",
 				func = function (self) OnClick_EditDropDownOption("spec","Any") end
 			},
+			Arcane = {
+				text = "Arcane",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Arcane") end
+			},
+			Fire = {
+				text = "Fire",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Fire") end
+			},
+			Frost = {
+				text = "Frost",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Frost") end
+			},
 		},
 		Priest = {
 			Holy = {
@@ -281,30 +296,38 @@ DEFAULTS.SPECS["Druid"]["Feral DPS"] = {};
 DEFAULTS.SPECS["Druid"]["Feral DPS"].text = "Feral DPS";
 DEFAULTS.SPECS["Druid"]["Feral DPS"].RR = "DPS";
 DEFAULTS.SPECS["Druid"]["Feral DPS"].func = function (self) OnClick_EditDropDownOption("spec","Feral DPS") end
-DEFAULTS.SPECS["Warrior"]["2H Swords"] = {};
-DEFAULTS.SPECS["Warrior"]["2H Swords"].text = "2H Swords";
-DEFAULTS.SPECS["Warrior"]["2H Swords"].RR = "DPS";
-DEFAULTS.SPECS["Warrior"]["2H Swords"].func = function (self) OnClick_EditDropDownOption("spec","2H Swords") end
-DEFAULTS.SPECS["Warrior"]["2H Axes"] = {};
-DEFAULTS.SPECS["Warrior"]["2H Axes"].text = "2H Axes";
-DEFAULTS.SPECS["Warrior"]["2H Axes"].RR = "DPS";
-DEFAULTS.SPECS["Warrior"]["2H Axes"].func = function (self) OnClick_EditDropDownOption("spec","2H Axes") end
-DEFAULTS.SPECS["Warrior"]["2H Maces"] = {};
-DEFAULTS.SPECS["Warrior"]["2H Maces"].text = "2H Maces";
-DEFAULTS.SPECS["Warrior"]["2H Maces"].RR = "DPS";
-DEFAULTS.SPECS["Warrior"]["2H Maces"].func = function (self) OnClick_EditDropDownOption("spec","2H Maces") end
-DEFAULTS.SPECS["Warrior"]["DW Swords"] = {};
-DEFAULTS.SPECS["Warrior"]["DW Swords"].text = "DW Swords";
-DEFAULTS.SPECS["Warrior"]["DW Swords"].RR = "DPS";
-DEFAULTS.SPECS["Warrior"]["DW Swords"].func = function (self) OnClick_EditDropDownOption("spec","DW Swords") end
-DEFAULTS.SPECS["Warrior"]["DW Axes"] = {};
-DEFAULTS.SPECS["Warrior"]["DW Axes"].text = "DW Axes";
-DEFAULTS.SPECS["Warrior"]["DW Axes"].RR = "DPS";
-DEFAULTS.SPECS["Warrior"]["DW Axes"].func = function (self) OnClick_EditDropDownOption("spec","DW Axes") end
-DEFAULTS.SPECS["Warrior"]["DW Maces"] = {};
-DEFAULTS.SPECS["Warrior"]["DW Maces"].text = "DW Maces";
-DEFAULTS.SPECS["Warrior"]["DW Maces"].RR = "DPS";
-DEFAULTS.SPECS["Warrior"]["DW Maces"].func = function (self) OnClick_EditDropDownOption("spec","DW Maces") end
+DEFAULTS.SPECS["Warrior"]["Two-handed"] = {};
+DEFAULTS.SPECS["Warrior"]["Two-handed"].text = "Two-handed";
+DEFAULTS.SPECS["Warrior"]["Two-handed"].RR = "DPS";
+DEFAULTS.SPECS["Warrior"]["Two-handed"].func = function (self) OnClick_EditDropDownOption("spec","Two-handed") end
+DEFAULTS.SPECS["Warrior"]["Dual Wield"] = {};
+DEFAULTS.SPECS["Warrior"]["Dual Wield"].text = "Dual Wield";
+DEFAULTS.SPECS["Warrior"]["Dual Wield"].RR = "DPS";
+DEFAULTS.SPECS["Warrior"]["Dual Wield"].func = function (self) OnClick_EditDropDownOption("spec","Dual Wield") end
+-- DEFAULTS.SPECS["Warrior"]["2H Swords"] = {};
+-- DEFAULTS.SPECS["Warrior"]["2H Swords"].text = "2H Swords";
+-- DEFAULTS.SPECS["Warrior"]["2H Swords"].RR = "DPS";
+-- DEFAULTS.SPECS["Warrior"]["2H Swords"].func = function (self) OnClick_EditDropDownOption("spec","2H Swords") end
+-- DEFAULTS.SPECS["Warrior"]["2H Axes"] = {};
+-- DEFAULTS.SPECS["Warrior"]["2H Axes"].text = "2H Axes";
+-- DEFAULTS.SPECS["Warrior"]["2H Axes"].RR = "DPS";
+-- DEFAULTS.SPECS["Warrior"]["2H Axes"].func = function (self) OnClick_EditDropDownOption("spec","2H Axes") end
+-- DEFAULTS.SPECS["Warrior"]["2H Maces"] = {};
+-- DEFAULTS.SPECS["Warrior"]["2H Maces"].text = "2H Maces";
+-- DEFAULTS.SPECS["Warrior"]["2H Maces"].RR = "DPS";
+-- DEFAULTS.SPECS["Warrior"]["2H Maces"].func = function (self) OnClick_EditDropDownOption("spec","2H Maces") end
+-- DEFAULTS.SPECS["Warrior"]["DW Swords"] = {};
+-- DEFAULTS.SPECS["Warrior"]["DW Swords"].text = "DW Swords";
+-- DEFAULTS.SPECS["Warrior"]["DW Swords"].RR = "DPS";
+-- DEFAULTS.SPECS["Warrior"]["DW Swords"].func = function (self) OnClick_EditDropDownOption("spec","DW Swords") end
+-- DEFAULTS.SPECS["Warrior"]["DW Axes"] = {};
+-- DEFAULTS.SPECS["Warrior"]["DW Axes"].text = "DW Axes";
+-- DEFAULTS.SPECS["Warrior"]["DW Axes"].RR = "DPS";
+-- DEFAULTS.SPECS["Warrior"]["DW Axes"].func = function (self) OnClick_EditDropDownOption("spec","DW Axes") end
+-- DEFAULTS.SPECS["Warrior"]["DW Maces"] = {};
+-- DEFAULTS.SPECS["Warrior"]["DW Maces"].text = "DW Maces";
+-- DEFAULTS.SPECS["Warrior"]["DW Maces"].RR = "DPS";
+-- DEFAULTS.SPECS["Warrior"]["DW Maces"].func = function (self) OnClick_EditDropDownOption("spec","DW Maces") end
 -- Specify default spec for initialization
 DEFAULTS.SPECS["Druid"].Default = DEFAULTS.SPECS["Druid"].Resto;
 DEFAULTS.SPECS["Hunter"].Default = DEFAULTS.SPECS["Hunter"].Any;
@@ -316,15 +339,65 @@ DEFAULTS.SPECS["Warrior"].Default = DEFAULTS.SPECS["Warrior"].DPS;
 DEFAULTS.SPECS["Shaman"].Default = DEFAULTS.SPECS["Shaman"].Resto;
 DEFAULTS.SPECS["Paladin"].Default = DEFAULTS.SPECS["Paladin"].Holy;
 --------------------------------------
+-- Local Variables
+--------------------------------------
+local DD_State = 0; -- used to track state of drop down menu
+
+--------------------------------------
 -- Classes
 --------------------------------------
+-- Prio class
+Prio = {
+	{}, {}, {}, {}, {}, -- lists of SpecClass at each prio level (1 is highest prio)
+	reserved = false,
+	DE = true,
+};
+Prio.__index = Prio;
+
+function Prio:new(prio)
+	if prio == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,Prio);
+		obj[1] = GetAllSpecClass();
+		obj.reserved = false;
+		obj.DE = true;
+		return obj;
+	else
+		-- set metatable of existing table
+		setmetatable(prio,Prio);
+		return prio;
+	end
+end
+
+-- LootPrio
+LootPrio = {}; -- hash table mapping lootLink to Prio
+Loot.__index = Loot;
+
+function Loot:new(loot)
+	if loot == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,Loot);
+		obj.prio = { {}, {}, {}, {}, {}, };
+		obj.prio = GetAllSpecClass();
+		obj.reserved = false;
+		obj.DE = true;
+		return obj;
+	else
+		-- set metatable of existing table
+		setmetatable(loot,Loot);
+		return loot;
+	end
+end
+
 -- SK_Node class
 SK_Node = {
 	above = nil, -- character name above this character in ths SK list
 	below = nil, -- character name below this character in the SK list
 	loot_decision = DEFAULTS.LOOT_DECISIONS.PASS, -- character current loot decision (PASS, SK, ROLL)
-	-- loot_prio = 
-}
+	loot_prio = 1; -- priority on given loot item
+};
 SK_Node.__index = SK_Node;
 
 function SK_Node:new(sk_node,above,below)
@@ -348,7 +421,7 @@ SK_List = { --a doubly linked list table where each node is referenced by player
 	top = nil, -- top name in list
 	bottom = nil, -- bottom name in list
 	list = {}, -- list of SK_Node
-}
+};
 SK_List.__index = SK_List;
 
 function SK_List:new(sk_list)
@@ -379,9 +452,12 @@ function SK_List:CheckIfFucked()
 	return false;
 end
 
-function SK_List:ResetLootDecisions()
-	-- Resets all player loot decisions to PASS
-	for _,value in pairs(self.list) do value.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS end
+function SK_List:Reset()
+	-- Resets all player loot decisions to PASS and prio to 1
+	for _,value in pairs(self.list) do 
+		value.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS;
+		value.loot_prio = 1;
+	end
 	return;
 end
 
@@ -508,6 +584,22 @@ end
 --------------------------------------
 -- local functions
 --------------------------------------
+local function GetAllSpecClass()
+	-- Return a table of all SpecClass combinations
+	local tbl_out = {};
+	local idx = 1;
+	for key1,value1 in pairs(DEFAULTS.SPECS) do
+		local class = key1;
+		for key2,value2 in pairs(DEFAULTS.SPECS[class]) do
+			local spec = value2.text;
+			if key2 ~= "Default" then
+				tbl_out[idx] = spec..class;
+			end
+		end
+	end
+	return(tbl_out);
+end
+
 local function OnMouseWheel_ScrollFrame(self,delta)
     -- delta: 1 scroll up, -1 scroll down
 	-- value at top is 0, value at bottom is size of child
@@ -581,7 +673,6 @@ function OnClick_EditDropDownOption(field,value)
 	return;
 end
 
-local DD_State = 0; -- used to track state of drop down menu
 local function OnClick_EditDetails(self, button)
 	if not self:IsEnabled() then return end
 	-- SKC_UIMain.EditFrame:Show();
@@ -797,6 +888,8 @@ end
 function SKC_Main:Toggle(force_show)
 	local menu = SKC_UIMain or SKC_Main:CreateMenu();
 	menu:SetShown(force_show or not menu:IsShown());
+	DD_State = 0;
+	GetAllSpecClass();
 end
 
 function SKC_Main:GetThemeColor(type)
@@ -828,44 +921,45 @@ end
 
 function SKC_Main:DetermineWinner()
 	-- Determine winner of loot decison
-	-- TODO: Add loot prio logic here (
+	-- TODO: Add loot prio logic here:
 	-- 		for SK guys, store top SK char with highest prio (smallest number)
-	--		add roll guys to list
-	--		if SK heap isnt empty, pop top for winner
-	--		if SK heap is empty, do rolls
-	--		if roll list is empty, allocate to GB or DE
-	--		if no DE, allocate to GB
+	-- 		add roll guys to list
+	-- 		if SK heap isnt empty, pop top for winner
+	-- 		if SK heap is empty, do rolls
+	-- 		if roll list is empty, allocate to GB or DE
+	-- 		if no DE, allocate to GB
 	-- 		if no GB, give to ML
 	-- Ensure data integrity of list before scanning
-	-- if self:CheckIfFucked() then return(false) end;
-	-- -- scan list in order
-	-- local roll_list = {};
-	-- local name_tmp = self.top;
-	-- local idx = 1;
-	-- while name_tmp ~= nil do
-	-- 	local loot_decision_tmp = self.list[name_tmp].loot_decision;
-	-- 	if loot_decision_tmp == DEFAULTS.LOOT_DECISIONS.SK then
-	-- 		-- If character SK'd, they win!
-	-- 		SKC_Main:Print("IMPORTANT",winner.." won "..SKC_Main.SK_Item.." by SK!");
-	-- 		-- SK character
-	-- 		local sk_success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
-	-- 		-- Give loot!
-	-- 		local awarded_success = SKC_Main:AwardLoot(name);
-	-- 		return(sk_success and awarded_success);
+	if self:CheckIfFucked() then return(false) end;
+	-- scan list in order
+	local roll_list = {};
+	local name_tmp = self.top;
+	local idx = 1;
+	while name_tmp ~= nil do
+		local loot_decision_tmp = self.list[name_tmp].loot_decision;
+		if loot_decision_tmp == DEFAULTS.LOOT_DECISIONS.SK then
+			-- If character SK'd, they win!
+			SKC_Main:Print("IMPORTANT",winner.." won "..SKC_Main.SK_Item.." by SK!");
+			-- SK character
+			local sk_success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
+			-- Give loot!
+			local awarded_success = SKC_Main:AwardLoot(name);
+			return(sk_success and awarded_success);
 
-	-- 	elseif loot_decision_tmp == DEFAULTS.LOOT_DECISIONS.ROLL then
-	-- 		-- Add character to roll list
-	-- 		roll_list[idx] = name_tmp;
-	-- 	end
-	-- 	name_tmp = self.list[name_tmp].below;
-	-- end
+		elseif loot_decision_tmp == DEFAULTS.LOOT_DECISIONS.ROLL then
+			-- Add character to roll list
+			roll_list[idx] = name_tmp;
+		end
+		name_tmp = self.list[name_tmp].below;
+	end
+end
+
+function SKC_Main:DetermineLootPrio(name)
+	-- Returns loot prio for given character fir given SK item
+	
 end
 
 function SKC_Main:AddonMessageRead(self,prefix,msg,channel,sender)
-	-- DEFAULT_CHAT_FRAME:AddMessage("prefix: "..prefix);
-	-- DEFAULT_CHAT_FRAME:AddMessage("message: "..msg);
-	-- DEFAULT_CHAT_FRAME:AddMessage("channel: "..channel);
-	-- DEFAULT_CHAT_FRAME:AddMessage("sender: "..sender);
 	if prefix == SKC_Main.SYNC_CHANNEL then
 		DEFAULT_CHAT_FRAME:AddMessage("We should: "..msg);
 	elseif prefix == SKC_Main.DISTRIBUTION_CHANNEL then
@@ -884,10 +978,15 @@ function SKC_Main:AddonMessageRead(self,prefix,msg,channel,sender)
 			Listening: ML
 		 	Talking: Everyone
 		 --]]
+		 -- Increment message counter
 		SKC_Main.SK_MessagesReceived = SKC_Main.SK_MessagesReceived + 1;
+		-- Alert ML of decision
 		local name = StripRealmName(sender);
 		SKC_Main:Print("NORMAL",name.." wants to "..msg..".");
+		-- Save loot decision
 		SKC_DB.SK_Lists["SK1"].list[name].loot_decision = msg;
+		-- Determine character prio
+		SKC_DB.SK_Lists["SK1"].list[name].loot_prio = SKC_Main:DetermineLootPrio(name);
 		-- check if all messages received
 		if SKC_Main.SK_MessagesReceived >= SKC_Main.SK_MessagesSent then
 			-- Determine winner and allocate loot
@@ -918,91 +1017,37 @@ function SKC_Main:InitiateLootDecision()
 	-- Scans items / characters and initiates loot decisions for valid characters
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
 	if not IsMasterLooter() then return end
-	-- Reset guild loot decisions
-	SKC_DB.SK_Lists["SK1"]:ResetLootDecisions();
-	-- Reset message received count
+	-- Reset guild loot decisions and loot prio
+	SKC_DB.SK_Lists["SK1"]:Reset();
+	-- Reset message count
 	SKC_Main.SK_MessagesReceived = 0;
+	SKC_Main.SK_MessagesSent = 0;
 	-- Determine item to start distribution event
-	-- Scan all items
-	for i_loot = 1, GetNumLootItems() do
-		-- get item data
-		local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
-		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot)
-		-- Only perform SK for items of rarity threshold or higher
-		if lootType == 1 and lootRarity >= SKC_Main.RARITY_THRESHOLD then
-			-- Valid item
-			SKC_Main.SK_Item = GetLootSlotLink(i_loot);
-			SKC_Main:Print("NORMAL","Distributing "..SKC_Main.SK_Item);
-			-- Scan all possible characters to distribute loot
-			SKC_Main.SK_MessagesSent = 0;
-			for i_char = 1,40 do
-				local char_name = GetMasterLootCandidate(i_loot,i_char);
-				-- determine if character is valid for given loot item / prio
-				-- TODO add prio management
-				if char_name ~= nil then
-					-- send loot decision message
-					SKC_Main.SK_MessagesSent = SKC_Main.SK_MessagesSent + 1;
-					C_ChatInfo.SendAddonMessage(SKC_Main.DISTRIBUTION_CHANNEL,SKC_Main.SK_Item,"WHISPER",char_name);
-				 end
+	-- Initiate for first item
+	local i_loot = 1;
+	-- get item data
+	local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
+	local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot)
+	-- Only perform SK for items of rarity threshold or higher
+	if lootType == 1 and lootRarity >= SKC_Main.RARITY_THRESHOLD then
+		-- Valid item
+		SKC_Main.SK_Item = GetLootSlotLink(i_loot);
+		SKC_Main:Print("NORMAL","Distributing "..SKC_Main.SK_Item);
+		-- Scan all possible characters to distribute loot
+		for i_char = 1,40 do
+			local char_name = GetMasterLootCandidate(i_loot,i_char);
+			-- determine if character is valid for given loot item / prio
+			-- TODO add prio management
+			if char_name ~= nil then
+				-- send loot decision message
+				SKC_Main.SK_MessagesSent = SKC_Main.SK_MessagesSent + 1;
+				C_ChatInfo.SendAddonMessage(SKC_Main.DISTRIBUTION_CHANNEL,SKC_Main.SK_Item,"WHISPER",char_name);
 			end
 		end
 	end
-
-	-- Determine who is elligible to receive loot
-
-	-- Send messages to them to initiate SK
-
-	-- Start timer
-
-	-- Confirm they got the message / have the addon
-
-	-- Wait for responses
-
-	-- Determine who receives loot
-
-	-- Allocate loot
-
-	-- end
-	-- CloseLoot();
-
-
-	-- Test addon messages
-	-- C_ChatInfo.SendAddonMessage(SKC_Main.SYNC_CHANNEL,"Sync!","GUILD");
-	--[[ LOOT TESTING
-	GetItemInfo
-	http://wowprogramming.com/docs/api/GetItemInfo.html
-	--]]
-	-- DEFAULT_CHAT_FRAME:AddMessage("GetLootThreshold(): "..GetLootThreshold())
-	-- DEFAULT_CHAT_FRAME:AddMessage("GetNumLootItems(): "..GetNumLootItems())
-	-- DEFAULT_CHAT_FRAME:AddMessage("GetNumGroupMembers(): "..GetNumGroupMembers())
-	-- for i_loot = 1, GetNumLootItems() do
-	-- 	local loot_type = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
-	-- 	local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
-	-- 	local lootLink = GetLootSlotLink(i_loot);
-	-- 	local i_prty = 1;
-	-- 	-- DEFAULT_CHAT_FRAME:AddMessage("i_loot: "..i_loot);
-	-- 	if loot_type == 1 then
-	-- 		if GetMasterLootCandidate(i_loot,i_prty) == UnitName("player") and lootQuality >= 2 then
-	-- 			GiveMasterLoot(i_loot, i_prty);
-	-- 			DEFAULT_CHAT_FRAME:AddMessage("Master Looter gave "..lootLink.." to: "..UnitName("player"));
-	-- 			DEFAULT_CHAT_FRAME:AddMessage("lootName: "..lootName);
-	-- 			DEFAULT_CHAT_FRAME:AddMessage("lootIcon: "..lootIcon);
-	-- 			DEFAULT_CHAT_FRAME:AddMessage("lootQuantity: "..lootQuantity);
-	-- 			DEFAULT_CHAT_FRAME:AddMessage("lootQuality: "..lootQuality);
-	-- 		end
-	-- 	end
-	-- end
-	-- for ci = 1, GetNumGroupMembers() do
-	-- 	if (GetMasterLootCandidate(ci) == UnitName("player")) then
-	-- 	 for li = 1, GetNumLootItems() do
-	-- 	  GiveMasterLoot(li, ci);
-	-- 	 end
-	-- 	end
-	--    end
-	-- GiveMasterLoot()
-	
 	return;
 end
+
 function SKC_Main:AddonLoad()
 	SKC_Main.AddonLoaded = true;
 	local hard_reset = false;
@@ -1016,6 +1061,7 @@ function SKC_Main:AddonLoad()
 	-- Initialize or refresh metatables
 	SKC_DB.SK_Lists["SK1"] = SK_List:new(SKC_DB.SK_Lists["SK1"]);
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
+	-- SK_DB.LootPrio = GuildData:new(SKC_DB.LootPrio);
 	SKC_DB.UnFilteredCnt = 0;
 end
 
