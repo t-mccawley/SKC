@@ -51,26 +51,26 @@ local CLASSES = { -- wow classes
 			b = 0.04,
 			hex = "FF7D0A"
 		},
-		specs = {
+		Specs = {
 			Balance = {
 				text = "Balance",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Balance") end,
+				func = function (self) OnClick_EditDropDownOption("Spec","Balance") end,
 			},
 			Resto = {
 				text = "Resto",
 				RR = "Healer",
-				func = function (self) OnClick_EditDropDownOption("spec","Resto") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Resto") end
 			},
 			FeralTank = {
 				text = "FeralTank",
 				RR = "Tank",
-				func = function (self) OnClick_EditDropDownOption("spec","FeralTank") end
+				func = function (self) OnClick_EditDropDownOption("Spec","FeralTank") end
 			},
 			FeralDPS = {
 				text = "FeralDPS",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","FeralDPS") end
+				func = function (self) OnClick_EditDropDownOption("Spec","FeralDPS") end
 			},
 		},
 		DEFAULT_SPEC = "Resto",
@@ -83,11 +83,11 @@ local CLASSES = { -- wow classes
 			b = 0.45,
 			hex = "ABD473"
 		},
-		specs = {
+		Specs = {
 			Any = {
 				text = "Any",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Any") end
 			},
 		},
 		DEFAULT_SPEC = "Any",
@@ -100,11 +100,11 @@ local CLASSES = { -- wow classes
 			b = 0.94,
 			hex = "69CCF0"
 		},
-		specs = {
+		Specs = {
 			Any = {
 				text = "Any",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Any") end
 			},
 		},
 		DEFAULT_SPEC = "Any",
@@ -117,21 +117,21 @@ local CLASSES = { -- wow classes
 			b = 0.73,
 			hex = "F58CBA"
 		},
-		specs = {
+		Specs = {
 			Holy = {
 				text = "Holy",
 				RR = "Healer",
-				func = function (self) OnClick_EditDropDownOption("spec","Holy") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Holy") end
 			},
 			Prot = {
 				text = "Prot",
 				RR = "Tank",
-				func = function (self) OnClick_EditDropDownOption("spec","Prot") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Prot") end
 			},
 			Ret = {
 				text = "Ret",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Ret") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Ret") end
 			},
 		},
 		DEFAULT_SPEC = "Holy",
@@ -144,16 +144,16 @@ local CLASSES = { -- wow classes
 			b = 1.00,
 			hex = "FFFFFF"
 		},
-		specs = {
+		Specs = {
 			Holy = {
 				text = "Holy",
 				RR = "Healer",
-				func = function (self) OnClick_EditDropDownOption("spec","Holy") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Holy") end
 			},
 			Shadow = {
 				text = "Shadow",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Shadow") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Shadow") end
 			},
 		},
 		DEFAULT_SPEC = "Holy",
@@ -166,21 +166,21 @@ local CLASSES = { -- wow classes
 			b = 0.41,
 			hex = "FFF569"
 		},
-		specs = {
+		Specs = {
 			Any = {
 				text = "Any",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Any") end
 			},
 			Daggers = {
 				text = "Daggers",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Daggers") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Daggers") end
 			},
 			Swords = {
 				text = "Swords",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Swords") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Swords") end
 			},
 		},
 		DEFAULT_SPEC = "Any",
@@ -193,21 +193,21 @@ local CLASSES = { -- wow classes
 			b = 0.73,
 			hex = "F58CBA"
 		},
-		specs = {
+		Specs = {
 			Ele = {
 				text = "Ele",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Ele") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Ele") end
 			},
 			Enh = {
 				text = "Enh",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Enh") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Enh") end
 			},
 			Resto = {
 				text = "Resto",
 				RR = "Healer",
-				func = function (self) OnClick_EditDropDownOption("spec","Resto") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Resto") end
 			},
 		},
 		DEFAULT_SPEC = "Resto",
@@ -220,11 +220,11 @@ local CLASSES = { -- wow classes
 			b = 0.79,
 			hex = "9482C9"
 		},
-		specs = {
+		Specs = {
 			Any = {
 				text = "Any",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Any") end
 			},
 		},
 		DEFAULT_SPEC = "Any",
@@ -237,26 +237,26 @@ local CLASSES = { -- wow classes
 			b = 0.43,
 			hex = "C79C6E"
 		},
-		specs = {
+		Specs = {
 			DPS = {
 				text = "DPS",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","DPS") end
+				func = function (self) OnClick_EditDropDownOption("Spec","DPS") end
 			},
 			Prot = {
 				text = "Prot",
 				RR = "Tank",
-				func = function (self) OnClick_EditDropDownOption("spec","Prot") end
+				func = function (self) OnClick_EditDropDownOption("Spec","Prot") end
 			},
 			TwoHanded = {
 				text = "TwoHanded",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","TwoHanded") end
+				func = function (self) OnClick_EditDropDownOption("Spec","TwoHanded") end
 			},
 			DualWield = {
 				text = "DualWield",
 				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","DualWield") end
+				func = function (self) OnClick_EditDropDownOption("Spec","DualWield") end
 			},
 		},
 		DEFAULT_SPEC = "DPS",
@@ -312,11 +312,11 @@ local CHARACTER_DATA = { -- fields used to define character
 		OPTIONS = {
 			Main = {
 				text = "Main",
-				func = function (self) OnClick_EditDropDownOption("status","Main") end,
+				func = function (self) OnClick_EditDropDownOption("Status","Main") end,
 			},
 			Alt = {
 				text = "Alt",
-				func = function (self) OnClick_EditDropDownOption("status","Alt") end,
+				func = function (self) OnClick_EditDropDownOption("Status","Alt") end,
 			},
 		},
 	},
@@ -325,14 +325,14 @@ local CHARACTER_DATA = { -- fields used to define character
 		OPTIONS = {
 			Active = {
 				text = "Active",
-				func = function (self) OnClick_EditDropDownOption("activity","Active") end,
+				func = function (self) OnClick_EditDropDownOption("Activity","Active") end,
 			},
 			Inactive = {
 				text = "Inactive",
-				func = function (self) OnClick_EditDropDownOption("activity","Inactive") end,
+				func = function (self) OnClick_EditDropDownOption("Activity","Inactive") end,
 			},
 		},
-	}	
+	},	
 };
 
 local LOOT_DECISION = {
@@ -345,8 +345,8 @@ local LOOT_DECISION = {
 };
 
 local PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
-	LOOT_DECISION.SK = {
-		CHARACTER_DATA.Main.text = {
+	SK = {
+		Main = {
 			P1 = 1,
 			P2 = 2,
 			P3 = 3,
@@ -354,7 +354,7 @@ local PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
 			P5 = 5,
 			OS = 6,
 		},
-		CHARACTER_DATA.Alt.text = {
+		Alt = {
 			P1 = 7,
 			P2 = 8,
 			P3 = 9,
@@ -363,17 +363,17 @@ local PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
 			OS = 12,
 		},
 	},
-	LOOT_DECISION.ROLL = {
-		CHARACTER_DATA.Main.text = {
+	ROLL = {
+		Main = {
 			MS = 13,
 			OS = 14,
 		},
-		CHARACTER_DATA.Alt.text = {
+		Alt = {
 			MS = 15,
 			OS = 16,
 		},
 	},
-	LOOT_DECISION.PASS = 17,
+	PASS = 17,
 };
 
 --------------------------------------
@@ -519,8 +519,7 @@ SK_Node = {
 	above = nil, -- character name above this character in ths SK list
 	below = nil, -- character name below this character in the SK list
 	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
-	loot_prio = SKC_Main.MaxPrioTiers + 1, -- priority on given loot item
-	in_raid = false, -- used to determine where in list an SK will go
+	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
 };
 SK_Node.__index = SK_Node;
 
@@ -532,7 +531,7 @@ function SK_Node:new(sk_node,above,below)
 		obj.above = above or nil;
 		obj.below = below or nil;
 		obj.loot_decision = LOOT_DECISION.PASS;
-		loot_prio = SKC_Main.MaxPrioTiers + 1;
+		loot_prio = PRIO_TIERS.PASS;
 		obj.in_raid = false;
 		return obj;
 	else
@@ -590,13 +589,14 @@ function SK_List:Reset(in_raid_list)
 end
 
 function SK_List:PushBelow(name,new_above_name)
-	-- Push item below new_above_name (instantiate if doesnt exist)
+	-- Push item below new_above_name (instantiate itme if doesnt exist)
 	self.list[name] = SK_Node:new(self.list[name],nil,nil); -- just sets metatable if already exists
 	if self.top == nil then
 		-- First node in list
 		self.top = name;
 		self.bottom = name;
 	else
+		if new_above_name == nil then new_above_name = self.bottom end
 		-- check that new_above_name is in list
 		if self.list[new_above_name] == nil then
 			SKC_Main:Print("ERROR",new_above_name.." not found in SK list.");
@@ -654,7 +654,7 @@ function SK_List:FullSK(name)
 	-- remove character from list (will be recreated in PushBack)
 	self.list[name] = nil;
 	-- push to bottom
-	self:PushBack(name);
+	-- self:PushBack(name);
 	return true;
 end
 
@@ -679,7 +679,7 @@ function CharacterData:new(character_data,name,class)
 		obj.Name = name or nil;
 		obj.Class = class or nil;
 		obj.Spec = CLASSES[class].DEFAULT_SPEC;
-		obj["Raid Role"] = CLASSES[class].spec[obj.spec].RR;
+		obj["Raid Role"] = CLASSES[class].Specs[obj.Spec].RR;
 		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.text;
 		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.text;
 		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.text;
@@ -756,19 +756,19 @@ end
 
 local function Refresh_Details(name)
 	local data = SKC_DB.GuildData[name];
-	SKC_UIMain["Details_border"]["Name"].Data:SetText(data.name);
-	SKC_UIMain["Details_border"]["Class"].Data:SetText(data.class);
-	SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(CLASSES[data.class]color.r,CLASSES[data.class]color.g,CLASSES[data.class]color.b,1.0);
-	SKC_UIMain["Details_border"]["Spec"].Data:SetText(data.spec);
-	SKC_UIMain["Details_border"]["Raid Role"].Data:SetText(data.raid_role);
-	SKC_UIMain["Details_border"]["Guild Role"].Data:SetText(data.guild_role);
-	SKC_UIMain["Details_border"]["Status"].Data:SetText(data.status);
-	SKC_UIMain["Details_border"]["Activity"].Data:SetText(data.activity);
+	SKC_UIMain["Details_border"]["Name"].Data:SetText(data.Name);
+	SKC_UIMain["Details_border"]["Class"].Data:SetText(data.Class);
+	SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(CLASSES[data.Class].color.r,CLASSES[data.Class].color.g,CLASSES[data.Class].color.b,1.0);
+	SKC_UIMain["Details_border"]["Spec"].Data:SetText(data.Spec);
+	SKC_UIMain["Details_border"]["Raid Role"].Data:SetText(data["Raid Role"]);
+	SKC_UIMain["Details_border"]["Guild Role"].Data:SetText(data["Guild Role"]);
+	SKC_UIMain["Details_border"]["Status"].Data:SetText(data.Status);
+	SKC_UIMain["Details_border"]["Activity"].Data:SetText(data.Activity);
 end
 
 local function OnLoad_EditDropDown_Spec(self)
 	local class = SKC_UIMain["Details_border"]["Class"].Data:GetText();
-	for key,value in pairs(CLASSES[class].specs) do
+	for key,value in pairs(CLASSES[class].Specs) do
 		UIDropDownMenu_AddButton(value);
 	end
 	return;
@@ -793,14 +793,14 @@ local function OnLoad_EditDropDown_Activity(self)
 	return;
 end
 
-local function OnClick_EditDropDownOption(field,value) -- TODO: CHANGED THIS TO local, WAS THAT BAD???
+function OnClick_EditDropDownOption(field,value) -- Must be global
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	local class = SKC_UIMain["Details_border"]["Class"].Data:GetText();
 	-- Edit GuildData
 	SKC_DB.GuildData[name][field] = value;
 	-- Ensure Raid Role is in sync
-	local spec = SKC_DB.GuildData[name]["spec"];
-	SKC_DB.GuildData[name].raid_role = CLASSES[class].specs[spec].RR;
+	local spec = SKC_DB.GuildData[name].Spec;
+	SKC_DB.GuildData[name]["Raid Role"] = CLASSES[class].Specs[spec].RR;
 	-- Refresh details
 	Refresh_Details(name);
 	-- Reset menu toggle
@@ -862,7 +862,7 @@ local function OnClick_FullSK(self)
 	-- Execute full SK
 	local sk_list = "SK1";
 	SKC_Main:Print("IMPORTANT","Full SK on "..name);
-	local success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
+	-- local success = SKC_DB.SK_Lists.SK1.Full:FullSK(name);
 	-- Refresh SK List
 	SKC_Main:UpdateSK(sk_list);
 	return;
@@ -1073,7 +1073,7 @@ function SKC_Main:DetermineWinner()
 			-- If character SK'd, they win!
 			SKC_Main:Print("IMPORTANT",winner.." won "..SKC_Main.SK_Item.." by SK!");
 			-- SK character
-			local sk_success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
+			-- local sk_success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
 			-- Give loot!
 			local awarded_success = SKC_Main:AwardLoot(name);
 			return(sk_success and awarded_success);
@@ -1118,9 +1118,9 @@ function SKC_Main:AddonMessageRead(self,prefix,msg,channel,sender)
 		local name = StripRealmName(sender);
 		SKC_Main:Print("NORMAL",name.." wants to "..msg..".");
 		-- Save loot decision
-		SKC_DB.SK_Lists["SK1"].list[name].loot_decision = msg;
+		-- SKC_DB.SK_Lists["SK1"].list[name].loot_decision = msg;
 		-- Determine loot prio of character
-		SKC_DB.SK_Lists["SK1"].list[name].loot_prio = SKC_Main:DetermineLootPrio(name);
+		-- SKC_DB.SK_Lists["SK1"].list[name].loot_prio = SKC_Main:DetermineLootPrio(name);
 		-- check if all messages received
 		if SKC_Main.SK_MessagesReceived >= SKC_Main.SK_MessagesSent then
 			-- Determine winner and allocate loot
@@ -1152,7 +1152,7 @@ function SKC_Main:InitiateLootDecision()
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
 	if not IsMasterLooter() then return end
 	-- Reset guild loot decisions and loot prio
-	SKC_DB.SK_Lists["SK1"]:Reset();
+	-- SKC_DB.SK_Lists["SK1"]:Reset();
 	-- Reset message count
 	SKC_Main.SK_MessagesReceived = 0;
 	SKC_Main.SK_MessagesSent = 0;
@@ -1182,7 +1182,7 @@ end
 
 function SKC_Main:OnAddonLoad()
 	AddonLoaded = true;
-	local hard_reset = false;
+	local hard_reset = true;
 	-- Initialize 
 	if SKC_DB == nil or hard_reset then 
 		SKC_DB = {};
@@ -1194,10 +1194,17 @@ function SKC_Main:OnAddonLoad()
 		SKC_DB.LootPrio = {};
 	end
 	-- Initialize or refresh metatables
-	SKC_DB.SK_Lists["SK1"] = SK_List:new(SKC_DB.SK_Lists["SK1"]);
+	SKC_DB.SK_Lists.SK1 = {};
+	SKC_DB.SK_Lists.SK1.Full = SK_List:new(SKC_DB.SK_Lists.SK1.Full);
+	SKC_DB.SK_Lists.SK1.Live = SK_List:new(SKC_DB.SK_Lists.SK1.Live);
+	SKC_DB.SK_Lists.SK2 = {};
+	SKC_DB.SK_Lists.SK2.Full = SK_List:new(SKC_DB.SK_Lists.SK2.Full);
+	SKC_DB.SK_Lists.SK2.Live = SK_List:new(SKC_DB.SK_Lists.SK2.Live);
+	SKC_DB.SK_Lists.SK3 = {};
+	SKC_DB.SK_Lists.SK3.Full = SK_List:new(SKC_DB.SK_Lists.SK3.Full);
+	SKC_DB.SK_Lists.SK3.Live = SK_List:new(SKC_DB.SK_Lists.SK3.Live);
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
-	-- SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
-	SKC_DB.LootPrio = LootPrio:new(nil);
+	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
 	SKC_DB.UnFilteredCnt = 0;
 end
 
@@ -1217,9 +1224,11 @@ function SKC_Main:FetchGuildInfo()
 			cnt = cnt + 1;
 			local name = StripRealmName(full_name);
 			if SKC_DB.GuildData[name] == nil then
-				-- new player, add to DB and SK list
+				-- new player, add to DB and SK lists
 				SKC_DB.GuildData:Add(name,class);
-				SKC_DB.SK_Lists["SK1"]:PushBack(name);
+				SKC_DB.SK_Lists.SK1.Full:PushBelow(name,nil);
+				SKC_DB.SK_Lists.SK2.Full:PushBelow(name,nil);
+				SKC_DB.SK_Lists.SK3.Full:PushBelow(name,nil);
 				SKC_Main:Print("NORMAL","["..cnt.."] "..name.." added to database!");
 			end
 		end
@@ -1239,13 +1248,13 @@ function SKC_Main:UpdateSK(sk_list)
 	end
 
 	-- Populate non filtered cards
-	local print_order = SKC_DB.SK_Lists[sk_list]:ReturnList();
+	local print_order = SKC_DB.SK_Lists[sk_list].Full:ReturnList();
 	local idx = 1;
 	for key,value in ipairs(print_order) do
-		local class_tmp = SKC_DB.GuildData[value].class;
-		local raid_role_tmp = SKC_DB.GuildData[value].raid_role;
-		local status_tmp = SKC_DB.GuildData[value].status;
-		local activity_tmp = SKC_DB.GuildData[value].activity;
+		local class_tmp = SKC_DB.GuildData[value].Class;
+		local raid_role_tmp = SKC_DB.GuildData[value]["Raid Role"];
+		local status_tmp = SKC_DB.GuildData[value].Status;
+		local activity_tmp = SKC_DB.GuildData[value].Activity;
 		-- only add cards to list which are not being filtered
 		if SKC_Main.FilterStates["SK1"][class_tmp] and 
 		   SKC_Main.FilterStates["SK1"][raid_role_tmp] and
@@ -1329,7 +1338,7 @@ function SKC_Main:CreateMenu()
 			SKC_UIMain[filter_border_key][value].text:SetText(value);
 			if idx > 7 then
 				-- assign class colors
-				SKC_UIMain[filter_border_key][value].text:SetTextColor(CLASSES[class_tmp].color.r,CLASSES[class_tmp].color.g,CLASSES[class_tmp].color.b,1.0);
+				SKC_UIMain[filter_border_key][value].text:SetTextColor(CLASSES[value].color.r,CLASSES[value].color.g,CLASSES[value].color.b,1.0);
 			end
 		end
 	end

@@ -100,7 +100,7 @@ core.commands = {
 
 local function HandleSlashCommands(str)
   if (#str == 0) then
-    core.SKC_Main:Toggle();
+    core.SKC_Main:Toggle(false);
   else
     -- split out args in string
     local args = {};
