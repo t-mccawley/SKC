@@ -76,6 +76,18 @@ core.commands = {
   ["prio"] = function(...)
     SKC_DB.LootPrio:PrintPrio(...)
   end,
+  ["init"] = {
+    ["sk"] = function(sk_list)
+      -- Initializes the specified SK list with a CSV pasted into a window
+      core.SKC_Main:Print("NORMAL",sk_list);
+    end,
+    ["prio"] = function()
+      -- Initializes the loot prio with a CSV pasted into a window
+    end,
+    ["guild"] = function()
+      -- Initializes the guild data with a CSV pasted into a window
+    end,
+  },
   -- ["prio"] = {
   --   ["default"] = function(...)
   --     SKC_DB.LootPrio:PrintPrio(itemName)

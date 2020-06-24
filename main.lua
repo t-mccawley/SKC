@@ -1,21 +1,390 @@
 --------------------------------------
--- Namespaces
+-- NAMESPACES
 --------------------------------------
 local _, core = ...; -- returns name of addon and namespace (core)
 core.SKC_Main = {}; -- adds SKC_Main table to addon namespace
 
 local SKC_Main = core.SKC_Main; -- assignment by reference in lua, ugh
 local SKC_UIMain;
+--------------------------------------
+-- LOCAL CONSTANTS
+--------------------------------------
+local UI_DIMENSIONS = { -- ui dimensions
+	MAIN_WIDTH = 840,
+	MAIN_HEIGHT = 450,
+	SK_TAB_TOP_OFFST = -60,
+	SK_TAB_TITLE_CARD_WIDTH = 80,
+	SK_TAB_TITLE_CARD_HEIGHT = 40,
+	SK_FILTER_WIDTH = 270,
+	SK_FILTER_HEIGHT = 155,
+	DECISION_WIDTH = 270,
+	DECISION_HEIGHT = 180,
+	SK_DETAILS_WIDTH = 270,
+	SK_DETAILS_HEIGHT = 355,
+	ITEM_WIDTH = 40,
+	ITEM_HEIGHT = 40,
+	SK_LIST_WIDTH = 175,
+	SK_LIST_HEIGHT = 325,
+	SK_LIST_BORDER_OFFST = 15,
+	SK_CARD_SPACING = 6,
+	SK_CARD_WIDTH = 100,
+	SK_CARD_HEIGHT = 20,
+};
 
-SKC_Main.VarsLoaded = false;
-SKC_Main.DISTRIBUTION_CHANNEL = "xBPE9,-Fjbc+A#rm";
-SKC_Main.SYNC_CHANNEL = "&95n%nR2!&;QZJSh";
-SKC_Main.DECISION_CHANNEL = "ksg(AkE.*/@&+`8Q";
-SKC_Main.RARITY_THRESHOLD = 2; -- greens
-SKC_Main.MaxPrioTiers = 5;
-SKC_Main.LootDecision = nil;
-SKC_Main.MasterLooter = nil;
-SKC_Main.SK_Item = nil;
+local THEME = { -- general color themes
+	PRINT = {
+		NORMAL = {r = 0, g = 0.8, b = 1, hex = "00ccff"},
+		WARN = {r = 1, g = 0.8, b = 0, hex = "ffcc00"},
+		ERROR = {r = 1, g = 0.2, b = 0, hex = "ff3300"},
+		IMPORTANT = {r = 1, g = 0, b = 1, hex = "ff00ff"},
+	},
+	STATUS_BAR_COLOR = {0.0,0.6,0.0},
+};
+
+local OnClick_EditDropDownOption; -- forward declare for drop down menu details
+local CLASSES = { -- wow classes
+	Druid = {
+		text = "Druid",
+		color = {
+			r = 1.0,
+			g = 0.49,
+			b = 0.04,
+			hex = "FF7D0A"
+		},
+		specs = {
+			Balance = {
+				text = "Balance",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Balance") end,
+			},
+			Resto = {
+				text = "Resto",
+				RR = "Healer",
+				func = function (self) OnClick_EditDropDownOption("spec","Resto") end
+			},
+			FeralTank = {
+				text = "FeralTank",
+				RR = "Tank",
+				func = function (self) OnClick_EditDropDownOption("spec","FeralTank") end
+			},
+			FeralDPS = {
+				text = "FeralDPS",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","FeralDPS") end
+			},
+		},
+		DEFAULT_SPEC = "Resto",
+	},
+	Hunter = {
+		text = "",
+		color = {
+			r = 0.67, 
+			g = 0.83,
+			b = 0.45,
+			hex = "ABD473"
+		},
+		specs = {
+			Any = {
+				text = "Any",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+			},
+		},
+		DEFAULT_SPEC = "Any",
+	},
+	Mage = {
+		text = "",
+		color = {
+			r = 0.41, 
+			g = 0.80,
+			b = 0.94,
+			hex = "69CCF0"
+		},
+		specs = {
+			Any = {
+				text = "Any",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+			},
+		},
+		DEFAULT_SPEC = "Any",
+	},
+	Paladin = {
+		text = "",
+		color = {
+			r = 0.96, 
+			g = 0.55,
+			b = 0.73,
+			hex = "F58CBA"
+		},
+		specs = {
+			Holy = {
+				text = "Holy",
+				RR = "Healer",
+				func = function (self) OnClick_EditDropDownOption("spec","Holy") end
+			},
+			Prot = {
+				text = "Prot",
+				RR = "Tank",
+				func = function (self) OnClick_EditDropDownOption("spec","Prot") end
+			},
+			Ret = {
+				text = "Ret",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Ret") end
+			},
+		},
+		DEFAULT_SPEC = "Holy",
+	},
+	Priest = {
+		text = "",
+		color = {
+			r = 1.00, 
+			g = 1.00,
+			b = 1.00,
+			hex = "FFFFFF"
+		},
+		specs = {
+			Holy = {
+				text = "Holy",
+				RR = "Healer",
+				func = function (self) OnClick_EditDropDownOption("spec","Holy") end
+			},
+			Shadow = {
+				text = "Shadow",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Shadow") end
+			},
+		},
+		DEFAULT_SPEC = "Holy",
+	},
+	Rogue = {
+		text = "",
+		color = {
+			r = 1.00, 
+			g = 0.96,
+			b = 0.41,
+			hex = "FFF569"
+		},
+		specs = {
+			Any = {
+				text = "Any",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+			},
+			Daggers = {
+				text = "Daggers",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Daggers") end
+			},
+			Swords = {
+				text = "Swords",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Swords") end
+			},
+		},
+		DEFAULT_SPEC = "Any",
+	},
+	Shaman = {
+		text = "",
+		color = {
+			r = 0.96, 
+			g = 0.55,
+			b = 0.73,
+			hex = "F58CBA"
+		},
+		specs = {
+			Ele = {
+				text = "Ele",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Ele") end
+			},
+			Enh = {
+				text = "Enh",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Enh") end
+			},
+			Resto = {
+				text = "Resto",
+				RR = "Healer",
+				func = function (self) OnClick_EditDropDownOption("spec","Resto") end
+			},
+		},
+		DEFAULT_SPEC = "Resto",
+	},
+	Warlock = {
+		text = "",
+		color = {
+			r = 0.58, 
+			g = 0.51,
+			b = 0.79,
+			hex = "9482C9"
+		},
+		specs = {
+			Any = {
+				text = "Any",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","Any") end
+			},
+		},
+		DEFAULT_SPEC = "Any",
+	},
+	Warrior = {
+		text = "",
+		color = {
+			r = 0.78, 
+			g = 0.61,
+			b = 0.43,
+			hex = "C79C6E"
+		},
+		specs = {
+			DPS = {
+				text = "DPS",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","DPS") end
+			},
+			Prot = {
+				text = "Prot",
+				RR = "Tank",
+				func = function (self) OnClick_EditDropDownOption("spec","Prot") end
+			},
+			TwoHanded = {
+				text = "TwoHanded",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","TwoHanded") end
+			},
+			DualWield = {
+				text = "DualWield",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("spec","DualWield") end
+			},
+		},
+		DEFAULT_SPEC = "DPS",
+	},
+};
+
+local CHARACTER_DATA = { -- fields used to define character
+	Name = {
+		text = "Name",
+		OPTIONS = {},
+	},
+	Class = {
+		text = "Class",
+		OPTIONS = {},
+	},
+	Spec = {
+		text = "Spec",
+		OPTIONS = {},
+	},
+	["Raid Role"] = {
+		text = "Raid Role",
+		OPTIONS = {
+			DPS = {
+				text = "DPS",
+			},
+			Healer = {
+				text = "Healer",
+			},
+			Tank = {
+				text = "Tank",
+			},
+		},
+	},
+	["Guild Role"] = {
+		text = "Guild Role",
+		OPTIONS = {
+			None = {
+				text = "None",
+				func = function (self) OnClick_EditDropDownOption("Guild Role","None") end,
+			},
+			Disenchanter = {
+				text = "Disenchanter",
+				func = function (self) OnClick_EditDropDownOption("Guild Role","Disenchanter") end,
+			},
+			Banker = {
+				text = "Banker",
+				func = function (self) OnClick_EditDropDownOption("Guild Role","Banker") end,
+			},
+		},
+	},
+	Status = {
+		text = "Status",
+		OPTIONS = {
+			Main = {
+				text = "Main",
+				func = function (self) OnClick_EditDropDownOption("status","Main") end,
+			},
+			Alt = {
+				text = "Alt",
+				func = function (self) OnClick_EditDropDownOption("status","Alt") end,
+			},
+		},
+	},
+	Activity = {
+		text = "Activity",
+		OPTIONS = {
+			Active = {
+				text = "Active",
+				func = function (self) OnClick_EditDropDownOption("activity","Active") end,
+			},
+			Inactive = {
+				text = "Inactive",
+				func = function (self) OnClick_EditDropDownOption("activity","Inactive") end,
+			},
+		},
+	}	
+};
+
+local LOOT_DECISION = {
+	PASS = "PASS",
+	SK = "SK",
+	ROLL = "ROLL",
+	MAX_TIME = 30,
+	TIME_STEP = 1,
+	RARITY_THRESHOLD = 2, -- threshold to initiate loot decision (2 = greens, 3 = blues)
+};
+
+local PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
+	LOOT_DECISION.SK = {
+		CHARACTER_DATA.Main.text = {
+			P1 = 1,
+			P2 = 2,
+			P3 = 3,
+			P4 = 4,
+			P5 = 5,
+			OS = 6,
+		},
+		CHARACTER_DATA.Alt.text = {
+			P1 = 7,
+			P2 = 8,
+			P3 = 9,
+			P4 = 10,
+			P5 = 11,
+			OS = 12,
+		},
+	},
+	LOOT_DECISION.ROLL = {
+		CHARACTER_DATA.Main.text = {
+			MS = 13,
+			OS = 14,
+		},
+		CHARACTER_DATA.Alt.text = {
+			MS = 15,
+			OS = 16,
+		},
+	},
+	LOOT_DECISION.PASS = 17,
+};
+
+--------------------------------------
+-- SAVED / SHARED VARIABLES
+--------------------------------------
+SKC_Main.SYNC_CHANNEL = "&95n%nR2!&;QZJSh"; -- TODO: used for sync data (const)
+SKC_Main.DISTRIBUTION_CHANNEL = "xBPE9,-Fjbc+A#rm"; -- ML sends a loot decision (const)
+SKC_Main.DECISION_CHANNEL = "ksg(AkE.*/@&+`8Q"; -- ML receives a loot decision (const)
+SKC_Main.LootDecision = nil; -- personal loot decision
+SKC_Main.MasterLooter = nil; -- name of master looter
+SKC_Main.SK_Item = nil; -- name of item currently being SK'd for
 SKC_Main.SK_MessagesSent = 0;
 SKC_Main.SK_MessagesReceived = 0;
 SKC_Main.FilterStates = {
@@ -39,338 +408,29 @@ SKC_Main.FilterStates = {
 	},
 };
 --------------------------------------
--- DEFAULTS (usually a database!)
+-- LOCAL VARIABLES
 --------------------------------------
-local OnClick_EditDropDownOption;
-local DEFAULTS = {
-	THEME = { 
-		NORMAL = {r = 0, g = 0.8, b = 1, hex = "00ccff"},
-		WARN = {r = 1, g = 0.8, b = 0, hex = "ffcc00"},
-		ERROR = {r = 1, g = 0.2, b = 0, hex = "ff3300"},
-		IMPORTANT = {r = 1, g = 0, b = 1, hex = "ff00ff"},
-	},
-	STATUS_BAR_COLOR = {0.0,0.6,0.0},
-	LOOT_DECISIONS = {
-		PASS = "PASS",
-		SK = "SK",
-		ROLL = "ROLL",
-	},
-	LOOT_DECISION_TIME_MAX = 30,
-	LOOT_DECISION_TIME_STEP = 1,
-	CLASS_COLORS = {
-		Druid = {
-			r = 1.0,
-			g = 0.49,
-			b = 0.04,
-			hex = "FF7D0A"
-		},
-		Hunter = {
-			r = 0.67, 
-			g = 0.83,
-			b = 0.45,
-			hex = "ABD473"
-		},
-		Mage = {
-			r = 0.41, 
-			g = 0.80,
-			b = 0.94,
-			hex = "69CCF0"
-		},
-		Paladin = {
-			r = 0.96, 
-			g = 0.55,
-			b = 0.73,
-			hex = "F58CBA"
-		},
-		Priest = {
-			r = 1.00, 
-			g = 1.00,
-			b = 1.00,
-			hex = "FFFFFF"
-		},
-		Rogue = {
-			r = 1.00, 
-			g = 0.96,
-			b = 0.41,
-			hex = "FFF569"
-		},
-		Shaman = {
-			r = 0.96, 
-			g = 0.55,
-			b = 0.73,
-			hex = "F58CBA"
-		},
-		Warlock = {
-			r = 0.58, 
-			g = 0.51,
-			b = 0.79,
-			hex = "9482C9"
-		},
-		Warrior = {
-			r = 0.78, 
-			g = 0.61,
-			b = 0.43,
-			hex = "C79C6E"
-		},
-	},
-	MAIN_WIDTH = 840,
-	MAIN_HEIGHT = 450,
-	SK_TAB_TOP_OFFST = -60,
-	SK_TAB_TITLE_CARD_WIDTH = 80,
-	SK_TAB_TITLE_CARD_HEIGHT = 40,
-	SK_FILTER_WIDTH = 270,
-	SK_FILTER_HEIGHT = 155,
-	DECISION_WIDTH = 270,
-	DECISION_HEIGHT = 180,
-	SK_DETAILS_WIDTH = 270,
-	SK_DETAILS_HEIGHT = 355,
-	ITEM_WIDTH = 40,
-	ITEM_HEIGHT = 40,
-	SK_LIST_WIDTH = 175,
-	SK_LIST_HEIGHT = 325,
-	SK_LIST_BORDER_OFFST = 15,
-	SK_CARD_SPACING = 6,
-	SK_CARD_WIDTH = 100,
-	SK_CARD_HEIGHT = 20,
-	DET_OPTIONS = {
-		de = {
-			text = "DE",
-			func = function (self) OnClick_EditDropDownOption("guild_role","DE") end,
-		},
-		gb = {
-			text = "GB",
-			func = function (self) OnClick_EditDropDownOption("guild_role","GB") end,
-		},
-		none = {
-			text = "None",
-			func = function (self) OnClick_EditDropDownOption("guild_role","None") end,
-		},
-		main = {
-			text = "Main",
-			func = function (self) OnClick_EditDropDownOption("status","Main") end,
-		},
-		alt = {
-			text = "Alt",
-			func = function (self) OnClick_EditDropDownOption("status","Alt") end,
-		},
-		active = {
-			text = "Active",
-			func = function (self) OnClick_EditDropDownOption("activity","Active") end,
-		},
-		inactive = {
-			text = "Inactive",
-			func = function (self) OnClick_EditDropDownOption("activity","Inactive") end,
-		},
-	},
-	SPECS = {
-		Druid = {
-			Balance = {
-				text = "Balance",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Balance") end,
-			},
-			Resto = {
-				text = "Resto",
-				RR = "Healer",
-				func = function (self) OnClick_EditDropDownOption("spec","Resto") end
-			},
-			FeralTank = {
-				text = "FeralTank",
-				RR = "Tank",
-				func = function (self) OnClick_EditDropDownOption("spec","FeralTank") end
-			},
-			FeralDPS = {
-				text = "FeralDPS",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","FeralDPS") end
-			},
-		},
-		Hunter = {
-			Any = {
-				text = "Any",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Any") end
-			},
-		},
-		Mage = {
-			Any = {
-				text = "Any",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Any") end
-			},
-			-- Arcane = {
-			-- 	text = "Arcane",
-			-- 	RR = "DPS",
-			-- 	func = function (self) OnClick_EditDropDownOption("spec","Arcane") end
-			-- },
-			-- Fire = {
-			-- 	text = "Fire",
-			-- 	RR = "DPS",
-			-- 	func = function (self) OnClick_EditDropDownOption("spec","Fire") end
-			-- },
-			-- Frost = {
-			-- 	text = "Frost",
-			-- 	RR = "DPS",
-			-- 	func = function (self) OnClick_EditDropDownOption("spec","Frost") end
-			-- },
-		},
-		Priest = {
-			Holy = {
-				text = "Holy",
-				RR = "Healer",
-				func = function (self) OnClick_EditDropDownOption("spec","Holy") end
-			},
-			Shadow = {
-				text = "Shadow",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Shadow") end
-			},
-		},
-		Rogue = {
-			Any = {
-				text = "Any",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Any") end
-			},
-			Daggers = {
-				text = "Daggers",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Daggers") end
-			},
-			Swords = {
-				text = "Swords",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Swords") end
-			},
-		},
-		Warlock = {
-			Any = {
-				text = "Any",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Any") end
-			},
-		},
-		Warrior = {
-			DPS = {
-				text = "DPS",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","DPS") end
-			},
-			Prot = {
-				text = "Prot",
-				RR = "Tank",
-				func = function (self) OnClick_EditDropDownOption("spec","Prot") end
-			},
-			TwoHanded = {
-				text = "TwoHanded",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","TwoHanded") end
-			},
-			DualWield = {
-				text = "DualWield",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","DualWield") end
-			},
-		},
-		Shaman = {
-			Ele = {
-				text = "Ele",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Ele") end
-			},
-			Enh = {
-				text = "Enh",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Enh") end
-			},
-			Resto = {
-				text = "Resto",
-				RR = "Healer",
-				func = function (self) OnClick_EditDropDownOption("spec","Resto") end
-			},
-		},
-		Paladin = {
-			Holy = {
-				text = "Holy",
-				RR = "Healer",
-				func = function (self) OnClick_EditDropDownOption("spec","Holy") end
-			},
-			Prot = {
-				text = "Prot",
-				RR = "Tank",
-				func = function (self) OnClick_EditDropDownOption("spec","Prot") end
-			},
-			Ret = {
-				text = "Ret",
-				RR = "DPS",
-				func = function (self) OnClick_EditDropDownOption("spec","Ret") end
-			},
-		},
-	},
-}
--- Specify default spec for initialization
-DEFAULTS.SPECS["Druid"].Default = DEFAULTS.SPECS["Druid"].Resto;
-DEFAULTS.SPECS["Hunter"].Default = DEFAULTS.SPECS["Hunter"].Any;
-DEFAULTS.SPECS["Mage"].Default = DEFAULTS.SPECS["Mage"].Any;
-DEFAULTS.SPECS["Priest"].Default = DEFAULTS.SPECS["Priest"].Holy;
-DEFAULTS.SPECS["Rogue"].Default = DEFAULTS.SPECS["Rogue"].Any;
-DEFAULTS.SPECS["Warlock"].Default = DEFAULTS.SPECS["Warlock"].Any;
-DEFAULTS.SPECS["Warrior"].Default = DEFAULTS.SPECS["Warrior"].DPS;
-DEFAULTS.SPECS["Shaman"].Default = DEFAULTS.SPECS["Shaman"].Resto;
-DEFAULTS.SPECS["Paladin"].Default = DEFAULTS.SPECS["Paladin"].Holy;
---------------------------------------
--- Local Variables
---------------------------------------
+local AddonLoaded = false; -- used to know if addon is loaded and saved variables available
+local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
-
+local SetSK_Flag = false; -- true when SK position is being set
 --------------------------------------
--- Classes
+-- CLASSES
 --------------------------------------
 -- Prio class
 Prio = {
 	reserved = false, -- true if main prio over alts
 	DE = true, -- true if item should be disenchanted before going to guild bank
-	prio = {}, -- map of SpecClass to prio level (1 is highest prio)
+	prio = {}, -- map of SpecClass to prio level (P1,P2,P3,P4,P5,OS)
 };
 Prio.__index = Prio;
-
-local function GetAllSpecClass()
-	-- Return a table of all SpecClass combinations
-	local tbl_out = {};
-	local idx = 1;
-	for key1,value1 in pairs(DEFAULTS.SPECS) do
-		local class = key1;
-		for key2,value2 in pairs(DEFAULTS.SPECS[class]) do
-			local spec = value2.text;
-			if key2 ~= "Default" then
-				tbl_out[idx] = spec..class;
-				idx = idx + 1;
-			end
-		end
-	end
-	return(tbl_out);
-end
-
-local function GetSpecClassColor(spec_class)
-	-- Returns color code for given SpecClass
-	for class,tbl in pairs(DEFAULTS.CLASS_COLORS) do
-		if string.find(spec_class,class) ~= nil then
-			return tbl.r, tbl.g, tbl.b, tbl.hex;
-		end
-	end
-	return nil,nil,nil,nil;
-end
 
 function Prio:new(prio)
 	if prio == nil then
 		-- initalize fresh
 		local obj = {};
 		setmetatable(obj,Prio);
-		obj.prio = {};
-		local all_class_prio = GetAllSpecClass();
-		for key,value in pairs(all_class_prio) do
-			obj.prio[value] = 1; -- default is equal prio for all
-		end
+		obj.prio = {}; -- default is equal prio for all (considered OS for all)
 		obj.reserved = false;
 		obj.DE = true;
 		return obj;
@@ -404,6 +464,16 @@ function LootPrio:new(loot_prio)
 		end
 		return loot_prio;
 	end
+end
+
+local function GetSpecClassColor(spec_class)
+	-- Returns color code for given SpecClass
+	for class,tbl in pairs(CLASSES) do
+		if string.find(spec_class,class) ~= nil then
+			return tbl.color.r, tbl.color.g, tbl.color.b, tbl.color.hex;
+		end
+	end
+	return nil,nil,nil,nil;
 end
 
 function LootPrio:PrintPrio(itemName)
@@ -448,8 +518,9 @@ end
 SK_Node = {
 	above = nil, -- character name above this character in ths SK list
 	below = nil, -- character name below this character in the SK list
-	loot_decision = DEFAULTS.LOOT_DECISIONS.PASS, -- character current loot decision (PASS, SK, ROLL)
-	loot_prio = 1; -- priority on given loot item
+	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
+	loot_prio = SKC_Main.MaxPrioTiers + 1, -- priority on given loot item
+	in_raid = false, -- used to determine where in list an SK will go
 };
 SK_Node.__index = SK_Node;
 
@@ -460,7 +531,9 @@ function SK_Node:new(sk_node,above,below)
 		setmetatable(obj,SK_Node);
 		obj.above = above or nil;
 		obj.below = below or nil;
-		obj.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS;
+		obj.loot_decision = LOOT_DECISION.PASS;
+		loot_prio = SKC_Main.MaxPrioTiers + 1;
+		obj.in_raid = false;
 		return obj;
 	else
 		-- set metatable of existing table
@@ -505,33 +578,43 @@ function SK_List:CheckIfFucked()
 	return false;
 end
 
-function SK_List:Reset()
+function SK_List:Reset(in_raid_list)
 	-- Resets all player loot decisions to PASS and prio to 1
-	for _,value in pairs(self.list) do 
-		value.loot_decision = DEFAULTS.LOOT_DECISIONS.PASS;
-		value.loot_prio = 1;
+	-- in_raid_list is 
+	for name,sk_node in pairs(self.list) do 
+		sk_node.loot_decision = LOOT_DECISION.PASS;
+		sk_node.loot_prio = SKC_Main.MaxPrioTiers + 1; -- prio tier for OS
+		sk_node.in_raid = false;
 	end
 	return;
 end
 
-function SK_List:PushBack(name)
-	-- Push item to back of list (instantiate if doesnt exist)
-	self.list[name] = SK_Node:new(self.list[name],nil,nil);
+function SK_List:PushBelow(name,new_above_name)
+	-- Push item below new_above_name (instantiate if doesnt exist)
+	self.list[name] = SK_Node:new(self.list[name],nil,nil); -- just sets metatable if already exists
 	if self.top == nil then
 		-- First node in list
 		self.top = name;
 		self.bottom = name;
 	else
-		-- get current bottom name
-		local bottom_tmp = self.bottom;
-		-- adjust current bottom
-		self.list[bottom_tmp].below = name;
-		-- push to bottom
-		self.list[name].above = bottom_tmp;
-		self.list[name].bottom = nil;
-		self.bottom = name;
+		-- check that new_above_name is in list
+		if self.list[new_above_name] == nil then
+			SKC_Main:Print("ERROR",new_above_name.." not found in SK list.");
+			return false;
+		end
+		-- get below of new_above_name
+		local below_tmp = self.list[new_above_name].below;
+		-- push below
+		self.list[name].above = new_above_name;
+		self.list[name].below = below_tmp;
+		-- adjust below for new_above_name
+		self.list[new_above_name].below = name;
+		-- check if bottom
+		if self.list[name].below == nil then
+			self.bottom = name;
+		end
 	end
-	return;
+	return true;
 end
 
 function SK_List:ReturnList()
@@ -554,11 +637,15 @@ function SK_List:FullSK(name)
 	-- check if name is in SK list
 	if self.list[name] == nil then
 		-- name is not in SK list
-		SKC_Main:Print("ERROR","Rejected, "..name.." not in SK List")
+		SKC_Main:Print("ERROR","SK rejected, "..name.." not in SK List")
 		return false;
 	elseif name == self.bottom then
+		-- name is already at the bottom
 		return true;
 	end
+	-- determine
+
+
 	-- make current above name point to below name and vice versa
 	local above_tmp = self.list[name].above;
 	local below_tmp = self.list[name].below;
@@ -573,14 +660,14 @@ end
 
 -- CharacterData class
 CharacterData = {
-	name = nil, -- character name
-	class = nil, -- character class
-	spec = nil, -- character specialization
-	raid_role = nil, --DPS, Healer, or Tank
-	guild_role = nil, --Disenchanter, Guild Banker, or None
-	status = nil, -- Main or Alt
-	activity = nil, -- Active or Inactive
-	loot_history = {}, -- Table that maps timestamp to table with item (Rejuvenating Gem) and distribution method (SK1, Roll, DE, etc)
+	Name = nil, -- character name
+	Class = nil, -- character class
+	Spec = nil, -- character specialization
+	["Raid Role"] = nil, --DPS, Healer, or Tank
+	["Guild Role"] = nil, --Disenchanter, Guild Banker, or None
+	Status = nil, -- Main or Alt
+	Activity = nil, -- Active or Inactive
+	["Loot History"] = {}, -- Table that maps timestamp to table with item (Rejuvenating Gem) and distribution method (SK1, Roll, DE, etc)
 }
 CharacterData.__index = CharacterData;
 
@@ -589,14 +676,14 @@ function CharacterData:new(character_data,name,class)
 		-- initalize fresh
 		local obj = {};
 		setmetatable(obj,CharacterData);
-		obj.name = name or nil;
-		obj.class = class or nil;
-		obj.spec = DEFAULTS.SPECS[class].Default.text;
-		obj.raid_role = DEFAULTS.SPECS[class].Default.RR;
-		obj.guild_role = DEFAULTS.DET_OPTIONS.none.text;
-		obj.status = DEFAULTS.DET_OPTIONS.main.text;
-		obj.activity = DEFAULTS.DET_OPTIONS.active.text;
-		obj.loot_history = {};
+		obj.Name = name or nil;
+		obj.Class = class or nil;
+		obj.Spec = CLASSES[class].DEFAULT_SPEC;
+		obj["Raid Role"] = CLASSES[class].spec[obj.spec].RR;
+		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.text;
+		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.text;
+		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.text;
+		obj["Loot History"] = {};
 		return obj;
 	else
 		-- set metatable of existing table
@@ -635,8 +722,21 @@ function GuildData:Add(name,class)
 end
 
 --------------------------------------
--- local functions
+-- LOCAL FUNCTIONS
 --------------------------------------
+local function GetAllSpecClass()
+	-- Return a table of all SpecClass combinations
+	local tbl_out = {};
+	for class,tbl in pairs(CLASSES) do
+		local class_txt = class.text;
+		for key,value in pairs(tbl.spec) do
+			local spec_txt = value.text;
+			tbl_out[#tbl_out + 1] = spec_txt..class_txt;
+		end
+	end
+	return(tbl_out);
+end
+
 local function OnMouseWheel_ScrollFrame(self,delta)
     -- delta: 1 scroll up, -1 scroll down
 	-- value at top is 0, value at bottom is size of child
@@ -695,7 +795,7 @@ local function OnLoad_EditDropDown_Activity(self)
 	return;
 end
 
-function OnClick_EditDropDownOption(field,value)
+local function OnClick_EditDropDownOption(field,value) -- TODO: CHANGED THIS TO local, WAS THAT BAD???
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	local class = SKC_UIMain["Details_border"]["Class"].Data:GetText();
 	-- Edit GuildData
@@ -782,7 +882,6 @@ local function OnClick_SingleSK(self)
 	return;
 end
 
-local SetSK_Flag = false;
 local function OnClick_SetSK(self)
 	-- On click event to set SK position of details targeted character
 	-- Prompt user to click desired position number in list
@@ -858,32 +957,31 @@ end
 
 local function InitTimerBarValue()
 	SKC_UIMain["Decision_border"].TimerBar:SetValue(0);
-	SKC_UIMain["Decision_border"].TimerText:SetText(DEFAULTS.LOOT_DECISION_TIME_MAX);
+	SKC_UIMain["Decision_border"].TimerText:SetText(LOOT_DECISION.MAX_TIME);
 end
 
 local function TimerBarHandler()
-	local time_elapsed = SKC_UIMain["Decision_border"].TimerBar:GetValue() + DEFAULTS.LOOT_DECISION_TIME_STEP;
+	local time_elapsed = SKC_UIMain["Decision_border"].TimerBar:GetValue() + LOOT_DECISION.TIME_STEP;
 
 	-- updated timer bar
 	SKC_UIMain["Decision_border"].TimerBar:SetValue(time_elapsed);
-	SKC_UIMain["Decision_border"].TimerText:SetText(DEFAULTS.LOOT_DECISION_TIME_MAX - time_elapsed);
+	SKC_UIMain["Decision_border"].TimerText:SetText(LOOT_DECISION.MAX_TIME - time_elapsed);
 
-	if time_elapsed >= DEFAULTS.LOOT_DECISION_TIME_MAX then
+	if time_elapsed >= LOOT_DECISION.MAX_TIME then
 		-- out of time
 		-- send loot response
 		SKC_Main:Print("WARN","Time expired. You PASS on "..SKC_Main.SK_Item);
-		SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.PASS;
+		SKC_Main.LootDecision = LOOT_DECISION.PASS;
 	end
 
 	return;
 end
 
-local LootTimer = nil;
 local function StartLootTimer()
 	InitTimerBarValue();
 	if LootTimer ~= nil and not LootTimer:IsCancelled() then LootTimer:Cancel() end
 	-- start new timer
-	LootTimer = C_Timer.NewTicker(DEFAULTS.LOOT_DECISION_TIME_STEP, TimerBarHandler, DEFAULTS.LOOT_DECISION_TIME_MAX/DEFAULTS.LOOT_DECISION_TIME_STEP);
+	LootTimer = C_Timer.NewTicker(LOOT_DECISION.TIME_STEP, TimerBarHandler, LOOT_DECISION.MAX_TIME/LOOT_DECISION.TIME_STEP);
 	return;
 end
 
@@ -894,7 +992,7 @@ end
 
 local function OnClick_PASS(self,button)
 	if self:IsEnabled() then
-		SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.PASS;
+		SKC_Main.LootDecision = LOOT_DECISION.PASS;
 		LootTimer:Cancel()
 		SendLootDecision();
 	end
@@ -903,7 +1001,7 @@ end
 
 local function OnClick_SK(self,button)
 	if self:IsEnabled() then
-		SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.SK;
+		SKC_Main.LootDecision = LOOT_DECISION.SK;
 		LootTimer:Cancel()
 		SendLootDecision();
 	end
@@ -912,7 +1010,7 @@ end
 
 local function OnClick_ROLL(self,button)
 	if self:IsEnabled() then
-		SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.ROLL;
+		SKC_Main.LootDecision = LOOT_DECISION.ROLL;
 		LootTimer:Cancel()
 		SendLootDecision();
 	end
@@ -920,7 +1018,7 @@ local function OnClick_ROLL(self,button)
 end
 
 --------------------------------------
--- SKC_Main functions
+-- SKC_Main FUNCTIONS
 --------------------------------------
 function SKC_Main:Toggle(force_show)
 	local menu = SKC_UIMain or SKC_Main:CreateMenu();
@@ -942,7 +1040,7 @@ end
 function SKC_Main:StartPersonalLootDecision()
 	-- Begins personal loot decision process
 	SKC_Main:Print("IMPORTANT","Would you like to SK for "..SKC_Main.SK_Item.."?");
-	SKC_Main.LootDecision = DEFAULTS.LOOT_DECISIONS.PASS;
+	SKC_Main.LootDecision = LOOT_DECISION.PASS;
 	-- Show UI
 	SKC_Main:Toggle(true);
 	-- Enable buttons
@@ -973,7 +1071,7 @@ function SKC_Main:DetermineWinner()
 	local idx = 1;
 	while name_tmp ~= nil do
 		local loot_decision_tmp = self.list[name_tmp].loot_decision;
-		if loot_decision_tmp == DEFAULTS.LOOT_DECISIONS.SK then
+		if loot_decision_tmp == LOOT_DECISION.SK then
 			-- If character SK'd, they win!
 			SKC_Main:Print("IMPORTANT",winner.." won "..SKC_Main.SK_Item.." by SK!");
 			-- SK character
@@ -982,7 +1080,7 @@ function SKC_Main:DetermineWinner()
 			local awarded_success = SKC_Main:AwardLoot(name);
 			return(sk_success and awarded_success);
 
-		elseif loot_decision_tmp == DEFAULTS.LOOT_DECISIONS.ROLL then
+		elseif loot_decision_tmp == LOOT_DECISION.ROLL then
 			-- Add character to roll list
 			roll_list[idx] = name_tmp;
 		end
@@ -991,7 +1089,9 @@ function SKC_Main:DetermineWinner()
 end
 
 function SKC_Main:DetermineLootPrio(name)
-	-- Returns loot prio for given character fir given SK item
+	-- Returns loot prio for given character for given SK item
+	-- Alt's have loot SpecClass tier + 100 (only works so long as max # tiers < 100)
+	-- OS (spec not found in prio doc) is equal to max tier + 1
 	
 end
 
@@ -1021,7 +1121,7 @@ function SKC_Main:AddonMessageRead(self,prefix,msg,channel,sender)
 		SKC_Main:Print("NORMAL",name.." wants to "..msg..".");
 		-- Save loot decision
 		SKC_DB.SK_Lists["SK1"].list[name].loot_decision = msg;
-		-- Determine character prio
+		-- Determine loot prio of character
 		SKC_DB.SK_Lists["SK1"].list[name].loot_prio = SKC_Main:DetermineLootPrio(name);
 		-- check if all messages received
 		if SKC_Main.SK_MessagesReceived >= SKC_Main.SK_MessagesSent then
@@ -1072,8 +1172,6 @@ function SKC_Main:InitiateLootDecision()
 		-- Scan all possible characters to distribute loot
 		for i_char = 1,40 do
 			local char_name = GetMasterLootCandidate(i_loot,i_char);
-			-- determine if character is valid for given loot item / prio
-			-- TODO add prio management
 			if char_name ~= nil then
 				-- send loot decision message
 				SKC_Main.SK_MessagesSent = SKC_Main.SK_MessagesSent + 1;
@@ -1084,8 +1182,8 @@ function SKC_Main:InitiateLootDecision()
 	return;
 end
 
-function SKC_Main:AddonLoad()
-	SKC_Main.AddonLoaded = true;
+function SKC_Main:OnAddonLoad()
+	AddonLoaded = true;
 	local hard_reset = false;
 	-- Initialize 
 	if SKC_DB == nil or hard_reset then 
@@ -1134,7 +1232,7 @@ end
 
 function SKC_Main:UpdateSK(sk_list)
 	-- Addon not yet loaded, return
-	if not SKC_Main.AddonLoaded then return end
+	if not AddonLoaded then return end
 
 	-- Hide all cards
 	for idx = 1, SKC_DB.Count60 do
@@ -1194,7 +1292,7 @@ end
 
 function SKC_Main:CreateMenu()
 	-- If addon not yet loaded, reject
-	if not SKC_Main.AddonLoaded then return end
+	if not AddonLoaded then return end
 
 	-- Fetch guild info into SK DB
 	SKC_Main:FetchGuildInfo()
@@ -1423,71 +1521,26 @@ function SKC_Main:CreateMenu()
 	SKC_UIMain[decision_border_key].TimerText = SKC_UIMain[decision_border_key]:CreateFontString(nil,"ARTWORK")
 	SKC_UIMain[decision_border_key].TimerText:SetFontObject("GameFontHighlightSmall")
 	SKC_UIMain[decision_border_key].TimerText:SetPoint("CENTER",SKC_UIMain[decision_border_key].TimerBar,"CENTER")
-	SKC_UIMain[decision_border_key].TimerText:SetText(DEFAULTS.LOOT_DECISION_TIME_MAX)
+	SKC_UIMain[decision_border_key].TimerText:SetText(LOOT_DECISION.MAX_TIME)
 	-- values
-	SKC_UIMain[decision_border_key].TimerBar:SetMinMaxValues(0,DEFAULTS.LOOT_DECISION_TIME_MAX);
+	SKC_UIMain[decision_border_key].TimerBar:SetMinMaxValues(0,LOOT_DECISION.MAX_TIME);
 	SKC_UIMain[decision_border_key].TimerBar:SetValue(0);
-	
-	
-	
-	-- ----------------------------------
-	-- -- Buttons
-	-- ----------------------------------
-	-- -- Save Button:
-    -- SKC_UIMain.saveBtn = self:CreateButton("CENTER", child, "TOP", -70, "Save");
-
-	-- -- Reset Button:	
-	-- SKC_UIMain.resetBtn = self:CreateButton("TOP", SKC_UIMain.saveBtn, "BOTTOM", -10, "Reset");
-
-	-- -- Load Button:	
-	-- SKC_UIMain.loadBtn = self:CreateButton("TOP", SKC_UIMain.resetBtn, "BOTTOM", -10, "Load");
-
-	-- ----------------------------------
-	-- -- Sliders
-	-- ----------------------------------
-	-- -- Slider 1:
-	-- SKC_UIMain.slider1 = CreateFrame("SLIDER", nil, SKC_UIMain.ScrollFrame, "OptionsSliderTemplate");
-	-- SKC_UIMain.slider1:SetPoint("TOP", SKC_UIMain.loadBtn, "BOTTOM", 0, -20);
-	-- SKC_UIMain.slider1:SetMinMaxValues(1, 100);
-	-- SKC_UIMain.slider1:SetValue(50);
-	-- SKC_UIMain.slider1:SetValueStep(30);
-	-- SKC_UIMain.slider1:SetObeyStepOnDrag(true);
-
-	-- -- Slider 2:
-	-- SKC_UIMain.slider2 = CreateFrame("SLIDER", nil, SKC_UIMain.ScrollFrame, "OptionsSliderTemplate");
-	-- SKC_UIMain.slider2:SetPoint("TOP", SKC_UIMain.slider1, "BOTTOM", 0, -20);
-	-- SKC_UIMain.slider2:SetMinMaxValues(1, 100);
-	-- SKC_UIMain.slider2:SetValue(40);
-	-- SKC_UIMain.slider2:SetValueStep(30);
-	-- SKC_UIMain.slider2:SetObeyStepOnDrag(true);
-
-	-- ----------------------------------
-	-- -- Check Buttons
-	-- ----------------------------------
-	-- -- Check Button 1:
-	-- SKC_UIMain.checkBtn1 = CreateFrame("CheckButton", nil, SKC_UIMain.ScrollFrame, "UICheckButtonTemplate");
-	-- SKC_UIMain.checkBtn1:SetPoint("TOPLEFT", SKC_UIMain.slider1, "BOTTOMLEFT", -10, -40);
-	-- SKC_UIMain.checkBtn1.text:SetText("My Check Button!");
-
-	-- -- Check Button 2:
-	-- SKC_UIMain.checkBtn2 = CreateFrame("CheckButton", nil, SKC_UIMain.ScrollFrame, "UICheckButtonTemplate");
-	-- SKC_UIMain.checkBtn2:SetPoint("TOPLEFT", SKC_UIMain.checkBtn1, "BOTTOMLEFT", 0, -10);
-	-- SKC_UIMain.checkBtn2.text:SetText("Another Check Button!");
-	-- SKC_UIMain.checkBtn2:SetChecked(true);
     
 	SKC_UIMain:Hide();
 	return SKC_UIMain;
 end
 
--- Monitor events
-local AddonLoaded = CreateFrame("Frame");
-AddonLoaded:RegisterEvent("ADDON_LOADED");
-AddonLoaded:SetScript("OnEvent", SKC_Main.AddonLoad);
+--------------------------------------
+-- EVENTS
+--------------------------------------
+local f1 = CreateFrame("Frame");
+f1:RegisterEvent("ADDON_LOADED");
+f1:SetScript("OnEvent", SKC_Main.OnAddonLoad);
 
-local LootOpened = CreateFrame("Frame");
-LootOpened:RegisterEvent("OPEN_MASTER_LOOT_LIST");
-LootOpened:SetScript("OnEvent", SKC_Main.InitiateLootDecision);
+local f2 = CreateFrame("Frame");
+f2:RegisterEvent("OPEN_MASTER_LOOT_LIST");
+f2:SetScript("OnEvent", SKC_Main.InitiateLootDecision);
 
-local AddonMessageReceived = CreateFrame("Frame");
-AddonMessageReceived:RegisterEvent("CHAT_MSG_ADDON");
-AddonMessageReceived:SetScript("OnEvent", SKC_Main.AddonMessageRead);
+local f3 = CreateFrame("Frame");
+f3:RegisterEvent("CHAT_MSG_ADDON");
+f3:SetScript("OnEvent", SKC_Main.AddonMessageRead);
