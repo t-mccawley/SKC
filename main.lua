@@ -742,7 +742,7 @@ local function OnMouseWheel_ScrollFrame(self,delta)
 	-- value at top is 0, value at bottom is size of child
 	-- scroll so that one wheel is 3 SK cards
 	local scroll_range = self:GetVerticalScrollRange();
-	local inc = 3 * (DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING)
+	local inc = 3 * (UI_DIMENSIONS.SK_CARD_HEIGHT + UI_DIMENSIONS.SK_CARD_SPACING)
     local newValue = math.min( scroll_range , math.max( 0 , self:GetVerticalScroll() - (inc*delta) ) );
     self:SetVerticalScroll(newValue);
     return
@@ -758,7 +758,7 @@ local function Refresh_Details(name)
 	local data = SKC_DB.GuildData[name];
 	SKC_UIMain["Details_border"]["Name"].Data:SetText(data.name);
 	SKC_UIMain["Details_border"]["Class"].Data:SetText(data.class);
-	SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(DEFAULTS.CLASS_COLORS[data.class].r,DEFAULTS.CLASS_COLORS[data.class].g,DEFAULTS.CLASS_COLORS[data.class].b,1.0);
+	SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(CLASSES[data.class]color.r,CLASSES[data.class]color.g,CLASSES[data.class]color.b,1.0);
 	SKC_UIMain["Details_border"]["Spec"].Data:SetText(data.spec);
 	SKC_UIMain["Details_border"]["Raid Role"].Data:SetText(data.raid_role);
 	SKC_UIMain["Details_border"]["Guild Role"].Data:SetText(data.guild_role);
@@ -768,30 +768,28 @@ end
 
 local function OnLoad_EditDropDown_Spec(self)
 	local class = SKC_UIMain["Details_border"]["Class"].Data:GetText();
-	for key,value in pairs(DEFAULTS.SPECS[class]) do
-		if key ~= "Default" then
-			UIDropDownMenu_AddButton(value);
-		end
+	for key,value in pairs(CLASSES[class].specs) do
+		UIDropDownMenu_AddButton(value);
 	end
 	return;
 end
 
 local function OnLoad_EditDropDown_GuildRole(self)
-	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.de);
-	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.gb);
-	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.none);
+	UIDropDownMenu_AddButton(CHARACTER_DATA["Guild Role"].OPTIONS.None);
+	UIDropDownMenu_AddButton(CHARACTER_DATA["Guild Role"].OPTIONS.Disenchanter);
+	UIDropDownMenu_AddButton(CHARACTER_DATA["Guild Role"].OPTIONS.Banker);
 	return;
 end
 
 local function OnLoad_EditDropDown_Status(self)
-	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.alt);
-	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.main);
+	UIDropDownMenu_AddButton(CHARACTER_DATA.Status.OPTIONS.Alt);
+	UIDropDownMenu_AddButton(CHARACTER_DATA.Status.OPTIONS.Main);
 	return;
 end
 
 local function OnLoad_EditDropDown_Activity(self)
-	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.active);
-	UIDropDownMenu_AddButton(DEFAULTS.DET_OPTIONS.inactive);
+	UIDropDownMenu_AddButton(CHARACTER_DATA.Activity.OPTIONS.Active);
+	UIDropDownMenu_AddButton(CHARACTER_DATA.Activity.OPTIONS.Inactive);
 	return;
 end
 
@@ -802,7 +800,7 @@ local function OnClick_EditDropDownOption(field,value) -- TODO: CHANGED THIS TO 
 	SKC_DB.GuildData[name][field] = value;
 	-- Ensure Raid Role is in sync
 	local spec = SKC_DB.GuildData[name]["spec"];
-	SKC_DB.GuildData[name].raid_role = (DEFAULTS.SPECS[class][spec].RR);
+	SKC_DB.GuildData[name].raid_role = CLASSES[class].specs[spec].RR;
 	-- Refresh details
 	Refresh_Details(name);
 	-- Reset menu toggle
@@ -933,7 +931,7 @@ local function OnMouseDown_ShowItemTooltip(self, button)
 end
 
 local function GetScrollMax()
-	return((SKC_DB.UnFilteredCnt)*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING));
+	return((SKC_DB.UnFilteredCnt)*(UI_DIMENSIONS.SK_CARD_HEIGHT + UI_DIMENSIONS.SK_CARD_SPACING));
 end
 
 local function SetSKItem()
@@ -1027,7 +1025,7 @@ function SKC_Main:Toggle(force_show)
 end
 
 function SKC_Main:GetThemeColor(type)
-	local c = DEFAULTS.THEME[type];
+	local c = THEME.PRINT[type];
 	return c.r, c.g, c.b, c.hex;
 end
 
@@ -1259,7 +1257,7 @@ function SKC_Main:UpdateSK(sk_list)
 			-- Add name text
 			SKC_UIMain[sk_list].NameFrame[idx].Text:SetText(value)
 			-- create class color background
-			SKC_UIMain[sk_list].NameFrame[idx].bg:SetColorTexture(DEFAULTS.CLASS_COLORS[class_tmp].r,DEFAULTS.CLASS_COLORS[class_tmp].g,DEFAULTS.CLASS_COLORS[class_tmp].b,0.25);
+			SKC_UIMain[sk_list].NameFrame[idx].bg:SetColorTexture(CLASSES[class_tmp].color.r,CLASSES[class_tmp].color.g,CLASSES[class_tmp].color.b,0.25);
 			SKC_UIMain[sk_list].NameFrame[idx]:Show();
 			-- increment
 			idx = idx + 1;
@@ -1267,7 +1265,7 @@ function SKC_Main:UpdateSK(sk_list)
 	end
 	SKC_DB.UnFilteredCnt = idx;
 	-- update scroll length
-	SKC_UIMain[sk_list].SK_List_SF:GetScrollChild():SetSize(DEFAULTS.SK_LIST_WIDTH,GetScrollMax());
+	SKC_UIMain[sk_list].SK_List_SF:GetScrollChild():SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,GetScrollMax());
 end
 
 function SKC_Main:CreateUIBorder(title,width,height,x_pos,y_pos)
@@ -1280,7 +1278,7 @@ function SKC_Main:CreateUIBorder(title,width,height,x_pos,y_pos)
 	-- Create Title
 	local title_key = "title";
 	SKC_UIMain[border_key][title_key] = CreateFrame("Frame",title_key,SKC_UIMain[border_key],"TranslucentFrameTemplate");
-	SKC_UIMain[border_key][title_key]:SetSize(DEFAULTS.SK_TAB_TITLE_CARD_WIDTH,DEFAULTS.SK_TAB_TITLE_CARD_HEIGHT);
+	SKC_UIMain[border_key][title_key]:SetSize(UI_DIMENSIONS.SK_TAB_TITLE_CARD_WIDTH,UI_DIMENSIONS.SK_TAB_TITLE_CARD_HEIGHT);
 	SKC_UIMain[border_key][title_key]:SetPoint("BOTTOM",SKC_UIMain[border_key],"TOP",0,-20);
 	SKC_UIMain[border_key][title_key].Text = SKC_UIMain[border_key][title_key]:CreateFontString(nil,"ARTWORK")
 	SKC_UIMain[border_key][title_key].Text:SetFontObject("GameFontNormal")
@@ -1298,7 +1296,7 @@ function SKC_Main:CreateMenu()
 	SKC_Main:FetchGuildInfo()
 
     SKC_UIMain = CreateFrame("Frame", "SKC_UIMain", UIParent, "UIPanelDialogTemplate");
-	SKC_UIMain:SetSize(DEFAULTS.MAIN_WIDTH,DEFAULTS.MAIN_HEIGHT);
+	SKC_UIMain:SetSize(UI_DIMENSIONS.MAIN_WIDTH,UI_DIMENSIONS.MAIN_HEIGHT);
 	SKC_UIMain:SetPoint("CENTER");
 	SKC_UIMain:SetMovable(true)
 	SKC_UIMain:EnableMouse(true)
@@ -1313,7 +1311,7 @@ function SKC_Main:CreateMenu()
 	SKC_UIMain.Title:SetText("SKC");
 
 	-- Create filter panel
-	local filter_border_key = SKC_Main:CreateUIBorder("Filters",DEFAULTS.SK_FILTER_WIDTH,DEFAULTS.SK_FILTER_HEIGHT,-250,DEFAULTS.SK_TAB_TOP_OFFST)
+	local filter_border_key = SKC_Main:CreateUIBorder("Filters",UI_DIMENSIONS.SK_FILTER_WIDTH,UI_DIMENSIONS.SK_FILTER_HEIGHT,-250,UI_DIMENSIONS.SK_TAB_TOP_OFFST)
 	-- create details fields
 	local faction_class;
 	if UnitFactionGroup("player") == "Horde" then faction_class="Shaman" else faction_class="Paladin" end
@@ -1331,7 +1329,7 @@ function SKC_Main:CreateMenu()
 			SKC_UIMain[filter_border_key][value].text:SetText(value);
 			if idx > 7 then
 				-- assign class colors
-				SKC_UIMain[filter_border_key][value].text:SetTextColor(DEFAULTS.CLASS_COLORS[value].r,DEFAULTS.CLASS_COLORS[value].g,DEFAULTS.CLASS_COLORS[value].b,1.0);
+				SKC_UIMain[filter_border_key][value].text:SetTextColor(CLASSES[class_tmp].color.r,CLASSES[class_tmp].color.g,CLASSES[class_tmp].color.b,1.0);
 			end
 		end
 	end
@@ -1339,9 +1337,9 @@ function SKC_Main:CreateMenu()
 	-- Create SK list panel
 	local sk_list = "SK1";
 	SKC_UIMain[sk_list] = CreateFrame("Frame",sk_list,SKC_UIMain,"InsetFrameTemplate");
-	SKC_UIMain[sk_list]:SetSize(DEFAULTS.SK_LIST_WIDTH,DEFAULTS.SK_LIST_HEIGHT);
-	SKC_UIMain[sk_list]:SetPoint("TOP",SKC_UIMain,"TOP",0,DEFAULTS.SK_TAB_TOP_OFFST - DEFAULTS.SK_LIST_BORDER_OFFST);
-	local sk_list_border_key = SKC_Main:CreateUIBorder(sk_list,DEFAULTS.SK_LIST_WIDTH + 2*DEFAULTS.SK_LIST_BORDER_OFFST,DEFAULTS.SK_LIST_HEIGHT + 2*DEFAULTS.SK_LIST_BORDER_OFFST,0,DEFAULTS.SK_TAB_TOP_OFFST)
+	SKC_UIMain[sk_list]:SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,UI_DIMENSIONS.SK_LIST_HEIGHT);
+	SKC_UIMain[sk_list]:SetPoint("TOP",SKC_UIMain,"TOP",0,UI_DIMENSIONS.SK_TAB_TOP_OFFST - UI_DIMENSIONS.SK_LIST_BORDER_OFFST);
+	local sk_list_border_key = SKC_Main:CreateUIBorder(sk_list,UI_DIMENSIONS.SK_LIST_WIDTH + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST,UI_DIMENSIONS.SK_LIST_HEIGHT + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST,0,UI_DIMENSIONS.SK_TAB_TOP_OFFST)
 
 	-- Create scroll frame on SK list
     SKC_UIMain[sk_list].SK_List_SF = CreateFrame("ScrollFrame","SK_List_SF",SKC_UIMain[sk_list],"UIPanelScrollFrameTemplate2");
@@ -1353,7 +1351,7 @@ function SKC_Main:CreateMenu()
 
 	-- Create scroll child
 	local scroll_child = CreateFrame("Frame",nil,SKC_UIMain[sk_list].SK_List_SF);
-	scroll_child:SetSize(DEFAULTS.SK_LIST_WIDTH,GetScrollMax());
+	scroll_child:SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,GetScrollMax());
 	SKC_UIMain[sk_list].SK_List_SF:SetScrollChild(scroll_child);
 
 	-- Create SK cards
@@ -1362,16 +1360,16 @@ function SKC_Main:CreateMenu()
 	for idx = 1, SKC_DB.Count60 do
 		-- Create order frames
 		SKC_UIMain[sk_list].NumberFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain[sk_list].SK_List_SF,"InsetFrameTemplate");
-		SKC_UIMain[sk_list].NumberFrame[idx]:SetSize(30,DEFAULTS.SK_CARD_HEIGHT);
-		SKC_UIMain[sk_list].NumberFrame[idx]:SetPoint("TOPLEFT",SKC_UIMain[sk_list].SK_List_SF:GetScrollChild(),"TOPLEFT",8,-1*((idx-1)*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING) + DEFAULTS.SK_CARD_SPACING));
+		SKC_UIMain[sk_list].NumberFrame[idx]:SetSize(30,UI_DIMENSIONS.SK_CARD_HEIGHT);
+		SKC_UIMain[sk_list].NumberFrame[idx]:SetPoint("TOPLEFT",SKC_UIMain[sk_list].SK_List_SF:GetScrollChild(),"TOPLEFT",8,-1*((idx-1)*(UI_DIMENSIONS.SK_CARD_HEIGHT + UI_DIMENSIONS.SK_CARD_SPACING) + UI_DIMENSIONS.SK_CARD_SPACING));
 		SKC_UIMain[sk_list].NumberFrame[idx].Text = SKC_UIMain[sk_list].NumberFrame[idx]:CreateFontString(nil,"ARTWORK")
 		SKC_UIMain[sk_list].NumberFrame[idx].Text:SetFontObject("GameFontHighlightSmall")
 		SKC_UIMain[sk_list].NumberFrame[idx].Text:SetPoint("CENTER",0,0)
 
 		-- Create named card frames
 		SKC_UIMain[sk_list].NameFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain[sk_list].SK_List_SF,"InsetFrameTemplate");
-		SKC_UIMain[sk_list].NameFrame[idx]:SetSize(DEFAULTS.SK_CARD_WIDTH,DEFAULTS.SK_CARD_HEIGHT);
-		SKC_UIMain[sk_list].NameFrame[idx]:SetPoint("TOPLEFT",SKC_UIMain[sk_list].SK_List_SF:GetScrollChild(),"TOPLEFT",43,-1*((idx-1)*(DEFAULTS.SK_CARD_HEIGHT + DEFAULTS.SK_CARD_SPACING) + DEFAULTS.SK_CARD_SPACING));
+		SKC_UIMain[sk_list].NameFrame[idx]:SetSize(UI_DIMENSIONS.SK_CARD_WIDTH,UI_DIMENSIONS.SK_CARD_HEIGHT);
+		SKC_UIMain[sk_list].NameFrame[idx]:SetPoint("TOPLEFT",SKC_UIMain[sk_list].SK_List_SF:GetScrollChild(),"TOPLEFT",43,-1*((idx-1)*(UI_DIMENSIONS.SK_CARD_HEIGHT + UI_DIMENSIONS.SK_CARD_SPACING) + UI_DIMENSIONS.SK_CARD_SPACING));
 		SKC_UIMain[sk_list].NameFrame[idx].Text = SKC_UIMain[sk_list].NameFrame[idx]:CreateFontString(nil,"ARTWORK")
 		SKC_UIMain[sk_list].NameFrame[idx].Text:SetFontObject("GameFontHighlightSmall")
 		SKC_UIMain[sk_list].NameFrame[idx].Text:SetPoint("CENTER",0,0)
@@ -1386,7 +1384,7 @@ function SKC_Main:CreateMenu()
 	SKC_Main:UpdateSK("SK1")
 
 	-- Create details panel
-	local details_border_key = SKC_Main:CreateUIBorder("Details",DEFAULTS.SK_DETAILS_WIDTH,DEFAULTS.SK_DETAILS_HEIGHT,250,DEFAULTS.SK_TAB_TOP_OFFST);
+	local details_border_key = SKC_Main:CreateUIBorder("Details",UI_DIMENSIONS.SK_DETAILS_WIDTH,UI_DIMENSIONS.SK_DETAILS_HEIGHT,250,UI_DIMENSIONS.SK_TAB_TOP_OFFST);
 	-- create details fields
 	local details_fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Loot History"};
 	for idx,value in ipairs(details_fields) do
@@ -1453,14 +1451,14 @@ function SKC_Main:CreateMenu()
 
 
 	-- Decision region
-	local decision_border_key = SKC_Main:CreateUIBorder("Decision",DEFAULTS.DECISION_WIDTH,DEFAULTS.DECISION_HEIGHT,-250,DEFAULTS.SK_TAB_TOP_OFFST-DEFAULTS.SK_FILTER_HEIGHT-20);
+	local decision_border_key = SKC_Main:CreateUIBorder("Decision",UI_DIMENSIONS.DECISION_WIDTH,UI_DIMENSIONS.DECISION_HEIGHT,-250,UI_DIMENSIONS.SK_TAB_TOP_OFFST-UI_DIMENSIONS.SK_FILTER_HEIGHT-20);
 
 	-- set texture / hidden frame for button click
 	SKC_UIMain[decision_border_key].ItemTexture = SKC_UIMain[decision_border_key]:CreateTexture(nil, "ARTWORK");
-	SKC_UIMain[decision_border_key].ItemTexture:SetSize(DEFAULTS.ITEM_WIDTH,DEFAULTS.ITEM_HEIGHT);
+	SKC_UIMain[decision_border_key].ItemTexture:SetSize(UI_DIMENSIONS.ITEM_WIDTH,UI_DIMENSIONS.ITEM_HEIGHT);
 	SKC_UIMain[decision_border_key].ItemTexture:SetPoint("TOP",SKC_UIMain[decision_border_key],"TOP",0,-45)
 	SKC_UIMain[decision_border_key].ItemClickBox = CreateFrame("Frame", nil, SKC_UIMain);
-	SKC_UIMain[decision_border_key].ItemClickBox:SetSize(DEFAULTS.ITEM_WIDTH,DEFAULTS.ITEM_HEIGHT);
+	SKC_UIMain[decision_border_key].ItemClickBox:SetSize(UI_DIMENSIONS.ITEM_WIDTH,UI_DIMENSIONS.ITEM_HEIGHT);
 	SKC_UIMain[decision_border_key].ItemClickBox:SetPoint("CENTER",SKC_UIMain[decision_border_key].ItemTexture,"CENTER");
 	SKC_UIMain[decision_border_key].ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
 	-- set name / link
@@ -1509,7 +1507,7 @@ function SKC_Main:CreateMenu()
 	-- background texture
 	SKC_UIMain[decision_border_key].TimerBar.bg = SKC_UIMain[decision_border_key].TimerBar:CreateTexture(nil,"BACKGROUND",nil,-7);
 	SKC_UIMain[decision_border_key].TimerBar.bg:SetAllPoints(SKC_UIMain[decision_border_key].TimerBar);
-	SKC_UIMain[decision_border_key].TimerBar.bg:SetColorTexture(unpack(DEFAULTS.STATUS_BAR_COLOR));
+	SKC_UIMain[decision_border_key].TimerBar.bg:SetColorTexture(unpack(THEME.STATUS_BAR_COLOR));
 	SKC_UIMain[decision_border_key].TimerBar.bg:SetAlpha(0.8);
 	-- bar texture
 	SKC_UIMain[decision_border_key].TimerBar.Bar = SKC_UIMain[decision_border_key].TimerBar:CreateTexture(nil,"BACKGROUND",nil,-6);
