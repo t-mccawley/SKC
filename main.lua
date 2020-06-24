@@ -520,6 +520,7 @@ SK_Node = {
 	below = nil, -- character name below this character in the SK list
 	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
 	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
+	live = false, -- used to indicate a slot that is currently in the live list
 };
 SK_Node.__index = SK_Node;
 
@@ -532,7 +533,7 @@ function SK_Node:new(sk_node,above,below)
 		obj.below = below or nil;
 		obj.loot_decision = LOOT_DECISION.PASS;
 		loot_prio = PRIO_TIERS.PASS;
-		obj.in_raid = false;
+		obj.live = false;
 		return obj;
 	else
 		-- set metatable of existing table
@@ -588,35 +589,6 @@ function SK_List:Reset(in_raid_list)
 	return;
 end
 
-function SK_List:PushBelow(name,new_above_name)
-	-- Push item below new_above_name (instantiate itme if doesnt exist)
-	self.list[name] = SK_Node:new(self.list[name],nil,nil); -- just sets metatable if already exists
-	if self.top == nil then
-		-- First node in list
-		self.top = name;
-		self.bottom = name;
-	else
-		if new_above_name == nil then new_above_name = self.bottom end
-		-- check that new_above_name is in list
-		if self.list[new_above_name] == nil then
-			SKC_Main:Print("ERROR",new_above_name.." not found in SK list.");
-			return false;
-		end
-		-- get below of new_above_name
-		local below_tmp = self.list[new_above_name].below;
-		-- push below
-		self.list[name].above = new_above_name;
-		self.list[name].below = below_tmp;
-		-- adjust below for new_above_name
-		self.list[new_above_name].below = name;
-		-- check if bottom
-		if self.list[name].below == nil then
-			self.bottom = name;
-		end
-	end
-	return true;
-end
-
 function SK_List:ReturnList()
 	-- Returns list in ordered array
 	-- check data integrity
@@ -633,29 +605,115 @@ function SK_List:ReturnList()
 	return(list_out);
 end
 
-function SK_List:FullSK(name)
-	-- check if name is in SK list
-	if self.list[name] == nil then
-		-- name is not in SK list
-		SKC_Main:Print("ERROR","SK rejected, "..name.." not in SK List")
+function SK_List:InsertBelow(name,new_above_name)
+	-- Insert item below new_above_name
+	if name == nil then
+		SKC_Main:Print("ERROR","nil name to SK_List:InsertBelow()");
 		return false;
-	elseif name == self.bottom then
-		-- name is already at the bottom
+	end
+	-- check special cases
+	if self.top == nil then
+		-- First node in list
+		self.top = name;
+		self.bottom = name;
+		self.list[name] = SK_Node:new(self.list[name],name,nil);
+		return true;
+	elseif name == new_above_name then
+		-- do nothing
 		return true;
 	end
-	-- determine
-
-
-	-- make current above name point to below name and vice versa
-	local above_tmp = self.list[name].above;
-	local below_tmp = self.list[name].below;
-	self.list[above_tmp].below = below_tmp; --TODO: FIX THIS FOR TOP SK
-	self.list[below_tmp].above = above_tmp;
-	-- remove character from list (will be recreated in PushBack)
-	self.list[name] = nil;
-	-- push to bottom
-	-- self:PushBack(name);
+	if new_above_name == nil then
+		SKC_Main:Print("ERROR","nil new_above_name to SK_List:InsertBelow()");
+		return false;
+	end
+	-- check that new_above_name is in list
+	if self.list[new_above_name] == nil then
+		SKC_Main:Print("ERROR",new_above_name.." not in list");
+		return false 
+	end
+	-- Instantiates if does not exist
+	if self.list[name] == nil then
+		-- new node
+		self.list[name] = SK_Node:new(self.list[name],nil,nil);
+	else
+		-- existing node
+		if self.list[name].above == new_above_name then
+			-- already in correct order
+			return true;
+		end
+		-- remove name from list
+		local above_tmp = self.list[name].above;
+		local below_tmp = self.list[name].below;
+		if name == self.top then
+			-- name is current top
+			self.list[below_tmp].above = below_tmp;
+			self.top = below_tmp;
+		elseif name == self.bottom then
+			-- name is current bottom node
+			self.list[above_tmp].below = nil;
+			self.bottom = above_tmp;
+		else
+			-- name is middle node
+			self.list[below_tmp].above = above_tmp;
+			self.list[above_tmp].below = below_tmp;
+		end
+	end
+	-- insert to new location
+	self.list[name].above = new_above_name;
+	self.list[name].below = self.list[new_above_name].below;
+	-- adjust below for new_above_name
+	self.list[new_above_name].below = name;
+	-- check if new bottom or top and adjust
+	if self.list[name].below == nil then self.bottom = name end
+	if self.list[name].above == name then self.top = name end
 	return true;
+end
+
+function SK_List:PushBack(name)
+	-- Pushes name to back (bottom) of list (creates if does not exist)
+	return self:InsertBelow(name,self.bottom);
+end
+
+function SK_List:SetSK(name,new_above_name)
+	-- Removes player from list and sets them to specific location
+	-- returns error if names not already i list
+	if self.list[name] == nil or self.list[new_above_name] == nil then
+		SKC_Main:Print("ERROR",name.." or "..new_above_name.." not in list");
+		return false
+	else
+		return self:InsertBelow(name,new_above_name);
+	end
+end
+
+-- SK_Node = {
+-- 	above = nil, -- character name above this character in ths SK list
+-- 	below = nil, -- character name below this character in the SK list
+-- 	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
+-- 	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
+-- 	live = false, -- used to indicate a slot that is currently in the live list
+-- };
+
+function SK_List:SK()
+	-- Scan list and SK player with highest priority to bottom of list
+	-- returns name of player that was SK'd
+	local sk_name = nil;
+	-- check data integrity
+	if self:CheckIfFucked() then return sk_name end;
+	local current_name = self.top;
+	while (current_name ~= nil) do
+		-- check if character SK'd and higher prio than current
+		if self.list[current_name].loot_decision == LOOT_DECISION.SK then
+			if sk_name == nil or self.list[current_name].loot_prio < self.list[sk_name].loot_prio then
+				-- first SK or higher prio found
+				sk_name = current_name;
+			end
+		end
+	end
+	if sk_name ~= nil then
+		-- SK
+		self:PushBack(sk_name);
+	end
+	return sk_name;
 end
 
 -- CharacterData class
@@ -861,20 +919,31 @@ local function OnClick_FullSK(self)
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	-- Execute full SK
 	local sk_list = "SK1";
-	SKC_Main:Print("IMPORTANT","Full SK on "..name);
-	-- local success = SKC_DB.SK_Lists.SK1.Full:FullSK(name);
+	local success = SKC_DB.SK_Lists[sk_list].Full:PushBack(name);
+	if success then 
+		SKC_Main:Print("IMPORTANT","Full SK on "..name);
+	else
+		SKC_Main:Print("ERROR","Full SK on "..name.." rejected");
+	end
 	-- Refresh SK List
 	SKC_Main:UpdateSK(sk_list);
 	return;
 end
 
 local function OnClick_SingleSK(self)
-	-- On click event for single SK of details targeted character
+	-- On click event for full SK of details targeted character
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
-	-- Execute single SK
+	-- Execute full SK
 	local sk_list = "SK1";
-	SKC_Main:Print("IMPORTANT","Single SK on "..name);
-	-- local success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
+	local success = true;
+	if name ~= SKC_DB.SK_Lists[sk_list].Full.bottom then
+		success = SKC_DB.SK_Lists[sk_list].Full:InsertBelow(name,SKC_DB.SK_Lists[sk_list].Full.list[name].below);
+	end
+	if success then 
+		SKC_Main:Print("IMPORTANT","Single SK on "..name);
+	else
+		SKC_Main:Print("ERROR","Single SK on "..name.." rejected");
+	end
 	-- Refresh SK List
 	SKC_Main:UpdateSK(sk_list);
 	return;
@@ -1208,6 +1277,21 @@ function SKC_Main:OnAddonLoad()
 	SKC_DB.UnFilteredCnt = 0;
 end
 
+function SKC_Main:SyncLiveWithRaid()
+	-- Sync live lists with current raid
+
+	-- Scan raid list and add missing members
+
+	-- Scan live list and remove non-bench / non-raid members
+
+end
+
+function SKC_Main:StartSKC()
+	if not IsMasterLooter() then return end
+	SKC_Main:Print("IMPORTANT","SKC enabled.");
+	SKC_Main:Print("NORMAL","Use '/bench add' to add non-raid members to the live lists.")
+end
+
 function SKC_Main:FetchGuildInfo()
 	SKC_DB.InGuild = IsInGuild();
 	if not SKC_DB.InGuild then
@@ -1226,9 +1310,9 @@ function SKC_Main:FetchGuildInfo()
 			if SKC_DB.GuildData[name] == nil then
 				-- new player, add to DB and SK lists
 				SKC_DB.GuildData:Add(name,class);
-				SKC_DB.SK_Lists.SK1.Full:PushBelow(name,nil);
-				SKC_DB.SK_Lists.SK2.Full:PushBelow(name,nil);
-				SKC_DB.SK_Lists.SK3.Full:PushBelow(name,nil);
+				SKC_DB.SK_Lists.SK1.Full:PushBack(name);
+				SKC_DB.SK_Lists.SK2.Full:PushBack(name);
+				SKC_DB.SK_Lists.SK3.Full:PushBack(name);
 				SKC_Main:Print("NORMAL","["..cnt.."] "..name.." added to database!");
 			end
 		end
@@ -1551,3 +1635,11 @@ f2:SetScript("OnEvent", SKC_Main.InitiateLootDecision);
 local f3 = CreateFrame("Frame");
 f3:RegisterEvent("CHAT_MSG_ADDON");
 f3:SetScript("OnEvent", SKC_Main.AddonMessageRead);
+
+local f4 = CreateFrame("Frame");
+f4:RegisterEvent("RAID_ROSTER_UPDATE");
+f4:SetScript("OnEvent", SKC_Main.SyncLiveWithRaid);
+
+local f5 = CreateFrame("Frame");
+f5:RegisterEvent("PARTY_LOOT_METHOD_CHANGED");
+f5:SetScript("OnEvent", SKC_Main.StartSKC);
