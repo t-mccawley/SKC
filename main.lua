@@ -5,7 +5,14 @@ local _, core = ...; -- returns name of addon and namespace (core)
 core.SKC_Main = {}; -- adds SKC_Main table to addon namespace
 
 local SKC_Main = core.SKC_Main; -- assignment by reference in lua, ugh
-local SKC_UIMain;
+local SKC_UIMain; -- Table for main GUI
+local SKC_UICSV = {}; -- Table for GUI associated with CSV import and export
+--------------------------------------
+-- DEV CONTROLS
+--------------------------------------
+local ML_OVRD = true; -- override master looter permissions
+local GL_OVRD = true; -- override guild leader permissions
+local HARD_DB_RESET = true; -- resets SKC_DB
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
@@ -29,6 +36,8 @@ local UI_DIMENSIONS = { -- ui dimensions
 	SK_CARD_SPACING = 6,
 	SK_CARD_WIDTH = 100,
 	SK_CARD_HEIGHT = 20,
+	CSV_WIDTH = 400,
+	CSV_HEIGHT = 300,
 };
 
 local THEME = { -- general color themes
@@ -1083,14 +1092,28 @@ local function OnClick_ROLL(self,button)
 	end
 	return;
 end
-
 --------------------------------------
 -- SKC_Main FUNCTIONS
 --------------------------------------
-function SKC_Main:Toggle(force_show)
-	local menu = SKC_UIMain or SKC_Main:CreateMenu();
+function SKC_Main:ToggleUIMain(force_show)
+	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
 	menu:SetShown(force_show or not menu:IsShown());
 	DD_State = 0;
+end
+
+function SKC_Main:ToggleUICSV(name,force_show)
+	local menu = SKC_UICSV[name] or SKC_Main:CreateUICSV(name);
+	menu:SetShown(force_show or not menu:IsShown());
+end
+
+function SKC_Main:isML()
+	-- Check if current player is master looter
+	return(ML_OVRD or IsMasterLooter());
+end
+
+function SKC_Main:isGL()
+	-- Check if current player is guild leader
+	return(GL_OVRD or IsGuildLeader());
 end
 
 function SKC_Main:GetThemeColor(type)
@@ -1109,7 +1132,7 @@ function SKC_Main:StartPersonalLootDecision()
 	SKC_Main:Print("IMPORTANT","Would you like to SK for "..SKC_Main.SK_Item.."?");
 	SKC_Main.LootDecision = LOOT_DECISION.PASS;
 	-- Show UI
-	SKC_Main:Toggle(true);
+	SKC_Main:ToggleUIMain(true);
 	-- Enable buttons
 	SKC_UIMain["Decision_border"].Pass_Btn:Enable();
 	SKC_UIMain["Decision_border"].SK_Btn:Enable();
@@ -1251,18 +1274,18 @@ end
 
 function SKC_Main:OnAddonLoad()
 	AddonLoaded = true;
-	local hard_reset = true;
 	-- Initialize 
-	if SKC_DB == nil or hard_reset then 
+	if SKC_DB == nil or HARD_DB_RESET then 
 		SKC_DB = {};
 	end
-	if SKC_DB.SK_Lists == nil or hard_reset then 
+	if SKC_DB.SK_Lists == nil or HARD_DB_RESET then 
 		SKC_DB.SK_Lists = {};
 	end
-	if SKC_DB.LootPrio == nil or hard_reset then 
+	if SKC_DB.LootPrio == nil or HARD_DB_RESET then 
 		SKC_DB.LootPrio = {};
 	end
 	-- Initialize or refresh metatables
+	SKC_DB.Bench = {}; -- array of names on bench
 	SKC_DB.SK_Lists.SK1 = {};
 	SKC_DB.SK_Lists.SK1.Full = SK_List:new(SKC_DB.SK_Lists.SK1.Full);
 	SKC_DB.SK_Lists.SK1.Live = SK_List:new(SKC_DB.SK_Lists.SK1.Live);
@@ -1275,6 +1298,46 @@ function SKC_Main:OnAddonLoad()
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
 	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
 	SKC_DB.UnFilteredCnt = 0;
+end
+
+function SKC_Main:BenchShow()
+	-- prints the current bench
+	if #SKC_DB.Bench == 0 then
+		SKC_Main:Print("NORMAL","Bench is empty");
+	else
+		SKC_Main:Print("NORMAL","Bench:");
+		for idx,name in ipairs(SKC_DB.Bench) do
+			SKC_Main:Print("NORMAL",name);
+		end
+	end
+	return;
+end
+
+function SKC_Main:BenchAdd(name)
+	-- add name to Bench if they exist in the guild DB
+	if not SKC_Main:isGL() and not SKC_Main:isML() then
+		SKC_Main:Print("ERROR","You must be master looter or guild leader to do that.")
+		return false;
+	end
+	if SKC_DB.GuildData[name] == nil then
+		SKC_Main:Print("ERROR",name.." not in guild database");
+		return false;
+	else
+		SKC_DB.Bench[#SKC_DB.Bench + 1] = name;
+		SKC_Main:Print("NORMAL",name.." added to bench");
+		return true;
+	end
+end
+
+function SKC_Main:BenchClear()
+	-- prints the current bench
+	if not SKC_Main:isGL() and not SKC_Main:isML() then
+		SKC_Main:Print("ERROR","You must be master looter or guild leader to do that.")
+		return;
+	end
+	SKC_DB.Bench = {};
+	SKC_Main:Print("NORMAL","Bench cleared");
+	return;
 end
 
 function SKC_Main:SyncLiveWithRaid()
@@ -1319,6 +1382,50 @@ function SKC_Main:FetchGuildInfo()
 	end
 	SKC_DB.Count60 = cnt;
 	SKC_DB.UnFilteredCnt = cnt;
+end
+
+function SKC_Main:CreateUICSV(name)
+	SKC_UICSV[name] = CreateFrame("Frame",name,UIParent,"UIPanelDialogTemplate");
+	SKC_UICSV[name]:SetSize(UI_DIMENSIONS.CSV_WIDTH,UI_DIMENSIONS.CSV_HEIGHT);
+	SKC_UICSV[name]:SetPoint("CENTER");
+	SKC_UICSV[name]:SetMovable(true);
+	SKC_UICSV[name]:EnableMouse(true);
+	SKC_UICSV[name]:RegisterForDrag("LeftButton");
+	SKC_UICSV[name]:SetScript("OnDragStart", SKC_UICSV[name].StartMoving);
+	SKC_UICSV[name]:SetScript("OnDragStop", SKC_UICSV[name].StopMovingOrSizing);
+	SKC_UICSV[name]:SetFrameLevel(4);
+
+	-- Add title
+    SKC_UICSV[name].Title:ClearAllPoints();
+	SKC_UICSV[name].Title:SetPoint("LEFT", name.."TitleBG", "LEFT", 6, 0);
+	SKC_UICSV[name].Title:SetText(name);
+
+	-- Add edit box
+	SKC_UICSV[name].SF = CreateFrame("ScrollFrame", nil, SKC_UICSV[name], "UIPanelScrollFrameTemplate");
+	SKC_UICSV[name].SF:SetSize(UI_DIMENSIONS.CSV_WIDTH*0.8,UI_DIMENSIONS.CSV_HEIGHT*0.7);
+	SKC_UICSV[name].SF:SetPoint("CENTER")
+	SKC_UICSV[name].EditBox = CreateFrame("EditBox", nil, SKC_UICSV[name].SF)
+	SKC_UICSV[name].EditBox:SetMultiLine(true)
+	SKC_UICSV[name].EditBox:SetFontObject(ChatFontNormal)
+	SKC_UICSV[name].EditBox:SetSize(UI_DIMENSIONS.CSV_WIDTH*0.8,1000)
+	SKC_UICSV[name].SF:SetScrollChild(SKC_UICSV[name].EditBox)
+
+	-- optional/just to close that frame
+	-- SKC_UICSV[name]:SetScript("OnEscapePressed", function()
+	-- 	SKC_UICSV[name]:Hide()
+	-- end)
+
+	SKC_UICSV[name]:Hide();
+	return SKC_UICSV[name];
+end
+
+function SKC_Main:ExportLog()
+	local name = "Log Export";
+	SKC_Main:ToggleUICSV(name,false);
+	--- demo multi line text
+	SKC_UICSV[name].EditBox:SetText("line 1\nline 2\nline 3\nmore...\n\n\nanother one\n"
+	.."some very long...dsf v asdf a sdf asd df as df asdf a sdfd as ddf as df asd f asd fd asd f asdf LONG LINE\n\n\nsome more.\nlast!")
+	SKC_UICSV[name].EditBox:HighlightText() -- select all (if to be used for copy paste)
 end
 
 function SKC_Main:UpdateSK(sk_list)
@@ -1381,7 +1488,7 @@ function SKC_Main:CreateUIBorder(title,width,height,x_pos,y_pos)
 	return border_key
 end
 
-function SKC_Main:CreateMenu()
+function SKC_Main:CreateUIMain()
 	-- If addon not yet loaded, reject
 	if not AddonLoaded then return end
 

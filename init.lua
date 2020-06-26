@@ -65,17 +65,47 @@ local _, core = ...; -- Namespace
 -- Custom Slash Command
 --------------------------------------
 core.commands = {
-	["help"] = function()
-		print(" ");
-    core.SKC_Main:Print("NORMAL","List of slash commands:");
-    core.SKC_Main:Print("NORMAL","|cff00cc66/skc help|r - shows help info");
-    core.SKC_Main:Print("NORMAL","|cff00cc66/skc|r - toggles SKC GUI");
-    core.SKC_Main:Print("NORMAL","|cff00cc66/skc prio itemName|r - displays loot prio for given itemName");
+  ["help"] = function()
+    local help_color = "ffcc00";
+    print(" ");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."Slash Commands:|r");
+    -- all members
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - shows help info");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - toggles SKC GUI");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item name>|r - displays loot prio for given item name");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc log|r - export skc log (CSV) for past 90 days");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - displays bench");
+    if core.SKC_Main:isML() then
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - adds character to bench");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - clears bench");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc on|r - activates loot distribution with skc");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc off|r - deactivates loot distribution with skc");
+    end
+    if core.SKC_Main:isGL() then
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - sets inactivity threshold to # days");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init prio|r - initialze loot prio with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init guild|r - initialze guild data with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init sk <SK#>|r - initialze sk list (SK#) with a CSV");
+    end
 		print(" ");
 	end,
-  ["prio"] = function(...)
-    SKC_DB.LootPrio:PrintPrio(...)
+  ["prio"] = function(itemName)
+    SKC_DB.LootPrio:PrintPrio(itemName)
   end,
+  ["log"] = function() core.SKC_Main:ExportLog(); end,
+  ["bench"] = {
+    ["show"] = function()
+      -- Prints the current bench
+      core.SKC_Main:BenchShow();
+    end,
+    ["add"] = function(name)
+      -- Initializes the specified SK list with a CSV pasted into a window
+      core.SKC_Main:BenchAdd(name);
+    end,
+    ["clear"] = function()
+      core.SKC_Main:BenchClear()
+    end,
+  },
   ["init"] = {
     ["sk"] = function(sk_list)
       -- Initializes the specified SK list with a CSV pasted into a window
@@ -100,7 +130,7 @@ core.commands = {
 
 local function HandleSlashCommands(str)
   if (#str == 0) then
-    core.SKC_Main:Toggle(false);
+    core.SKC_Main:ToggleUIMain(false);
   else
     -- split out args in string
     local args = {};
