@@ -455,9 +455,14 @@ local LOG_OPTIONS = {
 --------------------------------------
 -- SAVED / SHARED VARIABLES
 --------------------------------------
-SKC_Main.SYNC_CHANNEL = "&95n%nR2!&;QZJSh"; -- TODO: used for sync data (const)
-SKC_Main.DISTRIBUTION_CHANNEL = "xBPE9,-Fjbc+A#rm"; -- ML sends a loot decision (const)
-SKC_Main.DECISION_CHANNEL = "ksg(AkE.*/@&+`8Q"; -- ML receives a loot decision (const)
+SKC_Main.CHANNELS = { -- channels for inter addon communication (const)
+	LOOT_DIST = "xBPE9,-Fjbc+A#rm", -- ML sends a loot decision (const)
+	LOOT_DECISION = "ksg(AkE.*/@&+`8Q", -- ML receives a loot decision from players (const)
+	SYNC_REQUEST = "?Q!@$8aZpc8QqYyH", -- Player sends request to sync a specific DB (const)
+	SYNC_RESPONSE = "d$8B=qB4VsW&4Y^D", -- Player responds with latest log timestamp for specific DB (const)
+	SYNC_PUSH = "8EtTWxyA$r6-53=F", -- Player pushes data of specific DB (const)
+	SYNC_PULL = "XAzE&7FwzEbhHnna", -- Player requests push for data of specific DB (const)
+};
 SKC_Main.LootDecision = nil; -- personal loot decision
 SKC_Main.MasterLooter = nil; -- name of master looter
 SKC_Main.SK_Item = nil; -- name of item currently being SK'd for
@@ -468,6 +473,7 @@ SKC_Main.FilterStates = {
 		DPS = true,
 		Healer = true,
 		Tank = true,
+		Live = false,
 		Main = true,
 		Alt = true,
 		Active = true,
@@ -493,9 +499,8 @@ local SetSK_Flag = false; -- true when SK position is being set
 local SKC_Active = false; -- true when loot distribution is handled by SKC
 local Loot_Decision_Pending = false; -- true when loot distribution is active (do not edit live lists)
 --------------------------------------
--- CLASSES
+-- CLASS DEFINITIONS / CONSTRUCTORS
 --------------------------------------
--- Prio class
 Prio = {
 	reserved = false, -- true if main prio over alts
 	DE = true, -- true if item should be disenchanted before going to guild bank
@@ -519,10 +524,10 @@ function Prio:new(prio)
 	end
 end
 
--- LootPrio
 LootPrio = {
 	items = {},-- hash table mapping itemName to Prio object
-	default = nil; -- default prio used when item is not in items
+	default = nil, -- default prio used when item is not in items
+	edit_timestamp = nil, -- timestamp of most recent edit
 }; 
 LootPrio.__index = LootPrio;
 
@@ -532,6 +537,7 @@ function LootPrio:new(loot_prio)
 		local obj = {};
 		obj.items = {};
 		obj.default = Prio:new(nil);
+		obj.edit_timestamp = nil;
 		setmetatable(obj,LootPrio);
 		return obj;
 	else
@@ -544,6 +550,122 @@ function LootPrio:new(loot_prio)
 	end
 end
 
+SK_Node = {
+	above = nil, -- character name above this character in ths SK list
+	below = nil, -- character name below this character in the SK list
+	abs_pos = nil, -- absolute position of this node in the full list
+	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
+	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
+	live = false, -- used to indicate a node that is currently in the live list
+};
+SK_Node.__index = SK_Node;
+
+function SK_Node:new(sk_node,above,below)
+	if sk_node == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,SK_Node);
+		obj.above = above or nil;
+		obj.below = below or nil;
+		obj.abs_pos = 1;
+		obj.loot_decision = LOOT_DECISION.PASS;
+		loot_prio = PRIO_TIERS.PASS;
+		obj.live = false;
+		return obj;
+	else
+		-- set metatable of existing table
+		setmetatable(sk_node,SK_Node);
+		return sk_node;
+	end
+end
+
+SK_List = { --a doubly linked list table where each node is referenced by player name. Each node is a SK_Node:
+	top = nil, -- top name in list
+	bottom = nil, -- bottom name in list
+	live_bottom = nil, -- bottom name in live list
+	list = {}, -- list of SK_Node
+	edit_timestamp = nil, -- timestamp of most recent edit
+};
+SK_List.__index = SK_List;
+
+function SK_List:new(sk_list)
+	if sk_list == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,SK_List);
+		obj.top = nil; 
+		obj.bottom = nil;
+		obj.live_bottom = nil;
+		obj.list = {};
+		obj.edit_timestamp = nil;
+		return obj;
+	else
+		-- set metatable of existing table and all sub tables
+		setmetatable(sk_list,SK_List);
+		for key,value in pairs(sk_list.list) do
+			sk_list.list[key] = SK_Node:new(value,nil,nil);
+		end
+		return sk_list;
+	end
+end
+
+CharacterData = {
+	Name = nil, -- character name
+	Class = nil, -- character class
+	Spec = nil, -- character specialization
+	["Raid Role"] = nil, --DPS, Healer, or Tank
+	["Guild Role"] = nil, --Disenchanter, Guild Banker, or None
+	Status = nil, -- Main or Alt
+	Activity = nil, -- Active or Inactive
+	-- ["Loot History"] = {}, -- Table that maps timestamp to table with item (Rejuvenating Gem) and distribution method (SK1, Roll, DE, etc)
+}
+CharacterData.__index = CharacterData;
+
+function CharacterData:new(character_data,name,class)
+	if character_data == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,CharacterData);
+		obj.Name = name or nil;
+		obj.Class = class or nil;
+		obj.Spec = CLASSES[class].DEFAULT_SPEC;
+		obj["Raid Role"] = CLASSES[class].Specs[obj.Spec].RR;
+		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.text;
+		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.text;
+		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.text;
+		-- obj["Loot History"] = {};
+		return obj;
+	else
+		-- set metatable of existing table
+		setmetatable(character_data,CharacterData);
+		return character_data;
+	end
+end
+
+GuildData = {
+	data = {}, --a hash table that maps character name to CharacterData
+	edit_timestamp = nil, -- timestamp of most recent edit
+};
+GuildData.__index = GuildData;
+
+function GuildData:new(guild_data)
+	if guild_data == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,GuildData);
+		obj.data = {};
+		obj.edit_timestamp = nil;
+		return obj;
+	else
+		-- set metatable of existing table and all sub tables
+		setmetatable(guild_data,GuildData);
+		for key,value in pairs(guild_data.data) do CharacterData:new(value,nil,nil) end
+		return guild_data;
+	end
+end
+--------------------------------------
+-- CLASS METHODS
+--------------------------------------
 local function GetSpecClassColor(spec_class)
 	-- Returns color code for given SpecClass
 	for class,tbl in pairs(CLASSES) do
@@ -592,65 +714,6 @@ function LootPrio:PrintPrio(itemName)
 	return;
 end
 
--- SK_Node class
-SK_Node = {
-	above = nil, -- character name above this character in ths SK list
-	below = nil, -- character name below this character in the SK list
-	abs_pos = nil, -- absolute position of this node in the full list
-	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
-	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
-	live = false, -- used to indicate a node that is currently in the live list
-};
-SK_Node.__index = SK_Node;
-
-function SK_Node:new(sk_node,above,below)
-	if sk_node == nil then
-		-- initalize fresh
-		local obj = {};
-		setmetatable(obj,SK_Node);
-		obj.above = above or nil;
-		obj.below = below or nil;
-		obj.abs_pos = 1;
-		obj.loot_decision = LOOT_DECISION.PASS;
-		loot_prio = PRIO_TIERS.PASS;
-		obj.live = false;
-		return obj;
-	else
-		-- set metatable of existing table
-		setmetatable(sk_node,SK_Node);
-		return sk_node;
-	end
-end
-
--- SK_List class
-SK_List = { --a doubly linked list table where each node is referenced by player name. Each node is a SK_Node:
-	top = nil, -- top name in list
-	bottom = nil, -- bottom name in list
-	live_bottom = nil, -- bottom name in live list
-	list = {}, -- list of SK_Node
-};
-SK_List.__index = SK_List;
-
-function SK_List:new(sk_list)
-	if sk_list == nil then
-		-- initalize fresh
-		local obj = {};
-		setmetatable(obj,SK_List);
-		obj.top = nil; 
-		obj.bottom = nil;
-		obj.live_bottom = nil;
-		obj.list = {};
-		return obj;
-	else
-		-- set metatable of existing table and all sub tables
-		setmetatable(sk_list,SK_List);
-		for key,value in pairs(sk_list.list) do
-			sk_list.list[key] = SK_Node:new(value,nil,nil);
-		end
-		return sk_list;
-	end
-end
-
 function SK_List:GetPos(name)
 	-- gets the absolute position of this node
 	return self.list[name].abs_pos;
@@ -678,6 +741,7 @@ function SK_List:SetLiveBottom()
 	end
 	-- assign
 	self.live_bottom = live_bottom_tmp;
+	self.edit_timestamp = time();
 	return true;
 end
 
@@ -692,6 +756,7 @@ function SK_List:ResetPos()
 		current_name = self.list[current_name].below;
 		idx = idx + 1;
 	end
+	self.edit_timestamp = time();
 	return true;
 end
 
@@ -709,6 +774,7 @@ function SK_List:PushTop(name)
 	-- adjust top tracker
 	self.top = name;
 	-- reset positions
+	self.edit_timestamp = time();
 	return self:ResetPos();
 end
 
@@ -718,6 +784,7 @@ function SK_List:ResetLoot()
 		sk_node.loot_decision = LOOT_DECISION.PASS;
 		sk_node.loot_prio = PRIO_TIERS.PASS;
 	end
+	self.edit_timestamp = time();
 	return;
 end
 
@@ -749,6 +816,7 @@ function SK_List:InsertBelow(name,new_above_name)
 		self.top = name;
 		self.bottom = name;
 		self.list[name] = SK_Node:new(self.list[name],name,nil);
+		self.edit_timestamp = time();
 		return true;
 	elseif name == new_above_name then
 		-- do nothing
@@ -804,6 +872,7 @@ function SK_List:InsertBelow(name,new_above_name)
 	if self.list[name].above == name then self.top = name end
 	-- adjust position
 	self:ResetPos();
+	self.edit_timestamp = time();
 	return true;
 end
 
@@ -827,7 +896,6 @@ function SK_List:SetByPos(name,pos)
 	while (current_name ~= nil) do
 		if (self:GetPos(current_name) == des_pos) then
 			-- desired position found, insert
-			SKC_Main:Print("ERROR",name.." "..current_name)
 			return self:InsertBelow(name,current_name);
 		end
 		current_name = self.list[current_name].below;
@@ -874,69 +942,52 @@ function SK_List:SK()
 	return sk_name;
 end
 
--- CharacterData class
-CharacterData = {
-	Name = nil, -- character name
-	Class = nil, -- character class
-	Spec = nil, -- character specialization
-	["Raid Role"] = nil, --DPS, Healer, or Tank
-	["Guild Role"] = nil, --Disenchanter, Guild Banker, or None
-	Status = nil, -- Main or Alt
-	Activity = nil, -- Active or Inactive
-	-- ["Loot History"] = {}, -- Table that maps timestamp to table with item (Rejuvenating Gem) and distribution method (SK1, Roll, DE, etc)
-}
-CharacterData.__index = CharacterData;
+function SK_List:GetBelow(name)
+	-- gets the name of the character below name
+	return self.list[name].below;
+end
 
-function CharacterData:new(character_data,name,class)
-	if character_data == nil then
-		-- initalize fresh
-		local obj = {};
-		setmetatable(obj,CharacterData);
-		obj.Name = name or nil;
-		obj.Class = class or nil;
-		obj.Spec = CLASSES[class].DEFAULT_SPEC;
-		obj["Raid Role"] = CLASSES[class].Specs[obj.Spec].RR;
-		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.text;
-		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.text;
-		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.text;
-		-- obj["Loot History"] = {};
-		return obj;
-	else
-		-- set metatable of existing table
-		setmetatable(character_data,CharacterData);
-		return character_data;
-	end
- end
+function SK_List:SetLive(name,live_status)
+	self.list[name].live = live_status;
+	self.edit_timestamp = time();
+	return;
+end
 
--- GuildData class
-GuildData = {} --a hash table that maps character name to CharacterData
-GuildData.__index = GuildData;
-
-function GuildData:new(guild_data)
-	if guild_data == nil then
-		-- initalize fresh
-		local obj = {};
-		setmetatable(obj,GuildData);
-		return obj;
-	else
-		-- set metatable of existing table and all sub tables
-		setmetatable(guild_data,GuildData);
-		for key,value in pairs(guild_data) do CharacterData:new(value,nil,nil) end
-		return guild_data;
-	end
+function SK_List:GetLive(name)
+	return self.list[name].live;
 end
 
 function GuildData:length()
 	local count = 0;
-	for _ in pairs(self) do count = count + 1 end
+	for _ in pairs(self.data) do count = count + 1 end
 	return count;
 end
 
 function GuildData:Add(name,class)
-	self[name] = CharacterData:new(nil,name,class);
+	self.data[name] = CharacterData:new(nil,name,class);
+	self.edit_timestamp = time();
 	return;
 end
 
+function GuildData:GetData(name,field)
+	-- returns all data for a given name
+	return self.data[name][field];
+end
+
+function GuildData:SetData(name,field,value)
+	-- returns all data for a given name
+	self.data[name][field] = value;
+	if field == "Spec" then
+		self.data[name]["Raid Role"] = CLASSES[self.data[name].Class].Specs[self.data[name].Spec].RR
+	end
+	self.edit_timestamp = time();
+	return;
+end
+
+function GuildData:Exists(name)
+	-- returns true if given name is in data
+	return self.data[name] ~= nil;
+end
 --------------------------------------
 -- LOCAL FUNCTIONS
 --------------------------------------
@@ -991,15 +1042,12 @@ local function OnCheck_FilterFunction (self, button)
 end
 
 local function Refresh_Details(name)
-	local data = SKC_DB.GuildData[name];
-	SKC_UIMain["Details_border"]["Name"].Data:SetText(data.Name);
-	SKC_UIMain["Details_border"]["Class"].Data:SetText(data.Class);
-	SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(CLASSES[data.Class].color.r,CLASSES[data.Class].color.g,CLASSES[data.Class].color.b,1.0);
-	SKC_UIMain["Details_border"]["Spec"].Data:SetText(data.Spec);
-	SKC_UIMain["Details_border"]["Raid Role"].Data:SetText(data["Raid Role"]);
-	SKC_UIMain["Details_border"]["Guild Role"].Data:SetText(data["Guild Role"]);
-	SKC_UIMain["Details_border"]["Status"].Data:SetText(data.Status);
-	SKC_UIMain["Details_border"]["Activity"].Data:SetText(data.Activity);
+	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity"};
+	for _,field in pairs(fields) do
+		SKC_UIMain["Details_border"][field].Data:SetText(SKC_DB.GuildData:GetData(name,field));
+	end
+	local class_color = CLASSES[SKC_DB.GuildData:GetData(name,"Class")].color
+	SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(class_color.r,class_color.g,class_color.b,1.0);
 end
 
 local function OnLoad_EditDropDown_Spec(self)
@@ -1033,8 +1081,8 @@ function OnClick_EditDropDownOption(field,value) -- Must be global
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	local class = SKC_UIMain["Details_border"]["Class"].Data:GetText();
 	-- Edit GuildData
-	local prev_val = SKC_DB.GuildData[name][field];
-	SKC_DB.GuildData[name][field] = value;
+	local prev_val = SKC_DB.GuildData:GetData(name,field);
+	prev_val = SKC_DB.GuildData:SetData(name,field,value);
 	-- log
 	WriteToLog(
 		nil,
@@ -1047,13 +1095,13 @@ function OnClick_EditDropDownOption(field,value) -- Must be global
 		prev_val,
 		value
 	);
-	-- Ensure Raid Role is in sync
-	local spec = SKC_DB.GuildData[name].Spec;
-	SKC_DB.GuildData[name]["Raid Role"] = CLASSES[class].Specs[spec].RR;
 	-- Refresh details
 	Refresh_Details(name);
 	-- Reset menu toggle
 	DD_State = 0;
+	-- Refresh SK Cards
+	local sk_list = "SK1";
+	SKC_Main:UpdateSK(sk_list);
 	return;
 end
 
@@ -1145,7 +1193,7 @@ local function OnClick_SingleSK(self)
 	-- Get initial position
 	local prev_pos = SKC_DB.SK_Lists[sk_list]:GetPos(name);
 	-- Execute full SK
-	local name_below = SKC_DB.SK_Lists[sk_list].list[name].below;
+	local name_below = SKC_DB.SK_Lists[sk_list]:GetBelow(name);
 	local success = SKC_DB.SK_Lists[sk_list]:InsertBelow(name,name_below);
 	if success then 
 		-- log
@@ -1333,6 +1381,44 @@ end
 --------------------------------------
 -- SKC_Main FUNCTIONS
 --------------------------------------
+function SKC_Main:OnAddonLoad()
+	AddonLoaded = true;
+	-- Initialize 
+	if SKC_DB == nil or HARD_DB_RESET then 
+		SKC_DB = {};
+		SKC_DB.Integrity = true; -- triggers false if something is wrong with DB and disables loot distribution w/ SKC
+	end
+	if SKC_DB.SK_Lists == nil or HARD_DB_RESET then 
+		SKC_DB.SK_Lists = {};
+	end
+	if SKC_DB.LootPrio == nil or HARD_DB_RESET then 
+		SKC_DB.LootPrio = {};
+	end
+	if SKC_DB.Log == nil or HARD_DB_RESET then 
+		SKC_DB.Log = {};
+		-- Initialize with header
+		WriteToLog(
+			LOG_OPTIONS["Timestamp"].Text,
+			LOG_OPTIONS["Action"].Text,
+			LOG_OPTIONS["Source"].Text,
+			LOG_OPTIONS["Target Database"].Text,
+			LOG_OPTIONS["Character"].Text,
+			LOG_OPTIONS["Item"].Text,
+			LOG_OPTIONS["Target Value"].Text,
+			LOG_OPTIONS["Previous Value"].Text,
+			LOG_OPTIONS["New Value"].Text
+		);
+	end
+	-- Initialize or refresh metatables
+	SKC_DB.Bench = {}; -- array of names on bench
+	SKC_DB.SK_Lists.SK1 = SK_List:new(SKC_DB.SK_Lists.SK1);
+	SKC_DB.SK_Lists.SK2 = SK_List:new(SKC_DB.SK_Lists.SK2);
+	SKC_DB.SK_Lists.SK3 = SK_List:new(SKC_DB.SK_Lists.SK3);
+	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
+	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
+	SKC_DB.UnFilteredCnt = 0;
+end
+
 function SKC_Main:ToggleUIMain(force_show)
 	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
 	menu:SetShown(force_show or not menu:IsShown());
@@ -1516,44 +1602,6 @@ function SKC_Main:InitiateLootDecision()
 	return;
 end
 
-function SKC_Main:OnAddonLoad()
-	AddonLoaded = true;
-	-- Initialize 
-	if SKC_DB == nil or HARD_DB_RESET then 
-		SKC_DB = {};
-		SKC_DB.Integrity = true; -- triggers false if something is wrong with DB and disables loot distribution w/ SKC
-	end
-	if SKC_DB.SK_Lists == nil or HARD_DB_RESET then 
-		SKC_DB.SK_Lists = {};
-	end
-	if SKC_DB.LootPrio == nil or HARD_DB_RESET then 
-		SKC_DB.LootPrio = {};
-	end
-	if SKC_DB.Log == nil or HARD_DB_RESET then 
-		SKC_DB.Log = {};
-		-- Initialize with header
-		WriteToLog(
-			LOG_OPTIONS["Timestamp"].Text,
-			LOG_OPTIONS["Action"].Text,
-			LOG_OPTIONS["Source"].Text,
-			LOG_OPTIONS["Target Database"].Text,
-			LOG_OPTIONS["Character"].Text,
-			LOG_OPTIONS["Item"].Text,
-			LOG_OPTIONS["Target Value"].Text,
-			LOG_OPTIONS["Previous Value"].Text,
-			LOG_OPTIONS["New Value"].Text
-		);
-	end
-	-- Initialize or refresh metatables
-	SKC_DB.Bench = {}; -- array of names on bench
-	SKC_DB.SK_Lists.SK1 = SK_List:new(SKC_DB.SK_Lists.SK1);
-	SKC_DB.SK_Lists.SK2 = SK_List:new(SKC_DB.SK_Lists.SK2);
-	SKC_DB.SK_Lists.SK3 = SK_List:new(SKC_DB.SK_Lists.SK3);
-	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
-	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
-	SKC_DB.UnFilteredCnt = 0;
-end
-
 function SKC_Main:BenchShow()
 	-- prints the current bench
 	if #SKC_DB.Bench == 0 then
@@ -1573,7 +1621,7 @@ function SKC_Main:BenchAdd(name)
 		SKC_Main:Print("ERROR","You must be master looter or guild leader to do that.")
 		return false;
 	end
-	if SKC_DB.GuildData[name] == nil then
+	if not SKC_DB.GuildData:Exists(name) then
 		SKC_Main:Print("ERROR",name.." not in guild database");
 		return false;
 	else
@@ -1606,12 +1654,12 @@ function SKC_Main:ActivateSKC()
 	end
 	-- add message
 	if SKC_Active and not active_prev then
-		SKC_Main:Print("IMPORTANT","SKC enabled");
+		SKC_Main:Print("IMPORTANT","Enabled");
 		if IsMasterLooter() then 
 			SKC_Main:Print("NORMAL","Use '/skc bench add <character name>' to add non-raid members to the live lists");
 		end
 	elseif not SKC_Active and active_prev then
-		SKC_Main:Print("IMPORTANT","SKC disalbed");
+		SKC_Main:Print("IMPORTANT","Disalbed");
 	end
 end
 
@@ -1629,18 +1677,13 @@ function SKC_Main:SyncLiveList()
 	local sk_lists = {"SK1","SK2","SK3"};
 	for _,sk_list in sk_lists do
 		for name,sk_node in pairs(SKC_DB.SK_Lists[sk_list]) do
-			if UnitInRaid(name) ~= nil then
-				-- elligible player is in raid
-				sk_node.live = true;
-			else
-				sk_node.live = false;
-			end
+			SK_Lists[sk_list]:SetLive(name,UnitInRaid(name) ~= nil);
 		end
 	end
 
 	-- Scan bench and adjust live
 	for idx,name in ipairs(SKC_DB.Bench) do
-		SKC_DB.SK_Lists[sk_list][name].live = true;
+		SK_Lists[sk_list]:SetLive(name,true);
 	end
 
 	-- Set live_bottom for all lists
@@ -1648,7 +1691,7 @@ function SKC_Main:SyncLiveList()
 		SKC_DB.SK_Lists[sk_list]:SetLiveBottom();
 	end
 
-	-- Sync live lists with current raid
+	-- Sync SK lists with current raid
 	-- TODO
 	return;
 end
@@ -1669,7 +1712,7 @@ function SKC_Main:FetchGuildInfo()
 		if level == 60 then
 			cnt = cnt + 1;
 			local name = StripRealmName(full_name);
-			if SKC_DB.GuildData[name] == nil then
+			if not SKC_DB.GuildData:Exists(name) then
 				-- new player, add to DB and SK lists
 				SKC_DB.GuildData:Add(name,class);
 				SKC_DB.SK_Lists.SK1:PushBack(name);
@@ -1743,17 +1786,19 @@ function SKC_Main:UpdateSK(sk_list)
 	local print_order = SKC_DB.SK_Lists[sk_list]:ReturnList();
 	local idx = 1;
 	for key,name in ipairs(print_order) do
-		local class_tmp = SKC_DB.GuildData[name].Class;
-		local raid_role_tmp = SKC_DB.GuildData[name]["Raid Role"];
-		local status_tmp = SKC_DB.GuildData[name].Status;
-		local activity_tmp = SKC_DB.GuildData[name].Activity;
+		local class_tmp = SKC_DB.GuildData:GetData(name,"Class");
+		local raid_role_tmp = SKC_DB.GuildData:GetData(name,"Raid Role");
+		local status_tmp = SKC_DB.GuildData:GetData(name,"Status");
+		local activity_tmp = SKC_DB.GuildData:GetData(name,"Activity");
+		local live_tmp = SKC_DB.SK_Lists[sk_list]:GetLive(name);
 		-- only add cards to list which are not being filtered
-		if SKC_Main.FilterStates["SK1"][class_tmp] and 
-		   SKC_Main.FilterStates["SK1"][raid_role_tmp] and
-		   SKC_Main.FilterStates["SK1"][status_tmp] and
-		   SKC_Main.FilterStates["SK1"][activity_tmp] then
+		if SKC_Main.FilterStates[sk_list][class_tmp] and 
+		   SKC_Main.FilterStates[sk_list][raid_role_tmp] and
+		   SKC_Main.FilterStates[sk_list][status_tmp] and
+		   SKC_Main.FilterStates[sk_list][activity_tmp] and
+		   (SKC_Main.FilterStates[sk_list].Live == live_tmp) then
 			-- Add number text
-			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(SKC_DB.SK_Lists["SK1"]:GetPos(name));
+			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(SKC_DB.SK_Lists[sk_list]:GetPos(name));
 			SKC_UIMain[sk_list].NumberFrame[idx]:Show();
 			-- Add name text
 			SKC_UIMain[sk_list].NameFrame[idx].Text:SetText(name)

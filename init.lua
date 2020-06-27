@@ -197,6 +197,6 @@ events:RegisterEvent("ADDON_LOADED");
 events:SetScript("OnEvent", core.init);
 
 -- Register addon message prefixs
-C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.DISTRIBUTION_CHANNEL);
-C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.DECISION_CHANNEL);
-C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.SYNC_CHANNEL);
+for _,channel in pairs(core.SKC_Main.CHANNELS) do
+  C_ChatInfo.RegisterAddonMessagePrefix(channel);
+end
