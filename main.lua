@@ -17,15 +17,16 @@ local HARD_DB_RESET = true; -- resets SKC_DB
 -- LOCAL CONSTANTS
 --------------------------------------
 local UI_DIMENSIONS = { -- ui dimensions
-	MAIN_WIDTH = 840,
-	MAIN_HEIGHT = 450,
-	SK_TAB_TOP_OFFST = -60,
+	MAIN_WIDTH = 920,
+	MAIN_HEIGHT = 455,
+	MAIN_BORDER_Y_TOP = -60,
+	MAIN_BORDER_PADDING = 25,
 	SK_TAB_TITLE_CARD_WIDTH = 80,
 	SK_TAB_TITLE_CARD_HEIGHT = 40,
-	SK_FILTER_WIDTH = 270,
-	SK_FILTER_HEIGHT = 155,
-	DECISION_WIDTH = 270,
-	DECISION_HEIGHT = 180,
+	SK_FILTER_WIDTH = 330,
+	SK_FILTER_HEIGHT = 130,
+	DECISION_WIDTH = 330,
+	DECISION_HEIGHT = 200,
 	SK_DETAILS_WIDTH = 270,
 	SK_DETAILS_HEIGHT = 355,
 	ITEM_WIDTH = 40,
@@ -36,10 +37,16 @@ local UI_DIMENSIONS = { -- ui dimensions
 	SK_CARD_SPACING = 6,
 	SK_CARD_WIDTH = 100,
 	SK_CARD_HEIGHT = 20,
+	BTN_WIDTH = 75,
+	BTN_HEIGHT = 40,
+	STATUS_BAR_BRDR_WIDTH = 290,
+	STATUS_BAR_BRDR_HEIGHT = 40,
+	STATUS_BAR_WIDTH_OFFST = 24,
+	STATUS_BAR_HEIGHT_OFFST = 24,
 	CSV_WIDTH = 660,
 	CSV_HEIGHT = 300,
 	CSV_EB_WIDTH = 600,
-	CSV_EB_HEIGHT = 230;
+	CSV_EB_HEIGHT = 230,
 };
 
 local THEME = { -- general color themes
@@ -483,6 +490,8 @@ local AddonLoaded = false; -- used to know if addon is loaded and saved variable
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
 local SetSK_Flag = false; -- true when SK position is being set
+local SKC_Active = false; -- true when loot distribution is handled by SKC
+local Loot_Decision_Pending = false; -- true when loot distribution is active (do not edit live lists)
 --------------------------------------
 -- CLASSES
 --------------------------------------
@@ -590,7 +599,7 @@ SK_Node = {
 	abs_pos = nil, -- absolute position of this node in the full list
 	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
 	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
-	live = false, -- used to indicate a slot that is currently in the live list
+	live = false, -- used to indicate a node that is currently in the live list
 };
 SK_Node.__index = SK_Node;
 
@@ -617,6 +626,7 @@ end
 SK_List = { --a doubly linked list table where each node is referenced by player name. Each node is a SK_Node:
 	top = nil, -- top name in list
 	bottom = nil, -- bottom name in list
+	live_bottom = nil, -- bottom name in live list
 	list = {}, -- list of SK_Node
 };
 SK_List.__index = SK_List;
@@ -627,7 +637,8 @@ function SK_List:new(sk_list)
 		local obj = {};
 		setmetatable(obj,SK_List);
 		obj.top = nil; 
-		obj.bottom = nil; 
+		obj.bottom = nil;
+		obj.live_bottom = nil;
 		obj.list = {};
 		return obj;
 	else
@@ -652,6 +663,22 @@ function SK_List:CheckIfFucked()
 		return true;
 	end
 	return false;
+end
+
+function SK_List:SetLiveBottom()
+	-- scan list to find bottom live player
+	if self:CheckIfFucked() then return false end
+	local current_name = self.top;
+	local live_bottom_tmp = nil;
+	while (current_name ~= nil) do
+		if self.list[current_name].live then
+			live_bottom_tmp = current_name;
+		end
+		current_name = self.list[current_name].below;
+	end
+	-- assign
+	self.live_bottom = live_bottom_tmp;
+	return true;
 end
 
 function SK_List:ResetPos()
@@ -685,11 +712,11 @@ function SK_List:PushTop(name)
 	return self:ResetPos();
 end
 
-function SK_List:Reset()
-	-- Resets all player loot decisions to PASS and prio to 1
+function SK_List:ResetLoot()
+	-- Resets all player loot decisions / prio to PASS
 	for name,sk_node in pairs(self.list) do 
 		sk_node.loot_decision = LOOT_DECISION.PASS;
-		sk_node.loot_prio = SKC_Main.MaxPrioTiers + 1; -- prio tier for OS
+		sk_node.loot_prio = PRIO_TIERS.PASS;
 	end
 	return;
 end
@@ -780,7 +807,7 @@ function SK_List:InsertBelow(name,new_above_name)
 	return true;
 end
 
-function SK_List:SetPos(name,pos)
+function SK_List:SetByPos(name,pos)
 	-- sets the absolute position of given name
 	local des_pos = pos;
 	if self:CheckIfFucked() then return false end
@@ -856,7 +883,7 @@ CharacterData = {
 	["Guild Role"] = nil, --Disenchanter, Guild Banker, or None
 	Status = nil, -- Main or Alt
 	Activity = nil, -- Active or Inactive
-	["Loot History"] = {}, -- Table that maps timestamp to table with item (Rejuvenating Gem) and distribution method (SK1, Roll, DE, etc)
+	-- ["Loot History"] = {}, -- Table that maps timestamp to table with item (Rejuvenating Gem) and distribution method (SK1, Roll, DE, etc)
 }
 CharacterData.__index = CharacterData;
 
@@ -872,7 +899,7 @@ function CharacterData:new(character_data,name,class)
 		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.text;
 		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.text;
 		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.text;
-		obj["Loot History"] = {};
+		-- obj["Loot History"] = {};
 		return obj;
 	else
 		-- set metatable of existing table
@@ -1086,9 +1113,9 @@ local function OnClick_FullSK(self)
 	-- On click event for full SK of details targeted character
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	-- Get initial position
-	local prev_pos = SKC_DB.SK_Lists[sk_list].Full:GetPos(name);
+	local prev_pos = SKC_DB.SK_Lists[sk_list]:GetPos(name);
 	-- Execute full SK
-	local success = SKC_DB.SK_Lists[sk_list].Full:PushBack(name);
+	local success = SKC_DB.SK_Lists[sk_list]:PushBack(name);
 	if success then 
 		-- log
 		WriteToLog(
@@ -1100,7 +1127,7 @@ local function OnClick_FullSK(self)
 			"",
 			LOG_OPTIONS["Target Value"].Options.ASKP,
 			prev_pos,
-			SKC_DB.SK_Lists[sk_list].Full:GetPos(name)
+			SKC_DB.SK_Lists[sk_list]:GetPos(name)
 		);
 		SKC_Main:Print("IMPORTANT","Full SK on "..name);
 	else
@@ -1116,10 +1143,10 @@ local function OnClick_SingleSK(self)
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	local sk_list = "SK1";
 	-- Get initial position
-	local prev_pos = SKC_DB.SK_Lists[sk_list].Full:GetPos(name);
+	local prev_pos = SKC_DB.SK_Lists[sk_list]:GetPos(name);
 	-- Execute full SK
-	local name_below = SKC_DB.SK_Lists[sk_list].Full.list[name].below;
-	local success = SKC_DB.SK_Lists[sk_list].Full:InsertBelow(name,name_below);
+	local name_below = SKC_DB.SK_Lists[sk_list].list[name].below;
+	local success = SKC_DB.SK_Lists[sk_list]:InsertBelow(name,name_below);
 	if success then 
 		-- log
 		WriteToLog(
@@ -1131,7 +1158,7 @@ local function OnClick_SingleSK(self)
 			"",
 			LOG_OPTIONS["Target Value"].Options.ASKP,
 			prev_pos,
-			SKC_DB.SK_Lists[sk_list].Full:GetPos(name)
+			SKC_DB.SK_Lists[sk_list]:GetPos(name)
 		);
 		SKC_Main:Print("IMPORTANT","Single SK on "..name);
 	else
@@ -1160,9 +1187,9 @@ local function OnClick_NumberCard(self,button)
 		local new_abs_pos = tonumber(self.Text:GetText());
 		local sk_list = "SK1";
 		-- Get initial position
-		local prev_pos = SKC_DB.SK_Lists[sk_list].Full:GetPos(name);
+		local prev_pos = SKC_DB.SK_Lists[sk_list]:GetPos(name);
 		-- Set new position
-		local success = SKC_DB.SK_Lists[sk_list].Full:SetPos(name,new_abs_pos);
+		local success = SKC_DB.SK_Lists[sk_list]:SetByPos(name,new_abs_pos);
 		if success then
 			-- log
 			WriteToLog(
@@ -1174,9 +1201,9 @@ local function OnClick_NumberCard(self,button)
 				"",
 				LOG_OPTIONS["Target Value"].Options.ASKP,
 				prev_pos,
-				SKC_DB.SK_Lists[sk_list].Full:GetPos(name)
+				SKC_DB.SK_Lists[sk_list]:GetPos(name)
 			);
-			SKC_Main:Print("IMPORTANT","Set SK position of "..name.." to "..SKC_DB.SK_Lists[sk_list].Full:GetPos(name));
+			SKC_Main:Print("IMPORTANT","Set SK position of "..name.." to "..SKC_DB.SK_Lists[sk_list]:GetPos(name));
 		else
 			SKC_Main:Print("ERROR","Set SK on "..name.." rejected");
 		end
@@ -1454,8 +1481,10 @@ function SKC_Main:InitiateLootDecision()
 	-- Scans items / characters and initiates loot decisions for valid characters
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
 	if not IsMasterLooter() then return end
+	-- Make loot decision active
+	Loot_Decision_Pending = true;
 	-- Reset guild loot decisions and loot prio
-	-- SKC_DB.SK_Lists["SK1"]:Reset();
+	-- SKC_DB.SK_Lists["SK1"]:ResetLoot();
 	-- Reset message count
 	SKC_Main.SK_MessagesReceived = 0;
 	SKC_Main.SK_MessagesSent = 0;
@@ -1480,6 +1509,10 @@ function SKC_Main:InitiateLootDecision()
 			end
 		end
 	end
+	-- end loot decision
+	Loot_Decision_Pending = false;
+	-- sync live list
+	SKC_Main:SyncLiveList();
 	return;
 end
 
@@ -1513,15 +1546,9 @@ function SKC_Main:OnAddonLoad()
 	end
 	-- Initialize or refresh metatables
 	SKC_DB.Bench = {}; -- array of names on bench
-	SKC_DB.SK_Lists.SK1 = {};
-	SKC_DB.SK_Lists.SK1.Full = SK_List:new(SKC_DB.SK_Lists.SK1.Full);
-	SKC_DB.SK_Lists.SK1.Live = SK_List:new(SKC_DB.SK_Lists.SK1.Live);
-	SKC_DB.SK_Lists.SK2 = {};
-	SKC_DB.SK_Lists.SK2.Full = SK_List:new(SKC_DB.SK_Lists.SK2.Full);
-	SKC_DB.SK_Lists.SK2.Live = SK_List:new(SKC_DB.SK_Lists.SK2.Live);
-	SKC_DB.SK_Lists.SK3 = {};
-	SKC_DB.SK_Lists.SK3.Full = SK_List:new(SKC_DB.SK_Lists.SK3.Full);
-	SKC_DB.SK_Lists.SK3.Live = SK_List:new(SKC_DB.SK_Lists.SK3.Live);
+	SKC_DB.SK_Lists.SK1 = SK_List:new(SKC_DB.SK_Lists.SK1);
+	SKC_DB.SK_Lists.SK2 = SK_List:new(SKC_DB.SK_Lists.SK2);
+	SKC_DB.SK_Lists.SK3 = SK_List:new(SKC_DB.SK_Lists.SK3);
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
 	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
 	SKC_DB.UnFilteredCnt = 0;
@@ -1567,20 +1594,65 @@ function SKC_Main:BenchClear()
 	return;
 end
 
-function SKC_Main:SyncLiveWithRaid()
+function SKC_Main:ActivateSKC()
+	-- master control for wheter or not loot is managed with SKC
+	local loot_method, _, _ = GetLootMethod();
+	local active_prev = SKC_Active;
+	if loot_method == "master" and UnitInRaid("player") ~= nil then
+		-- current player is in raid with master loot method
+		SKC_Active = true;
+	else
+		SKC_Active = false;
+	end
+	-- add message
+	if SKC_Active and not active_prev then
+		SKC_Main:Print("IMPORTANT","SKC enabled");
+		if IsMasterLooter() then 
+			SKC_Main:Print("NORMAL","Use '/skc bench add <character name>' to add non-raid members to the live lists");
+		end
+	elseif not SKC_Active and active_prev then
+		SKC_Main:Print("IMPORTANT","SKC disalbed");
+	end
+end
+
+function SKC_Main:SyncLiveList()
+	-- Start SKC
+	SKC_Main:ActivateSKC();
+
+	-- Check SKC ACtive
+	if not SKC_Active then return end
+
+	-- Check if loot decision is pending
+	if Loot_Decision_Pending then return end
+
+	-- Scan all SK lists and assign live status
+	local sk_lists = {"SK1","SK2","SK3"};
+	for _,sk_list in sk_lists do
+		for name,sk_node in pairs(SKC_DB.SK_Lists[sk_list]) do
+			if UnitInRaid(name) ~= nil then
+				-- elligible player is in raid
+				sk_node.live = true;
+			else
+				sk_node.live = false;
+			end
+		end
+	end
+
+	-- Scan bench and adjust live
+	for idx,name in ipairs(SKC_DB.Bench) do
+		SKC_DB.SK_Lists[sk_list][name].live = true;
+	end
+
+	-- Set live_bottom for all lists
+	for _,sk_list in sk_lists do
+		SKC_DB.SK_Lists[sk_list]:SetLiveBottom();
+	end
+
 	-- Sync live lists with current raid
-
-	-- Scan raid list and add missing members
-
-	-- Scan live list and remove non-bench / non-raid members
-
+	-- TODO
+	return;
 end
 
-function SKC_Main:StartSKC()
-	if not IsMasterLooter() then return end
-	SKC_Main:Print("IMPORTANT","SKC enabled.");
-	SKC_Main:Print("NORMAL","Use '/bench add' to add non-raid members to the live lists.")
-end
 
 function SKC_Main:FetchGuildInfo()
 	SKC_DB.InGuild = IsInGuild();
@@ -1600,9 +1672,9 @@ function SKC_Main:FetchGuildInfo()
 			if SKC_DB.GuildData[name] == nil then
 				-- new player, add to DB and SK lists
 				SKC_DB.GuildData:Add(name,class);
-				SKC_DB.SK_Lists.SK1.Full:PushBack(name);
-				SKC_DB.SK_Lists.SK2.Full:PushBack(name);
-				SKC_DB.SK_Lists.SK3.Full:PushBack(name);
+				SKC_DB.SK_Lists.SK1:PushBack(name);
+				SKC_DB.SK_Lists.SK2:PushBack(name);
+				SKC_DB.SK_Lists.SK3:PushBack(name);
 				SKC_Main:Print("NORMAL","["..cnt.."] "..name.." added to database!");
 			end
 		end
@@ -1668,7 +1740,7 @@ function SKC_Main:UpdateSK(sk_list)
 	end
 
 	-- Populate non filtered cards
-	local print_order = SKC_DB.SK_Lists[sk_list].Full:ReturnList();
+	local print_order = SKC_DB.SK_Lists[sk_list]:ReturnList();
 	local idx = 1;
 	for key,name in ipairs(print_order) do
 		local class_tmp = SKC_DB.GuildData[name].Class;
@@ -1681,7 +1753,7 @@ function SKC_Main:UpdateSK(sk_list)
 		   SKC_Main.FilterStates["SK1"][status_tmp] and
 		   SKC_Main.FilterStates["SK1"][activity_tmp] then
 			-- Add number text
-			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(SKC_DB.SK_Lists["SK1"].Full:GetPos(name));
+			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(SKC_DB.SK_Lists["SK1"]:GetPos(name));
 			SKC_UIMain[sk_list].NumberFrame[idx]:Show();
 			-- Add name text
 			SKC_UIMain[sk_list].NameFrame[idx].Text:SetText(name)
@@ -1697,12 +1769,11 @@ function SKC_Main:UpdateSK(sk_list)
 	SKC_UIMain[sk_list].SK_List_SF:GetScrollChild():SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,GetScrollMax());
 end
 
-function SKC_Main:CreateUIBorder(title,width,height,x_pos,y_pos)
+function SKC_Main:CreateUIBorder(title,width,height)
 	-- Create Border
 	local border_key = title.."_border";
 	SKC_UIMain[border_key] = CreateFrame("Frame",border_key,SKC_UIMain,"TranslucentFrameTemplate");
 	SKC_UIMain[border_key]:SetSize(width,height);
-	SKC_UIMain[border_key]:SetPoint("TOP",SKC_UIMain,"TOP",x_pos,y_pos);
 	SKC_UIMain[border_key].Bg:SetAlpha(0.0);
 	-- Create Title
 	local title_key = "title";
@@ -1740,15 +1811,17 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain.Title:SetText("SKC");
 
 	-- Create filter panel
-	local filter_border_key = SKC_Main:CreateUIBorder("Filters",UI_DIMENSIONS.SK_FILTER_WIDTH,UI_DIMENSIONS.SK_FILTER_HEIGHT,-250,UI_DIMENSIONS.SK_TAB_TOP_OFFST)
+	local filter_border_key = SKC_Main:CreateUIBorder("Filters",UI_DIMENSIONS.SK_FILTER_WIDTH,UI_DIMENSIONS.SK_FILTER_HEIGHT)
+	-- set position
+	SKC_UIMain[filter_border_key]:SetPoint("TOPLEFT", SKC_UIMainTitleBG, "TOPLEFT", UI_DIMENSIONS.MAIN_BORDER_PADDING, UI_DIMENSIONS.MAIN_BORDER_Y_TOP);
 	-- create details fields
 	local faction_class;
 	if UnitFactionGroup("player") == "Horde" then faction_class="Shaman" else faction_class="Paladin" end
-	local filter_roles = {"DPS","Healer","Tank","Main","Alt","Inactive","Active","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
+	local filter_roles = {"DPS","Healer","Tank","Live","Main","Alt","Inactive","Active","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
 	for idx,value in ipairs(filter_roles) do
 		if value ~= "SKIP" then
-			local row = math.floor((idx - 1) / 3); -- zero based
-			local col = (idx - 1) % 3; -- zero based
+			local row = math.floor((idx - 1) / 4); -- zero based
+			local col = (idx - 1) % 4; -- zero based
 			SKC_UIMain[filter_border_key][value] = CreateFrame("CheckButton", nil, SKC_UIMain[filter_border_key], "UICheckButtonTemplate");
 			SKC_UIMain[filter_border_key][value]:SetSize(25,25);
 			SKC_UIMain[filter_border_key][value]:SetChecked(SKC_Main.FilterStates["SK1"][value]);
@@ -1756,19 +1829,23 @@ function SKC_Main:CreateUIMain()
 			SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
 			SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
 			SKC_UIMain[filter_border_key][value].text:SetText(value);
-			if idx > 7 then
+			if idx > 8 then
 				-- assign class colors
 				SKC_UIMain[filter_border_key][value].text:SetTextColor(CLASSES[value].color.r,CLASSES[value].color.g,CLASSES[value].color.b,1.0);
 			end
 		end
 	end
 
-	-- Create SK list panel
+	-- SK List border
 	local sk_list = "SK1";
+	local sk_list_border_key = SKC_Main:CreateUIBorder(sk_list,UI_DIMENSIONS.SK_LIST_WIDTH + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST,UI_DIMENSIONS.SK_LIST_HEIGHT + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST);
+	-- set position
+	SKC_UIMain[sk_list_border_key]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPRIGHT", UI_DIMENSIONS.MAIN_BORDER_PADDING, 0);
+
+	-- Create SK list panel
 	SKC_UIMain[sk_list] = CreateFrame("Frame",sk_list,SKC_UIMain,"InsetFrameTemplate");
 	SKC_UIMain[sk_list]:SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,UI_DIMENSIONS.SK_LIST_HEIGHT);
-	SKC_UIMain[sk_list]:SetPoint("TOP",SKC_UIMain,"TOP",0,UI_DIMENSIONS.SK_TAB_TOP_OFFST - UI_DIMENSIONS.SK_LIST_BORDER_OFFST);
-	local sk_list_border_key = SKC_Main:CreateUIBorder(sk_list,UI_DIMENSIONS.SK_LIST_WIDTH + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST,UI_DIMENSIONS.SK_LIST_HEIGHT + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST,0,UI_DIMENSIONS.SK_TAB_TOP_OFFST)
+	SKC_UIMain[sk_list]:SetPoint("TOP",SKC_UIMain[sk_list_border_key],"TOP",0,-UI_DIMENSIONS.SK_LIST_BORDER_OFFST);
 
 	-- Create scroll frame on SK list
     SKC_UIMain[sk_list].SK_List_SF = CreateFrame("ScrollFrame","SK_List_SF",SKC_UIMain[sk_list],"UIPanelScrollFrameTemplate2");
@@ -1813,9 +1890,11 @@ function SKC_Main:CreateUIMain()
 	SKC_Main:UpdateSK("SK1")
 
 	-- Create details panel
-	local details_border_key = SKC_Main:CreateUIBorder("Details",UI_DIMENSIONS.SK_DETAILS_WIDTH,UI_DIMENSIONS.SK_DETAILS_HEIGHT,250,UI_DIMENSIONS.SK_TAB_TOP_OFFST);
+	local details_border_key = SKC_Main:CreateUIBorder("Details",UI_DIMENSIONS.SK_DETAILS_WIDTH,UI_DIMENSIONS.SK_DETAILS_HEIGHT);
+	-- set position
+	SKC_UIMain[details_border_key]:SetPoint("TOPLEFT", SKC_UIMain[sk_list_border_key], "TOPRIGHT", UI_DIMENSIONS.MAIN_BORDER_PADDING, 0);
 	-- create details fields
-	local details_fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Loot History"};
+	local details_fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity"};
 	for idx,value in ipairs(details_fields) do
 		-- fields
 		SKC_UIMain[details_border_key][value] = CreateFrame("Frame",SKC_UIMain[details_border_key])
@@ -1853,7 +1932,7 @@ function SKC_Main:CreateUIMain()
 	-- full SK
 	SKC_UIMain[details_border_key].FullSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
 	SKC_UIMain[details_border_key].FullSK_Btn:SetPoint("BOTTOM",SKC_UIMain[details_border_key],"BOTTOM",0,15);
-	SKC_UIMain[details_border_key].FullSK_Btn:SetSize(75, 40);
+	SKC_UIMain[details_border_key].FullSK_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
 	SKC_UIMain[details_border_key].FullSK_Btn:SetText("Full SK");
 	SKC_UIMain[details_border_key].FullSK_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[details_border_key].FullSK_Btn:SetHighlightFontObject("GameFontHighlight");
@@ -1862,7 +1941,7 @@ function SKC_Main:CreateUIMain()
 	-- single SK
 	SKC_UIMain[details_border_key].SingleSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
 	SKC_UIMain[details_border_key].SingleSK_Btn:SetPoint("RIGHT",SKC_UIMain[details_border_key].FullSK_Btn,"LEFT",-5,0);
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetSize(75, 40);
+	SKC_UIMain[details_border_key].SingleSK_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
 	SKC_UIMain[details_border_key].SingleSK_Btn:SetText("Single SK");
 	SKC_UIMain[details_border_key].SingleSK_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[details_border_key].SingleSK_Btn:SetHighlightFontObject("GameFontHighlight");
@@ -1871,7 +1950,7 @@ function SKC_Main:CreateUIMain()
 	-- set SK
 	SKC_UIMain[details_border_key].SetSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
 	SKC_UIMain[details_border_key].SetSK_Btn:SetPoint("LEFT",SKC_UIMain[details_border_key].FullSK_Btn,"RIGHT",5,0);
-	SKC_UIMain[details_border_key].SetSK_Btn:SetSize(75, 40);
+	SKC_UIMain[details_border_key].SetSK_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
 	SKC_UIMain[details_border_key].SetSK_Btn:SetText("Set SK");
 	SKC_UIMain[details_border_key].SetSK_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[details_border_key].SetSK_Btn:SetHighlightFontObject("GameFontHighlight");
@@ -1880,7 +1959,9 @@ function SKC_Main:CreateUIMain()
 
 
 	-- Decision region
-	local decision_border_key = SKC_Main:CreateUIBorder("Decision",UI_DIMENSIONS.DECISION_WIDTH,UI_DIMENSIONS.DECISION_HEIGHT,-250,UI_DIMENSIONS.SK_TAB_TOP_OFFST-UI_DIMENSIONS.SK_FILTER_HEIGHT-20);
+	local decision_border_key = SKC_Main:CreateUIBorder("Decision",UI_DIMENSIONS.DECISION_WIDTH,UI_DIMENSIONS.DECISION_HEIGHT)
+	-- set position
+	SKC_UIMain[decision_border_key]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 0, -UI_DIMENSIONS.SK_FILTER_HEIGHT - UI_DIMENSIONS.MAIN_BORDER_PADDING);
 
 	-- set texture / hidden frame for button click
 	SKC_UIMain[decision_border_key].ItemTexture = SKC_UIMain[decision_border_key]:CreateTexture(nil, "ARTWORK");
@@ -1899,8 +1980,8 @@ function SKC_Main:CreateUIMain()
 	-- set decision buttons
 	-- SK 
 	SKC_UIMain[decision_border_key].SK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].SK_Btn:SetPoint("TOPRIGHT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",-40,-5);
-	SKC_UIMain[decision_border_key].SK_Btn:SetSize(65,35);
+	SKC_UIMain[decision_border_key].SK_Btn:SetPoint("TOPRIGHT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",-60,-10);
+	SKC_UIMain[decision_border_key].SK_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
 	SKC_UIMain[decision_border_key].SK_Btn:SetText("SK");
 	SKC_UIMain[decision_border_key].SK_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[decision_border_key].SK_Btn:SetHighlightFontObject("GameFontHighlight");
@@ -1908,8 +1989,8 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[decision_border_key].SK_Btn:Disable();
 	-- Roll 
 	SKC_UIMain[decision_border_key].Roll_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].Roll_Btn:SetPoint("TOP",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",0,-5);
-	SKC_UIMain[decision_border_key].Roll_Btn:SetSize(65,35);
+	SKC_UIMain[decision_border_key].Roll_Btn:SetPoint("TOP",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",0,-10);
+	SKC_UIMain[decision_border_key].Roll_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
 	SKC_UIMain[decision_border_key].Roll_Btn:SetText("Roll");
 	SKC_UIMain[decision_border_key].Roll_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[decision_border_key].Roll_Btn:SetHighlightFontObject("GameFontHighlight");
@@ -1917,8 +1998,8 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[decision_border_key].Roll_Btn:Disable();
 	-- Pass
 	SKC_UIMain[decision_border_key].Pass_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].Pass_Btn:SetPoint("TOPLEFT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",40,-5);
-	SKC_UIMain[decision_border_key].Pass_Btn:SetSize(65,35);
+	SKC_UIMain[decision_border_key].Pass_Btn:SetPoint("TOPLEFT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",60,-10);
+	SKC_UIMain[decision_border_key].Pass_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
 	SKC_UIMain[decision_border_key].Pass_Btn:SetText("Pass");
 	SKC_UIMain[decision_border_key].Pass_Btn:SetNormalFontObject("GameFontNormal");
 	SKC_UIMain[decision_border_key].Pass_Btn:SetHighlightFontObject("GameFontHighlight");
@@ -1926,12 +2007,12 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[decision_border_key].Pass_Btn:Disable();
 	-- timer bar
 	SKC_UIMain[decision_border_key].TimerBorder = CreateFrame("Frame",nil,SKC_UIMain,"TranslucentFrameTemplate");
-	SKC_UIMain[decision_border_key].TimerBorder:SetSize(210,40);
-	SKC_UIMain[decision_border_key].TimerBorder:SetPoint("TOP",SKC_UIMain[decision_border_key].Roll_Btn,"BOTTOM",0,-3);
+	SKC_UIMain[decision_border_key].TimerBorder:SetSize(UI_DIMENSIONS.STATUS_BAR_BRDR_WIDTH,UI_DIMENSIONS.STATUS_BAR_BRDR_HEIGHT);
+	SKC_UIMain[decision_border_key].TimerBorder:SetPoint("TOP",SKC_UIMain[decision_border_key].Roll_Btn,"BOTTOM",0,-7);
 	SKC_UIMain[decision_border_key].TimerBorder.Bg:SetAlpha(1.0);
 	-- status bar
 	SKC_UIMain[decision_border_key].TimerBar = CreateFrame("StatusBar",nil,SKC_UIMain);
-	SKC_UIMain[decision_border_key].TimerBar:SetSize(186,16);
+	SKC_UIMain[decision_border_key].TimerBar:SetSize(UI_DIMENSIONS.STATUS_BAR_BRDR_WIDTH - UI_DIMENSIONS.STATUS_BAR_WIDTH_OFFST,UI_DIMENSIONS.STATUS_BAR_BRDR_HEIGHT - UI_DIMENSIONS.STATUS_BAR_HEIGHT_OFFST);
 	SKC_UIMain[decision_border_key].TimerBar:SetPoint("CENTER",SKC_UIMain[decision_border_key].TimerBorder,"CENTER",0,-1);
 	-- background texture
 	SKC_UIMain[decision_border_key].TimerBar.bg = SKC_UIMain[decision_border_key].TimerBar:CreateTexture(nil,"BACKGROUND",nil,-7);
@@ -1974,8 +2055,4 @@ f3:SetScript("OnEvent", SKC_Main.AddonMessageRead);
 
 local f4 = CreateFrame("Frame");
 f4:RegisterEvent("RAID_ROSTER_UPDATE");
-f4:SetScript("OnEvent", SKC_Main.SyncLiveWithRaid);
-
-local f5 = CreateFrame("Frame");
-f5:RegisterEvent("PARTY_LOOT_METHOD_CHANGED");
-f5:SetScript("OnEvent", SKC_Main.StartSKC);
+f4:SetScript("OnEvent", SKC_Main.SyncLiveList);
