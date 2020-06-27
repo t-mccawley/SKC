@@ -36,8 +36,10 @@ local UI_DIMENSIONS = { -- ui dimensions
 	SK_CARD_SPACING = 6,
 	SK_CARD_WIDTH = 100,
 	SK_CARD_HEIGHT = 20,
-	CSV_WIDTH = 400,
+	CSV_WIDTH = 660,
 	CSV_HEIGHT = 300,
+	CSV_EB_WIDTH = 600,
+	CSV_EB_HEIGHT = 230;
 };
 
 local THEME = { -- general color themes
@@ -385,6 +387,64 @@ local PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
 	PASS = 17,
 };
 
+local LOG_OPTIONS = {
+	["Timestamp"] = {
+		Text = "Timestamp",
+	},
+	["Action"] = {
+		Text = "Action",
+		Options = {
+			SKI = "SK List Initialization",
+			GBI = "Guild Data Initialization",
+			LPI = "Loot Prio Initialization",
+			ALD = "Automatic Loot Distribution",
+			MLD = "Manual Loot Distribution",
+			MSK = "Manual SK List Edit",
+			AGDE = "Automatic Guild Data Edit",
+			MGDE = "Manual Guild Data Edit",
+		},
+	},
+	["Source"] = {
+		Text = "Source",
+		Options = {
+			SKC = "SKC",
+			THIS_PLAYER = UnitName("player"),
+		},
+	},
+	["Target Database"] = {
+		Text = "Target Database",
+		Options = {
+			SK1 = "SK1",
+			SK2 = "SK2",
+			SK3 = "SK3",
+			GD = "Guild Data",
+			LP = "Loot Prio",
+		}
+	},
+	["Character"] = {
+		Text = "Character",
+	},
+	["Item"] = {
+		Text = "Item",
+	},
+	["Target Value"] = {
+		Text = "Target Value",
+		Options = {
+			ASKP = "Absolute SK Position",
+			SP = "Spec",
+			GR = "Guild Role",
+			ST = "Status",
+			ACT = "Activity",
+		}
+	},
+	["Previous Value"] = {
+		Text = "Previous Value",
+	},
+	["New Value"] = {
+		Text = "New Value",
+	},
+};
+
 --------------------------------------
 -- SAVED / SHARED VARIABLES
 --------------------------------------
@@ -527,6 +587,7 @@ end
 SK_Node = {
 	above = nil, -- character name above this character in ths SK list
 	below = nil, -- character name below this character in the SK list
+	abs_pos = nil, -- absolute position of this node in the full list
 	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
 	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
 	live = false, -- used to indicate a slot that is currently in the live list
@@ -540,6 +601,7 @@ function SK_Node:new(sk_node,above,below)
 		setmetatable(obj,SK_Node);
 		obj.above = above or nil;
 		obj.below = below or nil;
+		obj.abs_pos = 1;
 		obj.loot_decision = LOOT_DECISION.PASS;
 		loot_prio = PRIO_TIERS.PASS;
 		obj.live = false;
@@ -578,6 +640,11 @@ function SK_List:new(sk_list)
 	end
 end
 
+function SK_List:GetPos(name)
+	-- gets the absolute position of this node
+	return self.list[name].abs_pos;
+end
+
 function SK_List:CheckIfFucked()
 	-- checks integrity of list
 	if self.list[self.bottom].below ~= nil then
@@ -587,13 +654,42 @@ function SK_List:CheckIfFucked()
 	return false;
 end
 
-function SK_List:Reset(in_raid_list)
+function SK_List:ResetPos()
+	-- resets absolute positions of all nodes
+	if self:CheckIfFucked() then return false end
+	-- scan list and assign positions
+	local idx = 1;
+	local current_name = self.top;
+	while (current_name ~= nil) do
+		self.list[current_name].abs_pos = idx;
+		current_name = self.list[current_name].below;
+		idx = idx + 1;
+	end
+	return true;
+end
+
+function SK_List:PushTop(name)
+	-- Push name on top
+	-- Remove name from current spot
+	local above_tmp = self.list[name].above;
+	local below_tmp = self.list[name].below;
+	self.list[above_tmp].below = below_tmp;
+	self.list[below_tmp].above = above_tmp;
+	-- put on top
+	self.list[self.top].above = name;
+	self.list[name].below = self.top;
+	self.list[name].above = name;
+	-- adjust top tracker
+	self.top = name;
+	-- reset positions
+	return self:ResetPos();
+end
+
+function SK_List:Reset()
 	-- Resets all player loot decisions to PASS and prio to 1
-	-- in_raid_list is 
 	for name,sk_node in pairs(self.list) do 
 		sk_node.loot_decision = LOOT_DECISION.PASS;
 		sk_node.loot_prio = SKC_Main.MaxPrioTiers + 1; -- prio tier for OS
-		sk_node.in_raid = false;
 	end
 	return;
 end
@@ -646,6 +742,7 @@ function SK_List:InsertBelow(name,new_above_name)
 		self.list[name] = SK_Node:new(self.list[name],nil,nil);
 	else
 		-- existing node
+		if self:CheckIfFucked() then return false end
 		if self.list[name].above == new_above_name then
 			-- already in correct order
 			return true;
@@ -667,15 +764,48 @@ function SK_List:InsertBelow(name,new_above_name)
 			self.list[above_tmp].below = below_tmp;
 		end
 	end
+	-- get new below
+	local new_below_name = self.list[new_above_name].below;
 	-- insert to new location
 	self.list[name].above = new_above_name;
-	self.list[name].below = self.list[new_above_name].below;
-	-- adjust below for new_above_name
+	self.list[name].below = new_below_name;
+	-- adjust sorrounding
 	self.list[new_above_name].below = name;
+	if new_below_name ~= nil then self.list[new_below_name].above = name end
 	-- check if new bottom or top and adjust
 	if self.list[name].below == nil then self.bottom = name end
 	if self.list[name].above == name then self.top = name end
+	-- adjust position
+	self:ResetPos();
 	return true;
+end
+
+function SK_List:SetPos(name,pos)
+	-- sets the absolute position of given name
+	local des_pos = pos;
+	if self:CheckIfFucked() then return false end
+	local curr_pos = self:GetPos(name);
+	if pos == curr_pos then
+		return true;
+	elseif pos < curr_pos then
+		-- desired position is above current position
+		-- account for moving self node
+		des_pos = des_pos - 1;
+	end
+	if des_pos == 0 then
+		return self:PushTop(name);
+	end
+	-- find where to insert below
+	local current_name = self.top;
+	while (current_name ~= nil) do
+		if (self:GetPos(current_name) == des_pos) then
+			-- desired position found, insert
+			SKC_Main:Print("ERROR",name.." "..current_name)
+			return self:InsertBelow(name,current_name);
+		end
+		current_name = self.list[current_name].below;
+	end
+	return false;
 end
 
 function SK_List:PushBack(name)
@@ -693,14 +823,6 @@ function SK_List:SetSK(name,new_above_name)
 		return self:InsertBelow(name,new_above_name);
 	end
 end
-
--- SK_Node = {
--- 	above = nil, -- character name above this character in ths SK list
--- 	below = nil, -- character name below this character in the SK list
--- 	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
--- 	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
--- 	live = false, -- used to indicate a slot that is currently in the live list
--- };
 
 function SK_List:SK()
 	-- Scan list and SK player with highest priority to bottom of list
@@ -791,6 +913,26 @@ end
 --------------------------------------
 -- LOCAL FUNCTIONS
 --------------------------------------
+local function WriteToLog(time_in,action,src,trgt_db,character,item,trgt_val,prev_val,new_val)
+	-- writes new log entry
+	local idx = #SKC_DB.Log + 1;
+	SKC_DB.Log[idx] = {};
+	if time_in == nil then
+		SKC_DB.Log[idx][1] = time();
+	else
+		SKC_DB.Log[idx][1] = time_in;
+	end
+	SKC_DB.Log[idx][2] = action;
+	SKC_DB.Log[idx][3] = src;
+	SKC_DB.Log[idx][4] = trgt_db;
+	SKC_DB.Log[idx][5] = character;
+	SKC_DB.Log[idx][6] = item;
+	SKC_DB.Log[idx][7] = trgt_val;
+	SKC_DB.Log[idx][8] = prev_val;
+	SKC_DB.Log[idx][9] = new_val;
+	return;
+end
+
 local function GetAllSpecClass()
 	-- Return a table of all SpecClass combinations
 	local tbl_out = {};
@@ -864,7 +1006,20 @@ function OnClick_EditDropDownOption(field,value) -- Must be global
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	local class = SKC_UIMain["Details_border"]["Class"].Data:GetText();
 	-- Edit GuildData
+	local prev_val = SKC_DB.GuildData[name][field];
 	SKC_DB.GuildData[name][field] = value;
+	-- log
+	WriteToLog(
+		nil,
+		LOG_OPTIONS["Action"].Options.MGDE,
+		LOG_OPTIONS["Source"].Options.THIS_PLAYER,
+		LOG_OPTIONS["Target Database"].Options.GD,
+		name,
+		"",
+		field,
+		prev_val,
+		value
+	);
 	-- Ensure Raid Role is in sync
 	local spec = SKC_DB.GuildData[name].Spec;
 	SKC_DB.GuildData[name]["Raid Role"] = CLASSES[class].Specs[spec].RR;
@@ -910,7 +1065,7 @@ local function OnClick_EditDetails(self, button)
 end
 
 local function OnClick_SK_Card(self, button)
-	if button=='LeftButton' and self.Text:GetText() ~= nill and DD_State == 0 then
+	if button=='LeftButton' and self.Text:GetText() ~= nill and DD_State == 0 and not SetSK_Flag then
 		-- Populate data
 		Refresh_Details(self.Text:GetText());
 		-- Enable edit buttons
@@ -918,18 +1073,35 @@ local function OnClick_SK_Card(self, button)
 		SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
 		SKC_UIMain["Details_border"]["Status"].Btn:Enable();
 		SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
-		SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
-		SKC_UIMain["Details_border"].FullSK_Btn:Enable();
+		if SKC_Main:isGL() or SKC_Main:isML() then
+			SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
+			SKC_UIMain["Details_border"].FullSK_Btn:Enable();
+			SKC_UIMain["Details_border"].SetSK_Btn:Enable();
+		end
 	end
 end
 
 local function OnClick_FullSK(self)
+	local sk_list = "SK1";
 	-- On click event for full SK of details targeted character
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+	-- Get initial position
+	local prev_pos = SKC_DB.SK_Lists[sk_list].Full:GetPos(name);
 	-- Execute full SK
-	local sk_list = "SK1";
 	local success = SKC_DB.SK_Lists[sk_list].Full:PushBack(name);
 	if success then 
+		-- log
+		WriteToLog(
+			nil,
+			LOG_OPTIONS["Action"].Options.MSK,
+			LOG_OPTIONS["Source"].Options.THIS_PLAYER,
+			LOG_OPTIONS["Target Database"].Options[sk_list],
+			name,
+			"",
+			LOG_OPTIONS["Target Value"].Options.ASKP,
+			prev_pos,
+			SKC_DB.SK_Lists[sk_list].Full:GetPos(name)
+		);
 		SKC_Main:Print("IMPORTANT","Full SK on "..name);
 	else
 		SKC_Main:Print("ERROR","Full SK on "..name.." rejected");
@@ -942,13 +1114,25 @@ end
 local function OnClick_SingleSK(self)
 	-- On click event for full SK of details targeted character
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
-	-- Execute full SK
 	local sk_list = "SK1";
-	local success = true;
-	if name ~= SKC_DB.SK_Lists[sk_list].Full.bottom then
-		success = SKC_DB.SK_Lists[sk_list].Full:InsertBelow(name,SKC_DB.SK_Lists[sk_list].Full.list[name].below);
-	end
+	-- Get initial position
+	local prev_pos = SKC_DB.SK_Lists[sk_list].Full:GetPos(name);
+	-- Execute full SK
+	local name_below = SKC_DB.SK_Lists[sk_list].Full.list[name].below;
+	local success = SKC_DB.SK_Lists[sk_list].Full:InsertBelow(name,name_below);
 	if success then 
+		-- log
+		WriteToLog(
+			nil,
+			LOG_OPTIONS["Action"].Options.MSK,
+			LOG_OPTIONS["Source"].Options.THIS_PLAYER,
+			LOG_OPTIONS["Target Database"].Options[sk_list],
+			name,
+			"",
+			LOG_OPTIONS["Target Value"].Options.ASKP,
+			prev_pos,
+			SKC_DB.SK_Lists[sk_list].Full:GetPos(name)
+		);
 		SKC_Main:Print("IMPORTANT","Single SK on "..name);
 	else
 		SKC_Main:Print("ERROR","Single SK on "..name.." rejected");
@@ -961,19 +1145,46 @@ end
 local function OnClick_SetSK(self)
 	-- On click event to set SK position of details targeted character
 	-- Prompt user to click desired position number in list
-	SetSK_Flag = true;
-	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
-	SKC_Main:Print("IMPORTANT","Click desired position in SK list for "..name);
+	if SKC_UIMain["Details_border"]["Name"].Data ~= nil then
+		SetSK_Flag = true;
+		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+		SKC_Main:Print("IMPORTANT","Click desired position in SK list for "..name);
+	end
 	return;
 end
 
-local function OnClick_NumberCard(self)
+local function OnClick_NumberCard(self,button)
 	-- On click event for number card in SK list
-	if SetSK_Flag then
+	if SetSK_Flag and SKC_UIMain["Details_border"]["Name"].Data ~= nil then
 		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+		local new_abs_pos = tonumber(self.Text:GetText());
+		local sk_list = "SK1";
+		-- Get initial position
+		local prev_pos = SKC_DB.SK_Lists[sk_list].Full:GetPos(name);
+		-- Set new position
+		local success = SKC_DB.SK_Lists[sk_list].Full:SetPos(name,new_abs_pos);
+		if success then
+			-- log
+			WriteToLog(
+				nil,
+				LOG_OPTIONS["Action"].Options.MSK,
+				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
+				LOG_OPTIONS["Target Database"].Options[sk_list],
+				name,
+				"",
+				LOG_OPTIONS["Target Value"].Options.ASKP,
+				prev_pos,
+				SKC_DB.SK_Lists[sk_list].Full:GetPos(name)
+			);
+			SKC_Main:Print("IMPORTANT","Set SK position of "..name.." to "..SKC_DB.SK_Lists[sk_list].Full:GetPos(name));
+		else
+			SKC_Main:Print("ERROR","Set SK on "..name.." rejected");
+		end
 		-- Refresh SK List
 		SKC_Main:UpdateSK(sk_list);
+		SetSK_Flag = false;
 	end
+	return;
 end
 
 local function OnMouseDown_ShowItemTooltip(self, button)
@@ -1277,12 +1488,28 @@ function SKC_Main:OnAddonLoad()
 	-- Initialize 
 	if SKC_DB == nil or HARD_DB_RESET then 
 		SKC_DB = {};
+		SKC_DB.Integrity = true; -- triggers false if something is wrong with DB and disables loot distribution w/ SKC
 	end
 	if SKC_DB.SK_Lists == nil or HARD_DB_RESET then 
 		SKC_DB.SK_Lists = {};
 	end
 	if SKC_DB.LootPrio == nil or HARD_DB_RESET then 
 		SKC_DB.LootPrio = {};
+	end
+	if SKC_DB.Log == nil or HARD_DB_RESET then 
+		SKC_DB.Log = {};
+		-- Initialize with header
+		WriteToLog(
+			LOG_OPTIONS["Timestamp"].Text,
+			LOG_OPTIONS["Action"].Text,
+			LOG_OPTIONS["Source"].Text,
+			LOG_OPTIONS["Target Database"].Text,
+			LOG_OPTIONS["Character"].Text,
+			LOG_OPTIONS["Item"].Text,
+			LOG_OPTIONS["Target Value"].Text,
+			LOG_OPTIONS["Previous Value"].Text,
+			LOG_OPTIONS["New Value"].Text
+		);
 	end
 	-- Initialize or refresh metatables
 	SKC_DB.Bench = {}; -- array of names on bench
@@ -1393,39 +1620,41 @@ function SKC_Main:CreateUICSV(name)
 	SKC_UICSV[name]:RegisterForDrag("LeftButton");
 	SKC_UICSV[name]:SetScript("OnDragStart", SKC_UICSV[name].StartMoving);
 	SKC_UICSV[name]:SetScript("OnDragStop", SKC_UICSV[name].StopMovingOrSizing);
-	SKC_UICSV[name]:SetFrameLevel(4);
 
 	-- Add title
-    SKC_UICSV[name].Title:ClearAllPoints();
 	SKC_UICSV[name].Title:SetPoint("LEFT", name.."TitleBG", "LEFT", 6, 0);
 	SKC_UICSV[name].Title:SetText(name);
 
 	-- Add edit box
 	SKC_UICSV[name].SF = CreateFrame("ScrollFrame", nil, SKC_UICSV[name], "UIPanelScrollFrameTemplate");
-	SKC_UICSV[name].SF:SetSize(UI_DIMENSIONS.CSV_WIDTH*0.8,UI_DIMENSIONS.CSV_HEIGHT*0.7);
-	SKC_UICSV[name].SF:SetPoint("CENTER")
+	SKC_UICSV[name].SF:SetSize(UI_DIMENSIONS.CSV_EB_WIDTH,UI_DIMENSIONS.CSV_EB_HEIGHT);
+	SKC_UICSV[name].SF:SetPoint("TOPLEFT",SKC_UICSV[name],"TOPLEFT",20,-40)
 	SKC_UICSV[name].EditBox = CreateFrame("EditBox", nil, SKC_UICSV[name].SF)
 	SKC_UICSV[name].EditBox:SetMultiLine(true)
 	SKC_UICSV[name].EditBox:SetFontObject(ChatFontNormal)
-	SKC_UICSV[name].EditBox:SetSize(UI_DIMENSIONS.CSV_WIDTH*0.8,1000)
+	SKC_UICSV[name].EditBox:SetSize(UI_DIMENSIONS.CSV_EB_WIDTH,1000)
 	SKC_UICSV[name].SF:SetScrollChild(SKC_UICSV[name].EditBox)
 
-	-- optional/just to close that frame
-	-- SKC_UICSV[name]:SetScript("OnEscapePressed", function()
-	-- 	SKC_UICSV[name]:Hide()
-	-- end)
-
+	-- set framel level and hide
+	SKC_UICSV[name]:SetFrameLevel(4);
 	SKC_UICSV[name]:Hide();
 	return SKC_UICSV[name];
 end
 
 function SKC_Main:ExportLog()
 	local name = "Log Export";
-	SKC_Main:ToggleUICSV(name,false);
-	--- demo multi line text
-	SKC_UICSV[name].EditBox:SetText("line 1\nline 2\nline 3\nmore...\n\n\nanother one\n"
-	.."some very long...dsf v asdf a sdf asd df as df asdf a sdfd as ddf as df asd f asd fd asd f asdf LONG LINE\n\n\nsome more.\nlast!")
-	SKC_UICSV[name].EditBox:HighlightText() -- select all (if to be used for copy paste)
+	SKC_Main:ToggleUICSV(name,true);
+	-- Add log data
+	local log_data = "";
+	for idx1,log_entry in ipairs(SKC_DB.Log) do
+		for idx2,data in ipairs(log_entry) do
+			log_data = log_data..tostring(data);
+			log_data = log_data..",";
+		end
+		log_data = log_data.."\n";
+	end
+	SKC_UICSV[name].EditBox:SetText(log_data);
+	SKC_UICSV[name].EditBox:HighlightText();
 end
 
 function SKC_Main:UpdateSK(sk_list)
@@ -1441,21 +1670,21 @@ function SKC_Main:UpdateSK(sk_list)
 	-- Populate non filtered cards
 	local print_order = SKC_DB.SK_Lists[sk_list].Full:ReturnList();
 	local idx = 1;
-	for key,value in ipairs(print_order) do
-		local class_tmp = SKC_DB.GuildData[value].Class;
-		local raid_role_tmp = SKC_DB.GuildData[value]["Raid Role"];
-		local status_tmp = SKC_DB.GuildData[value].Status;
-		local activity_tmp = SKC_DB.GuildData[value].Activity;
+	for key,name in ipairs(print_order) do
+		local class_tmp = SKC_DB.GuildData[name].Class;
+		local raid_role_tmp = SKC_DB.GuildData[name]["Raid Role"];
+		local status_tmp = SKC_DB.GuildData[name].Status;
+		local activity_tmp = SKC_DB.GuildData[name].Activity;
 		-- only add cards to list which are not being filtered
 		if SKC_Main.FilterStates["SK1"][class_tmp] and 
 		   SKC_Main.FilterStates["SK1"][raid_role_tmp] and
 		   SKC_Main.FilterStates["SK1"][status_tmp] and
 		   SKC_Main.FilterStates["SK1"][activity_tmp] then
 			-- Add number text
-			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(key)
+			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(SKC_DB.SK_Lists["SK1"].Full:GetPos(name));
 			SKC_UIMain[sk_list].NumberFrame[idx]:Show();
 			-- Add name text
-			SKC_UIMain[sk_list].NameFrame[idx].Text:SetText(value)
+			SKC_UIMain[sk_list].NameFrame[idx].Text:SetText(name)
 			-- create class color background
 			SKC_UIMain[sk_list].NameFrame[idx].bg:SetColorTexture(CLASSES[class_tmp].color.r,CLASSES[class_tmp].color.g,CLASSES[class_tmp].color.b,0.25);
 			SKC_UIMain[sk_list].NameFrame[idx]:Show();
@@ -1558,14 +1787,14 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[sk_list].NumberFrame = {};
 	SKC_UIMain[sk_list].NameFrame = {};
 	for idx = 1, SKC_DB.Count60 do
-		-- Create order frames
+		-- Create number frames
 		SKC_UIMain[sk_list].NumberFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain[sk_list].SK_List_SF,"InsetFrameTemplate");
 		SKC_UIMain[sk_list].NumberFrame[idx]:SetSize(30,UI_DIMENSIONS.SK_CARD_HEIGHT);
 		SKC_UIMain[sk_list].NumberFrame[idx]:SetPoint("TOPLEFT",SKC_UIMain[sk_list].SK_List_SF:GetScrollChild(),"TOPLEFT",8,-1*((idx-1)*(UI_DIMENSIONS.SK_CARD_HEIGHT + UI_DIMENSIONS.SK_CARD_SPACING) + UI_DIMENSIONS.SK_CARD_SPACING));
 		SKC_UIMain[sk_list].NumberFrame[idx].Text = SKC_UIMain[sk_list].NumberFrame[idx]:CreateFontString(nil,"ARTWORK")
 		SKC_UIMain[sk_list].NumberFrame[idx].Text:SetFontObject("GameFontHighlightSmall")
 		SKC_UIMain[sk_list].NumberFrame[idx].Text:SetPoint("CENTER",0,0)
-
+		SKC_UIMain[sk_list].NumberFrame[idx]:SetScript("OnMouseDown",OnClick_NumberCard);
 		-- Create named card frames
 		SKC_UIMain[sk_list].NameFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain[sk_list].SK_List_SF,"InsetFrameTemplate");
 		SKC_UIMain[sk_list].NameFrame[idx]:SetSize(UI_DIMENSIONS.SK_CARD_WIDTH,UI_DIMENSIONS.SK_CARD_HEIGHT);
