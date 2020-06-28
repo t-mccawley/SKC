@@ -118,14 +118,6 @@ core.commands = {
       -- Initializes the guild data with a CSV pasted into a window
     end,
   },
-  -- ["prio"] = {
-  --   ["default"] = function(...)
-  --     SKC_DB.LootPrio:PrintPrio(itemName)
-  --     -- for key,value in pairs(SKC_DB.LootPrio.default.prio) do
-  --     --   core.SKC_Main:Print("NORMAL",key);
-  --     -- end 
-  --   end,
-	-- }
 };
 
 local function HandleSlashCommands(str)
@@ -197,6 +189,8 @@ events:RegisterEvent("ADDON_LOADED");
 events:SetScript("OnEvent", core.init);
 
 -- Register addon message prefixs
-for _,channel in pairs(core.SKC_Main.CHANNELS) do
-  C_ChatInfo.RegisterAddonMessagePrefix(channel);
-end
+-- C_ChatInfo.RegisterAddonMessagePrefix("TEST_CHANNEL");
+C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.CHANNELS.SYNC_PUSH);
+-- for key,channel in pairs(core.SKC_Main.CHANNELS) do
+--   C_ChatInfo.RegisterAddonMessagePrefix(channel);
+-- end
