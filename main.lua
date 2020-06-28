@@ -12,7 +12,7 @@ local SKC_UICSV = {}; -- Table for GUI associated with CSV import and export
 --------------------------------------
 local ML_OVRD = false; -- override master looter permissions
 local GL_OVRD = true; -- override guild leader permissions
-local HARD_DB_RESET = true; -- resets SKC_DB
+local HARD_DB_RESET = false; -- resets SKC_DB
 local VALID_SELF_OVRD = true; -- override current character GuildData validity
 --------------------------------------
 -- LOCAL CONSTANTS
@@ -547,7 +547,7 @@ function LootPrio:new(loot_prio)
 	else
 		-- set metatable of existing table
 		setmetatable(loot_prio,LootPrio);
-		for key,value in pairs(loot_prio) do
+		for key,value in pairs(loot_prio.items) do
 			loot_prio[key] = Prio:new(value);
 		end
 		return loot_prio;
@@ -630,8 +630,8 @@ function CharacterData:new(character_data,name,class)
 		-- initalize fresh
 		local obj = {};
 		setmetatable(obj,CharacterData);
-		obj.Name = name or nil;
-		obj.Class = class or nil;
+		obj.Name = name;
+		obj.Class = class;
 		obj.Spec = CLASSES[class].DEFAULT_SPEC;
 		obj["Raid Role"] = CLASSES[class].Specs[obj.Spec].RR;
 		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.text;
@@ -654,6 +654,7 @@ GuildData.__index = GuildData;
 
 function GuildData:new(guild_data)
 	if guild_data == nil then
+		SKC_Main:Print("ERROR","New GuildData")
 		-- initalize fresh
 		local obj = {};
 		setmetatable(obj,GuildData);
@@ -663,7 +664,9 @@ function GuildData:new(guild_data)
 	else
 		-- set metatable of existing table and all sub tables
 		setmetatable(guild_data,GuildData);
-		for key,value in pairs(guild_data.data) do CharacterData:new(value,nil,nil) end
+		for key,value in pairs(guild_data.data) do
+			guild_data.data[key] = CharacterData:new(value,nil,nil);
+		end
 		return guild_data;
 	end
 end
@@ -725,7 +728,7 @@ end
 
 function SK_List:CheckIfFucked()
 	-- checks integrity of list
-	if self.list[self.bottom].below ~= nil then
+	if self.bottom == nil or self.list[self.bottom].below ~= nil then
 		SKC_Main:Print("ERROR","Your database is fucked.")
 		return true;
 	end
@@ -1039,7 +1042,7 @@ local function FetchGuildInfo()
 		officernote, online, status, classFileName, 
 		achievementPoints, achievementRank, isMobile, isSoREligible, standingID = GetGuildRosterInfo(idx);
 		local name = StripRealmName(full_name);
-		if level == 60 or (VALID_SELF_OVRD and name == UnitName("player")) then
+		if level == 60 or (name == UnitName("player") and VALID_SELF_OVRD) then
 			cnt = cnt + 1;
 			if not SKC_DB.GuildData:Exists(name) then
 				-- new player, add to DB and SK lists
@@ -1060,18 +1063,25 @@ local function OnAddonLoad()
 	if not AddonLoaded then
 		AddonLoaded = true;
 		-- Initialize DBs 
-		if SKC_DB == nil or HARD_DB_RESET then 
+		if SKC_DB == nil or HARD_DB_RESET then
 			SKC_DB = {};
 			SKC_DB.Integrity = true; -- triggers false if something is wrong with DB and disables loot distribution w/ SKC
+			SKC_Main:Print("WARN","Initialize database");
 		end
-		if SKC_DB.GuildData == nil or HARD_DB_RESET then 
-			SKC_DB.GuildData = {};
+		if SKC_DB.GuildData == nil or HARD_DB_RESET then
+			SKC_DB.GuildData = nil;
+			SKC_Main:Print("WARN","Initialize GuildData");
 		end
 		if SKC_DB.LootPrio == nil or HARD_DB_RESET then 
-			SKC_DB.LootPrio = {};
+			SKC_DB.LootPrio = nil;
+			SKC_Main:Print("WARN","Initialize LootPrio");
 		end
 		if SKC_DB.SK_Lists == nil or HARD_DB_RESET then 
 			SKC_DB.SK_Lists = {};
+			SKC_DB.SK_Lists.SK1 = nil;
+			SKC_DB.SK_Lists.SK2 = nil;
+			SKC_DB.SK_Lists.SK3 = nil;
+			SKC_Main:Print("WARN","Initialize SK Lists");
 		end
 		if SKC_DB.Log == nil or HARD_DB_RESET then 
 			SKC_DB.Log = {};
@@ -1087,6 +1097,7 @@ local function OnAddonLoad()
 				LOG_OPTIONS["Previous Value"].Text,
 				LOG_OPTIONS["New Value"].Text
 			);
+			SKC_Main:Print("WARN","Initialize Log");
 		end
 		SKC_DB.Bench = {}; -- array of names on bench
 		-- Initialize or refresh metatables
@@ -1095,8 +1106,6 @@ local function OnAddonLoad()
 		SKC_DB.SK_Lists.SK1 = SK_List:new(SKC_DB.SK_Lists.SK1);
 		SKC_DB.SK_Lists.SK2 = SK_List:new(SKC_DB.SK_Lists.SK2);
 		SKC_DB.SK_Lists.SK3 = SK_List:new(SKC_DB.SK_Lists.SK3);
-		-- Fetch guild info into SK DB
-		FetchGuildInfo();
 	end
 	return;
 end
@@ -1163,7 +1172,7 @@ local function UpdateSK(sk_list)
 		   FilterStates[sk_list][raid_role_tmp] and
 		   FilterStates[sk_list][status_tmp] and
 		   FilterStates[sk_list][activity_tmp] and
-		   (FilterStates[sk_list].Live == live_tmp) then
+		   (live_tmp or (not live_tmp and not FilterStates[sk_list].Live)) then
 			-- Add number text
 			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(SKC_DB.SK_Lists[sk_list]:GetPos(name));
 			SKC_UIMain[sk_list].NumberFrame[idx]:Show();
@@ -1737,11 +1746,13 @@ local function ConstructDBMsg(db_name)
 	return db_msg;
 end
 
-local function SyncPush(db_name,channel)
+local function SyncPush(db_name,name)
 	-- Push database to target
 	local db_msg = ConstructDBMsg(db_name);
 	if db_msg ~= nil then
-		C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,channel);
+		SKC_Main:Print("ERROR","Sending message to "..name);
+		local success = C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+		if success then SKC_Main:Print("ERROR","success!") else SKC_Main:Print("ERROR","failed") end
 	end
 end
 
@@ -1798,7 +1809,12 @@ local function SyncRaidAndLiveList()
 	end
 
 	-- Sync SK lists with raid
-	SyncPush("SK1","RAID");
+	for raidIndex = 1,40 do
+		local name = GetRaidRosterInfo(raidIndex);
+		if name ~= nil and name ~= UnitName("player") then
+			SyncPush("SK1",name);
+		end
+	end
 	return;
 end
 
@@ -1938,6 +1954,9 @@ end
 function SKC_Main:CreateUIMain()
 	-- If addon not yet loaded, reject
 	if not AddonLoaded then return end
+
+	-- fetch guild info
+	FetchGuildInfo();
 
     SKC_UIMain = CreateFrame("Frame", "SKC_UIMain", UIParent, "UIPanelDialogTemplate");
 	SKC_UIMain:SetSize(UI_DIMENSIONS.MAIN_WIDTH,UI_DIMENSIONS.MAIN_HEIGHT);
