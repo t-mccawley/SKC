@@ -12,7 +12,7 @@ local SKC_UICSV = {}; -- Table for GUI associated with CSV import and export
 --------------------------------------
 local ML_OVRD = false; -- override master looter permissions
 local GL_OVRD = true; -- override guild leader permissions
-local HARD_DB_RESET = false; -- resets SKC_DB
+local HARD_DB_RESET = true; -- resets SKC_DB
 local VALID_SELF_OVRD = true; -- override current character GuildData validity
 --------------------------------------
 -- LOCAL CONSTANTS
@@ -355,12 +355,14 @@ local CHARACTER_DATA = { -- fields used to define character
 };
 
 local LOOT_DECISION = {
-	PASS = "PASS",
-	SK = "SK",
-	ROLL = "ROLL",
-	MAX_TIME = 30,
-	TIME_STEP = 1,
-	RARITY_THRESHOLD = 2, -- threshold to initiate loot decision (2 = greens, 3 = blues)
+	PASS = 0,
+	SK = 1,
+	ROLL = 2,
+	OPTIONS = {
+		MAX_TIME = 30,
+		TIME_STEP = 1,
+		RARITY_THRESHOLD = 2, -- threshold to initiate loot decision (2 = greens, 3 = blues)
+	},
 };
 
 local PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
@@ -573,7 +575,7 @@ function SK_Node:new(sk_node,above,below)
 		obj.below = below or nil;
 		obj.abs_pos = 1;
 		obj.loot_decision = LOOT_DECISION.PASS;
-		loot_prio = PRIO_TIERS.PASS;
+		obj.loot_prio = PRIO_TIERS.PASS;
 		obj.live = false;
 		return obj;
 	else
@@ -1470,17 +1472,17 @@ end
 
 local function InitTimerBarValue()
 	SKC_UIMain["Decision_border"].TimerBar:SetValue(0);
-	SKC_UIMain["Decision_border"].TimerText:SetText(LOOT_DECISION.MAX_TIME);
+	SKC_UIMain["Decision_border"].TimerText:SetText(LOOT_DECISION.OPTIONS.MAX_TIME);
 end
 
 local function TimerBarHandler()
-	local time_elapsed = SKC_UIMain["Decision_border"].TimerBar:GetValue() + LOOT_DECISION.TIME_STEP;
+	local time_elapsed = SKC_UIMain["Decision_border"].TimerBar:GetValue() + LOOT_DECISION.OPTIONS.TIME_STEP;
 
 	-- updated timer bar
 	SKC_UIMain["Decision_border"].TimerBar:SetValue(time_elapsed);
-	SKC_UIMain["Decision_border"].TimerText:SetText(LOOT_DECISION.MAX_TIME - time_elapsed);
+	SKC_UIMain["Decision_border"].TimerText:SetText(LOOT_DECISION.OPTIONS.MAX_TIME - time_elapsed);
 
-	if time_elapsed >= LOOT_DECISION.MAX_TIME then
+	if time_elapsed >= LOOT_DECISION.OPTIONS.MAX_TIME then
 		-- out of time
 		-- send loot response
 		SKC_Main:Print("WARN","Time expired. You PASS on "..SK_Item);
@@ -1494,7 +1496,7 @@ local function StartLootTimer()
 	InitTimerBarValue();
 	if LootTimer ~= nil and not LootTimer:IsCancelled() then LootTimer:Cancel() end
 	-- start new timer
-	LootTimer = C_Timer.NewTicker(LOOT_DECISION.TIME_STEP, TimerBarHandler, LOOT_DECISION.MAX_TIME/LOOT_DECISION.TIME_STEP);
+	LootTimer = C_Timer.NewTicker(LOOT_DECISION.OPTIONS.TIME_STEP, TimerBarHandler, LOOT_DECISION.OPTIONS.MAX_TIME/LOOT_DECISION.OPTIONS.TIME_STEP);
 	return;
 end
 
@@ -1618,6 +1620,101 @@ local function DetermineLootPrio(name)
 	
 end
 
+local function StrOut(inpt)
+	if inpt == " " then return nil else return inpt end
+end
+
+local function NumOut(inpt)
+	if inpt == " " then return nil else return tonumber(inpt) end
+end
+
+-- local db_msg = db_name..","..SKC_DB.SK_Lists[db_name].edit_timestamp..",";
+-- -- add sk list meta data
+-- db_msg = db_msg..
+-- 	NilToStr(SKC_DB.SK_Lists[db_name].top)..","..
+-- 	NilToStr(SKC_DB.SK_Lists[db_name].bottom)..","..
+-- 	NilToStr(SKC_DB.SK_Lists[db_name].live_bottom)..",";
+-- -- add list data
+-- C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name)
+-- for node_name,node in pairs(SKC_DB.SK_Lists[db_name].list) do
+-- 	db_msg = NilToStr(node_name)..","..
+-- 		NilToStr(node.above)..","..
+-- 		NilToStr(node.below)..","..
+-- 		NilToStr(node.abs_pos)..","..
+-- 		NilToStr(node.loot_decision)..","..
+-- 		NilToStr(node.loot_prio)..","..
+-- 		NilToStr(BoolToStr(node.live));
+-- 	C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name)
+-- end
+local db_name = nil;
+local function WriteDB(msg)
+	local db_name_tmp, msg_rem = strsplit(",",msg,2);
+	if db_name_tmp == "SK1" or db_name_tmp == "SK2" or db_name_tmp == "SK3" then
+		db_name = db_name_tmp;
+		local time_stamp, top, bottom, live_bottom = strsplit(",",msg_rem,4);
+		SKC_DB.SK_Lists[db_name] = SK_List:new(nil)
+		SKC_DB.SK_Lists[db_name].edit_timestamp = time_stamp;
+		SKC_DB.SK_Lists[db_name].top = top;
+		SKC_DB.SK_Lists[db_name].bottom = bottom;
+		SKC_DB.SK_Lists[db_name].live_bottom = live_bottom;
+		SKC_Main:Print("WARN","Initialized new DB: "..db_name);
+		return;
+	elseif db_name_tmp == "GuildData" then
+		db_name = db_name_tmp;
+	elseif db_name_tmp == "LootPrio" then
+		db_name = db_name_tmp;
+	end
+
+	if db_name == "SK1" or db_name == "SK2" or db_name == "SK3" then
+		local cnt = 1;
+		local val, name;
+		msg_rem = msg;
+		val = "";
+		-- val, msg_rem = strsplit(",",msg,2);
+		while msg_rem ~= nil and val ~= nil do
+			val, msg_rem = strsplit(",",msg_rem,2);
+			if cnt == 1 then
+				name = StrOut(val);
+				SKC_DB.SK_Lists[db_name].list[name] = SK_Node:new(nil,nil,nil);
+				-- SKC_Main:Print("WARN","name: "..name);
+				cnt = cnt + 1;
+			elseif cnt == 2 then
+				-- SKC_Main:Print("WARN","above: "..StrOut(val));
+				SKC_DB.SK_Lists[db_name].list[name].above = StrOut(val);
+				cnt = cnt + 1;
+			elseif cnt == 3 then
+				-- SKC_Main:Print("WARN","below: "..StrOut(val));
+				SKC_DB.SK_Lists[db_name].list[name].below = StrOut(val);
+				cnt = cnt + 1;
+			elseif cnt == 4 then
+				-- SKC_Main:Print("WARN","abs_pos: "..NumOut(val));
+				SKC_DB.SK_Lists[db_name].list[name].abs_pos = NumOut(val);
+				cnt = cnt + 1;
+			elseif cnt == 5 then
+				-- SKC_Main:Print("WARN","loot_decision: "..NumOut(val));
+				SKC_DB.SK_Lists[db_name].list[name].loot_decision = NumOut(val);
+				cnt = cnt + 1;
+			elseif cnt == 6 then
+				-- SKC_Main:Print("WARN","loot_prio: "..NumOut(val));
+				SKC_DB.SK_Lists[db_name].list[name].loot_prio = NumOut(val);
+				cnt = cnt + 1;
+			else
+				-- if (val == "1") then
+				-- 	SKC_Main:Print("WARN","live: TRUE");
+				-- else
+				-- 	SKC_Main:Print("WARN","live: FALSE");
+				-- end
+				SKC_DB.SK_Lists[db_name].list[name].live = (val == "1");
+				cnt = 1;
+			end
+		end
+		SKC_Main:Print("WARN","DB Length: "..SKC_DB.SK_Lists[db_name]:length());
+	elseif db_name == "GuildData" then
+	elseif db_name == "LootPrio" then
+	end
+	
+end
+
 local function AddonMessageRead(self,event,prefix,msg,channel,sender)
 	if prefix == SKC_Main.CHANNELS.LOOT_DIST then
 		--[[ 
@@ -1650,13 +1747,7 @@ local function AddonMessageRead(self,event,prefix,msg,channel,sender)
 			local success = DetermineWinner();
 		end
 	elseif prefix == SKC_Main.CHANNELS.SYNC_PUSH then
-		if StripRealmName(sender) ~= UnitName("player") then
-			local msg1, msg2 = strsplit(",",msg,2);
-			while msg2 ~= nil do
-				SKC_Main:Print("ERROR",msg1);
-				msg1, msg2 = strsplit(",",msg2,2);
-			end
-		end
+		WriteDB(msg);
 	end
 	return;
 end
@@ -1678,12 +1769,12 @@ local function AwardLoot(name)
 	return false;
 end
 
-local function ToStrNil(inpt)
-	if inpt == nil then return "" else return inpt end
+local function NilToStr(inpt)
+	if inpt == nil then return " " else return tostring(inpt) end
 end
 
 local function BoolToStr(inpt)
-	if inpt then return "TRUE" else return "FALSE" end
+	if inpt then return "1" else return "0" end
 end
 
 local function ConstructDBMsg(db_name)
@@ -1728,18 +1819,18 @@ local function ConstructDBMsg(db_name)
 			db_msg = db_msg..SKC_DB.SK_Lists[db_name].edit_timestamp..",";
 			-- add sk list meta data
 			db_msg = db_msg..
-			    ToStrNil(SKC_DB.SK_Lists[db_name].top)..","..
-				ToStrNil(SKC_DB.SK_Lists[db_name].bottom)..","..
-				ToStrNil(SKC_DB.SK_Lists[db_name].live_bottom)..",";
+			    NilToStr(SKC_DB.SK_Lists[db_name].top)..","..
+				NilToStr(SKC_DB.SK_Lists[db_name].bottom)..","..
+				NilToStr(SKC_DB.SK_Lists[db_name].live_bottom)..",";
 			-- add list data
 			for name,node in pairs(SKC_DB.SK_Lists[db_name].list) do
-				db_msg = db_msg..ToStrNil(name)..","..
-					ToStrNil(node.above)..","..
-					ToStrNil(node.below)..","..
-					ToStrNil(node.abs_pos)..","..
-					ToStrNil(node.loot_decision)..","..
-					ToStrNil(node.loot_prio)..","..
-					ToStrNil(BoolToStr(node.live))..",";
+				db_msg = db_msg..NilToStr(name)..","..
+					NilToStr(node.above)..","..
+					NilToStr(node.below)..","..
+					NilToStr(node.abs_pos)..","..
+					NilToStr(node.loot_decision)..","..
+					NilToStr(node.loot_prio)..","..
+					NilToStr(BoolToStr(node.live))..",";
 			end
 		end
 	end
@@ -1747,13 +1838,32 @@ local function ConstructDBMsg(db_name)
 end
 
 local function SyncPush(db_name,name)
-	-- Push database to target
-	local db_msg = ConstructDBMsg(db_name);
-	if db_msg ~= nil then
-		SKC_Main:Print("ERROR","Sending message to "..name);
-		local success = C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
-		if success then SKC_Main:Print("ERROR","success!") else SKC_Main:Print("ERROR","failed") end
+	local db_msg = db_name..","..SKC_DB.SK_Lists[db_name].edit_timestamp..",";
+	-- add sk list meta data
+	db_msg = db_msg..
+		NilToStr(SKC_DB.SK_Lists[db_name].top)..","..
+		NilToStr(SKC_DB.SK_Lists[db_name].bottom)..","..
+		NilToStr(SKC_DB.SK_Lists[db_name].live_bottom)..",";
+	-- add list data
+	C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name)
+	for node_name,node in pairs(SKC_DB.SK_Lists[db_name].list) do
+		db_msg = NilToStr(node_name)..","..
+			NilToStr(node.above)..","..
+			NilToStr(node.below)..","..
+			NilToStr(node.abs_pos)..","..
+			NilToStr(node.loot_decision)..","..
+			NilToStr(node.loot_prio)..","..
+			NilToStr(BoolToStr(node.live));
+		C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+		SKC_Main:Print("IMPORTANT",db_msg)
 	end
+	-- Push database to target
+	-- local db_msg = ConstructDBMsg(db_name);
+	-- if db_msg ~= nil then
+	-- 	SKC_Main:Print("ERROR","Sending message to "..name);
+	-- 	local success = C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+	-- 	if success then SKC_Main:Print("ERROR","success!") else SKC_Main:Print("ERROR","failed") end
+	-- end
 end
 
 local function ActivateSKC()
@@ -1773,7 +1883,7 @@ local function ActivateSKC()
 			SKC_Main:Print("NORMAL","Don't forget to add benched characters");
 		end
 	elseif not SKC_Active and active_prev then
-		SKC_Main:Print("IMPORTANT","Disalbed");
+		SKC_Main:Print("IMPORTANT","Disabled");
 	end
 end
 
@@ -1811,7 +1921,8 @@ local function SyncRaidAndLiveList()
 	-- Sync SK lists with raid
 	for raidIndex = 1,40 do
 		local name = GetRaidRosterInfo(raidIndex);
-		if name ~= nil and name ~= UnitName("player") then
+		-- if name ~= nil and name ~= UnitName("player") then TODO online check
+		if name ~= nil and UnitIsConnected(name) then
 			SyncPush("SK1",name);
 		end
 	end
@@ -1836,7 +1947,7 @@ local function InitiateLootDecision()
 	local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
 	local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot)
 	-- Only perform SK for items of rarity threshold or higher
-	if lootType == 1 and lootRarity >= LOOT_DECISION.RARITY_THRESHOLD then
+	if lootType == 1 and lootRarity >= LOOT_DECISION.OPTIONS.RARITY_THRESHOLD then
 		-- Valid item
 		SK_Item = GetLootSlotLink(i_loot);
 		SKC_Main:Print("NORMAL","Distributing "..SK_Item);
@@ -2192,9 +2303,9 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[decision_border_key].TimerText = SKC_UIMain[decision_border_key]:CreateFontString(nil,"ARTWORK")
 	SKC_UIMain[decision_border_key].TimerText:SetFontObject("GameFontHighlightSmall")
 	SKC_UIMain[decision_border_key].TimerText:SetPoint("CENTER",SKC_UIMain[decision_border_key].TimerBar,"CENTER")
-	SKC_UIMain[decision_border_key].TimerText:SetText(LOOT_DECISION.MAX_TIME)
+	SKC_UIMain[decision_border_key].TimerText:SetText(LOOT_DECISION.OPTIONS.MAX_TIME)
 	-- values
-	SKC_UIMain[decision_border_key].TimerBar:SetMinMaxValues(0,LOOT_DECISION.MAX_TIME);
+	SKC_UIMain[decision_border_key].TimerBar:SetMinMaxValues(0,LOOT_DECISION.OPTIONS.MAX_TIME);
 	SKC_UIMain[decision_border_key].TimerBar:SetValue(0);
     
 	SKC_UIMain:Hide();
