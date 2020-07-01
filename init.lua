@@ -180,8 +180,6 @@ function core:init(event, name)
 
 	SLASH_SKC1 = "/skc";
   SlashCmdList.SKC = HandleSlashCommands;
-	
-  core.SKC_Main:Print("NORMAL","Welcome back", UnitName("player").."!");
 end
 
 local events = CreateFrame("Frame");
