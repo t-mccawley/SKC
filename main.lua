@@ -1706,9 +1706,9 @@ local function SyncPush(db_name,name)
 				NilToStr(node.loot_decision)..","..
 				NilToStr(node.loot_prio)..","..
 				BoolToStr(node.live);
+			if COMM_VERBOSE then SKC_Main:Print("WARN",db_msg) end
 			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
 		end
-		C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,"END","WHISPER",name);
 	elseif db_name == "GuildData" then
 		db_msg = "INIT,"..
 			db_name..","..
@@ -1726,7 +1726,6 @@ local function SyncPush(db_name,name)
 				NilToStr(c_data.Activity);
 			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
 		end
-		C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,"END","WHISPER",name);
 	elseif db_name == "LootPrio" then
 		db_msg = "INIT,"..
 			db_name..","..
@@ -1746,8 +1745,9 @@ local function SyncPush(db_name,name)
 			end
 			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
 		end
-		C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,"END","WHISPER",name);
 	end
+	C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,"END,"..db_name..", ,","WHISPER",name); --awkward spacing to make csv parsing work
+	return;
 end
 
 local function SyncPushHandler(msg)
@@ -1756,11 +1756,13 @@ local function SyncPushHandler(msg)
 	-- if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush "..db_name.." "..part) end
 	if db_name == "SK1" or db_name == "SK2" or db_name == "SK3" then
 		if part == "INIT" then
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushHandler for "..db_name.." "..part) end
 			local time_stamp = msg_rem;
 			time_stamp = NumOut(time_stamp);
 			SKC_DB.SK_Lists[db_name] = SK_List:new(nil);
 			SKC_DB.SK_Lists[db_name].edit_timestamp = time_stamp;
 		elseif part == "META" then
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushHandler for "..db_name.." "..part) end
 			local top, bottom, live_bottom = strsplit(",",msg_rem,3);
 			SKC_DB.SK_Lists[db_name].top = StrOut(top);
 			SKC_DB.SK_Lists[db_name].bottom = StrOut(bottom);
@@ -1769,12 +1771,17 @@ local function SyncPushHandler(msg)
 			local name, above, below, abs_pos, loot_decision, loot_prio, live = strsplit(",",msg_rem,7);
 			name = StrOut(name);
 			SKC_DB.SK_Lists[db_name].list[name] = SK_Node:new(nil,nil,nil);
-			SKC_DB.SK_Lists[db_name].list[name].above = StrOut(val);
-			SKC_DB.SK_Lists[db_name].list[name].below = StrOut(val);
-			SKC_DB.SK_Lists[db_name].list[name].abs_pos = NumOut(val);
-			SKC_DB.SK_Lists[db_name].list[name].loot_decision = NumOut(val);
-			SKC_DB.SK_Lists[db_name].list[name].loot_prio = NumOut(val);
-			SKC_DB.SK_Lists[db_name].list[name].live = BoolOut(val);
+			SKC_DB.SK_Lists[db_name].list[name].above = StrOut(above);
+			SKC_DB.SK_Lists[db_name].list[name].below = StrOut(below);
+			SKC_DB.SK_Lists[db_name].list[name].abs_pos = NumOut(abs_pos);
+			SKC_DB.SK_Lists[db_name].list[name].loot_decision = NumOut(loot_decision);
+			SKC_DB.SK_Lists[db_name].list[name].loot_prio = NumOut(loot_prio);
+			SKC_DB.SK_Lists[db_name].list[name].live = BoolOut(live);
+			-- if COMM_VERBOSE then SKC_Main:Print("WARN",SKC_DB.SK_Lists[db_name].list[name].above.."-->"..name.."-->"..SKC_DB.SK_Lists[db_name].list[name].below) end
+		elseif part == "END" then
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushHandler for "..db_name.." "..part) end
+			SKC_Main:ReloadUIMain();
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush for "..db_name.." completed") end
 		end
 	elseif db_name == "GuildData" then
 		if part == "INIT" then
@@ -1794,6 +1801,9 @@ local function SyncPushHandler(msg)
 			SKC_DB.GuildData.data[name]["Guild Role"] = StrOut(gr);
 			SKC_DB.GuildData.data[name].Status = StrOut(status);
 			SKC_DB.GuildData.data[name].Activity = StrOut(activity);
+		elseif part == "END" then
+			SKC_Main:ReloadUIMain();
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush for "..db_name.." completed") end
 		end
 	elseif db_name == "LootPrio" then
 		if part == "INIT" then
@@ -1816,12 +1826,10 @@ local function SyncPushHandler(msg)
 				plvl, msg_rem = strsplit(",",msg_rem,2);
 				SKC_DB.LootPrio.items[item].prio[idx] = NumOut(plvl);
 			end
+		elseif part == "END" then
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush for "..db_name.." completed") end
 		end
 	end
-
-	-- if part == "END" then
-	-- 	SKC_Main:ReloadUIMain();
-	-- end
 	return;
 end
 
@@ -2058,7 +2066,7 @@ end
 
 function SKC_Main:ReloadUIMain()
 	local is_shown = false;
-	if SKC_UIMain ~= nil then SKC_UIMain:IsShown() end
+	if SKC_UIMain ~= nil then is_shown = SKC_UIMain:IsShown() end
 	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
 	menu:SetShown(is_shown);
 end
