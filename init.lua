@@ -188,7 +188,7 @@ events:SetScript("OnEvent", core.init);
 
 -- Register addon message prefixs
 -- C_ChatInfo.RegisterAddonMessagePrefix("TEST_CHANNEL");
-C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.CHANNELS.SYNC_PUSH);
--- for key,channel in pairs(core.SKC_Main.CHANNELS) do
---   C_ChatInfo.RegisterAddonMessagePrefix(channel);
--- end
+-- C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.CHANNELS.SYNC_PUSH);
+for key,channel in pairs(core.SKC_Main.CHANNELS) do
+  C_ChatInfo.RegisterAddonMessagePrefix(channel);
+end
