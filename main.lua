@@ -511,12 +511,13 @@ local LOG_OPTIONS = {
 -- SHARED VARIABLES
 --------------------------------------
 SKC_Main.CHANNELS = { -- channels for inter addon communication (const)
-	LOOT_DIST = "xBPE9,-Fjbc+A#rm", -- ML sends a loot decision (const)
-	LOOT_DECISION = "ksg(AkE.*/@&+`8Q", -- ML receives a loot decision from players (const)
-	SYNC_REQUEST = "?Q!@$8aZpc8QqYyH", -- Player sends request to sync a specific DB (const)
-	SYNC_RESPONSE = "d$8B=qB4VsW&4Y^D", -- Player responds with most recent edit timestamp for a specific DB (const)
-	SYNC_PUSH = "8EtTWxyA$r6x53=F", -- Player pushes data of specific DB (const)
-	SYNC_PULL = "XAzE&7FwzEbhHnna", -- Player requests push for data of specific DB (const)
+	LOGIN_SYNC_CHECK = "?Q!@$8aZpc8QqYyH",
+	LOGIN_SYNC_PUSH = "6-F?8&2qBmrJE?pR",
+	LOGIN_SYNC_PUSH_RQST = "d$8B=qB4VsW&4Y^D",
+	SYNC_PUSH = "8EtTWxyA$r6x53=F",
+	LOOT = "xBPE9,-Fjbc+A#rm",
+	LOOT_DECISION = "ksg(AkE.*/@&+`8Q",
+	LOOT_OUTCOME = "aP@yX9hQfU89K&C4",
 };
 --------------------------------------
 -- LOCAL VARIABLES
@@ -553,7 +554,7 @@ local event_states = { -- tracks if certain events have fired
 	GuildRosterUpdated = false,
 	RaidLoggingActive = false, -- latches true when raid is entered (controls RaidLog)
 	SyncRequestSent = false,
-	SyncPushReceived = false,
+	LoginSyncCompleted = false,
 };
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
@@ -1413,6 +1414,23 @@ local function OnClick_SK_Card(self, button)
 	end
 end
 
+local function SyncPushToGuild(db_name) 
+	if event_states.SyncRequestSent then return end -- sync check already performed
+	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushToGuild()") end
+	for idx = 1, SKC_DB.NumGuildMembers do
+		local full_name, _, _, _, _, _, _, _, online = GetGuildRosterInfo(idx);
+		local name = StripRealmName(full_name);
+		local sync_valid = online and name ~= UnitName("player") and SKC_DB.GuildData.Exists(name);
+		if SYNC_RQST_CHAR_OVRD ~= nil then
+			sync_valid = sync_valid and SYNC_RQST_CHAR_OVRD == name;	
+		end
+		if sync_valid then
+			LoginSyncPushSend(sk_list,name,SKC_Main.CHANNELS.SYNC_PUSH);
+		end
+	end
+	return;
+end
+
 local function OnClick_FullSK(self)
 	local sk_list = "SK1";
 	-- On click event for full SK of details targeted character
@@ -1435,11 +1453,13 @@ local function OnClick_FullSK(self)
 			SKC_DB.SK_Lists[sk_list]:GetPos(name)
 		);
 		SKC_Main:Print("IMPORTANT","Full SK on "..name);
+		-- send SK data to all players
+		SyncPushToGuild(sk_list);
+		-- Refresh SK List
+		UpdateSKUI(sk_list);
 	else
 		SKC_Main:Print("ERROR","Full SK on "..name.." rejected");
 	end
-	-- Refresh SK List
-	UpdateSKUI(sk_list);
 	return;
 end
 
@@ -1740,21 +1760,21 @@ local function BoolToStr(inpt)
 	if inpt then return "1" else return "0" end
 end
 
-local function SyncPush(db_name,name)
+local function LoginSyncPushSend(db_name,name,channel)
 	-- send target database to name
-	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush for "..db_name.." to "..name) end
+	if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushSend for "..db_name.." to "..name) end
 	local db_msg = nil;
 	if db_name == "SK1" or db_name == "SK2" or db_name == "SK3" then
 		db_msg = "INIT,"..
 			db_name..","..
 			NilToStr(SKC_DB.SK_Lists[db_name].edit_timestamp);
-		C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+		C_ChatInfo.SendAddonMessage(channel,db_msg,"WHISPER",name);
 		db_msg = "META,"..
 			db_name..","..
 			NilToStr(SKC_DB.SK_Lists[db_name].top)..","..
 			NilToStr(SKC_DB.SK_Lists[db_name].bottom)..","..
 			NilToStr(SKC_DB.SK_Lists[db_name].live_bottom);
-		C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+		C_ChatInfo.SendAddonMessage(channel,db_msg,"WHISPER",name);
 		for node_name,node in pairs(SKC_DB.SK_Lists[db_name].list) do
 			db_msg = "DATA,"..
 				db_name..","..
@@ -1766,13 +1786,13 @@ local function SyncPush(db_name,name)
 				NilToStr(node.loot_prio)..","..
 				BoolToStr(node.live);
 			-- if COMM_VERBOSE then SKC_Main:Print("WARN",db_msg) end
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+			C_ChatInfo.SendAddonMessage(channel,db_msg,"WHISPER",name);
 		end
 	elseif db_name == "GuildData" then
 		db_msg = "INIT,"..
 			db_name..","..
 			NilToStr(SKC_DB.GuildData.edit_timestamp);
-		C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+		C_ChatInfo.SendAddonMessage(channel,db_msg,"WHISPER",name);
 		for name,c_data in pairs(SKC_DB.GuildData.data) do
 			db_msg = "DATA,"..
 				db_name..","..
@@ -1783,13 +1803,13 @@ local function SyncPush(db_name,name)
 				NilToStr(c_data["Guild Role"])..","..
 				NilToStr(c_data.Status)..","..
 				NilToStr(c_data.Activity);
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+			C_ChatInfo.SendAddonMessage(channel,db_msg,"WHISPER",name);
 		end
 	elseif db_name == "LootPrio" then
 		db_msg = "INIT,"..
 			db_name..","..
 			NilToStr(SKC_DB.LootPrio.edit_timestamp);
-		C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);	
+		C_ChatInfo.SendAddonMessage(channel,db_msg,"WHISPER",name);	
 		for item,prio in pairs(SKC_DB.LootPrio.items) do
 			db_msg = "META,"..
 				db_name..","..
@@ -1797,35 +1817,35 @@ local function SyncPush(db_name,name)
 				NilToStr(prio.sk_list)..","..
 				BoolToStr(prio.reserved)..","..
 				BoolToStr(prio.DE);
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+			C_ChatInfo.SendAddonMessage(channel,db_msg,"WHISPER",name);
 			db_msg = "DATA,"..db_name..","..item..",";
 			for _,plvl in ipairs(prio) do
 				db_msg = db_msg..","..plvl;
 			end
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,db_msg,"WHISPER",name);
+			C_ChatInfo.SendAddonMessage(channel,db_msg,"WHISPER",name);
 		end
 	end
-	C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_PUSH,"END,"..db_name..", ,","WHISPER",name); --awkward spacing to make csv parsing work
+	C_ChatInfo.SendAddonMessage(channel,"END,"..db_name..", ,","WHISPER",name); --awkward spacing to make csv parsing work
 	return;
 end
 
-local function SyncPushHandler(msg)
-	-- handles a SyncPush (writes incoming data to given db)
+local function SyncPushRead(msg)
+	-- Write data to given datbase
 	local part, db_name, msg_rem = strsplit(",",msg,3);
-	-- if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush "..db_name.." "..part) end
+	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead "..db_name.." "..part) end
 	if db_name == "SK1" or db_name == "SK2" or db_name == "SK3" then
 		if part == "INIT" then
 			local time_stamp = msg_rem;
 			time_stamp = NumOut(time_stamp);
 			SKC_DB.SK_Lists[db_name] = SK_List:new(nil);
 			SKC_DB.SK_Lists[db_name].edit_timestamp = time_stamp;
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushHandler for "..db_name..", "..part..", length: "..SKC_DB.SK_Lists[db_name]:length()) end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB.SK_Lists[db_name]:length()) end
 		elseif part == "META" then
 			local top, bottom, live_bottom = strsplit(",",msg_rem,3);
 			SKC_DB.SK_Lists[db_name].top = StrOut(top);
 			SKC_DB.SK_Lists[db_name].bottom = StrOut(bottom);
 			SKC_DB.SK_Lists[db_name].live_bottom = StrOut(live_bottom);
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushHandler for "..db_name..", "..part..", length: "..SKC_DB.SK_Lists[db_name]:length()) end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB.SK_Lists[db_name]:length()) end
 		elseif part == "DATA" then
 			local name, above, below, abs_pos, loot_decision, loot_prio, live = strsplit(",",msg_rem,7);
 			name = StrOut(name);
@@ -1841,7 +1861,7 @@ local function SyncPushHandler(msg)
 		elseif part == "END" then
 			if COMM_VERBOSE then SKC_DB.SK_Lists[db_name]:PrintNode(SKC_DB.SK_Lists[db_name].bottom) end
 			SKC_Main:ReloadUIMain();
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushHandler for "..db_name..", "..part..", length: "..SKC_DB.SK_Lists[db_name]:length()) end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB.SK_Lists[db_name]:length()) end
 		end
 	elseif db_name == "GuildData" then
 		if part == "INIT" then
@@ -1863,7 +1883,7 @@ local function SyncPushHandler(msg)
 			SKC_DB.GuildData.data[name].Activity = StrOut(activity);
 		elseif part == "END" then
 			SKC_Main:ReloadUIMain();
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush for "..db_name.." completed") end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushSend for "..db_name.." completed") end
 		end
 	elseif db_name == "LootPrio" then
 		if part == "INIT" then
@@ -1887,50 +1907,76 @@ local function SyncPushHandler(msg)
 				SKC_DB.LootPrio.items[item].prio[idx] = NumOut(plvl);
 			end
 		elseif part == "END" then
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush for "..db_name.." completed") end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushSend for "..db_name.." completed") end
 		end
 	end
 	return;
 end
 
-local function SyncRequestHandler(db_name,their_edit_timestamp,name)
-	-- receives a sync request and decides if push or pull is needed
+local function LoginSyncCheckRead(db_name,their_edit_timestamp,name,channel)
+	-- Arbitrate based on timestamp to push or pull database
 	if db_name == "SK1" or db_name == "SK2" or db_name == "SK3" then
 		if SKC_DB.SK_Lists[db_name].edit_timestamp > their_edit_timestamp then
-			-- SyncPush
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush for "..db_name.." to "..name) end
-			SyncPush(db_name,name);
+			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushSend for "..db_name.." to "..name) end
+			LoginSyncPushSend(db_name,name,channel);
 		elseif SKC_DB.SK_Lists[db_name].edit_timestamp < their_edit_timestamp then
-			-- SyncPull
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPull for "..db_name.." from "..name) end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushRqst for "..db_name.." from "..name) end
+			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",name);
 		end
 	elseif db_name == "GuildData" then
 		if SKC_DB.GuildData.edit_timestamp > their_edit_timestamp then
-			-- SyncPush
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush for "..db_name.." to "..name) end
-			SyncPush(db_name,name);
+			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushSend for "..db_name.." to "..name) end
+			LoginSyncPushSend(db_name,name,channel);
 		elseif SKC_DB.GuildData.edit_timestamp < their_edit_timestamp then
-			-- SyncPull
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPull for "..db_name.." from "..name) end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushRqst for "..db_name.." from "..name) end
+			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",name);
 		end
 	elseif db_name == "LootPrio" then
 		if SKC_DB.LootPrio.edit_timestamp > their_edit_timestamp then
-			-- SyncPush
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPush for "..db_name.." to "..name) end
-			SyncPush(db_name,name);
+			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushSend for "..db_name.." to "..name) end
+			LoginSyncPushSend(db_name,name,channel);
 		elseif SKC_DB.LootPrio.edit_timestamp < their_edit_timestamp then
-			-- SyncPull
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPull for "..db_name.." from "..name) end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushRqst for "..db_name.." from "..name) end
+			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",name);
 		end
 	end
 end
 
 local function AddonMessageRead(prefix,msg,channel,sender)
-	if prefix == SKC_Main.CHANNELS.LOOT_DIST then
+	if prefix == SKC_Main.CHANNELS.LOGIN_SYNC_CHECK then
 		--[[ 
-			Listening: Everyone
-		 	Talking: ML
-		 --]]
+			Send (LoginSyncCheckSend): Upon login character requests sync for each database
+			Read (LoginSyncCheckRead): Arbitrate based on timestamp to push or pull database
+		--]]
+		local db_name, edit_timestamp = strsplit(",",msg,2);
+		edit_timestamp = NumOut(edit_timestamp);
+		LoginSyncCheckRead(db_name,edit_timestamp,sender,SKC_Main.CHANNELS.LOGIN_SYNC_PUSH);
+	elseif prefix == SKC_Main.CHANNELS.LOGIN_SYNC_PUSH then
+		--[[ 
+			Send (LoginSyncPushSend): Push given database to target player
+			Read (SyncPushRead): Write given database to player (only accept first push)
+		--]]
+		if not event_states.LoginSyncCompleted then
+			SyncPushRead(msg);
+			event_states.LoginSyncCompleted = true;
+		end
+	elseif prefix == SKC_Main.CHANNELS.LOGIN_SYNC_PUSH_RQST then
+		--[[ 
+			Send (LoginSyncCheckRead): Request a push for given database from target player
+			Read (LoginSyncPushSend): Respond with push for given database
+		--]]
+		LoginSyncPushSend(msg,sender,SKC_Main.CHANNELS.SYNC_PUSH)
+	elseif prefix == SKC_Main.CHANNELS.SYNC_PUSH then
+		--[[ 
+			Send (LoginSyncPushSend): Push given database to target player
+			Read (SyncPushRead): Write given datbase to player (accepts as many as possible)
+		--]]
+		SyncPushRead(msg);
+	elseif prefix == SKC_Main.CHANNELS.LOOT then
+		--[[ 
+			Send: Send loot items for which each player is elligible to make a decision on
+			Read: Initiate loot decision GUI for player
+		--]]
 		-- save master looter
 		MasterLooter = StripRealmName(sender);
 		-- save item
@@ -1940,10 +1986,10 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		SKC_Main:StartPersonalLootDecision();
 	elseif prefix == SKC_Main.CHANNELS.LOOT_DECISION then
 		--[[ 
-			Listening: ML
-		 	Talking: Everyone
-		 --]]
-		 -- Increment message counter
+			Send: Send loot decision to 
+			Read: Determine loot winner
+		--]]
+		-- Increment message counter
 		SK_MessagesReceived = SK_MessagesReceived + 1;
 		-- Alert ML of decision
 		local name = StripRealmName(sender);
@@ -1957,16 +2003,11 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 			-- Determine winner and allocate loot
 			local success = DetermineWinner();
 		end
-	elseif prefix == SKC_Main.CHANNELS.SYNC_PUSH then
-		if not event_states.SyncPushReceived then
-			-- Only handle sync push if havent received a message yet
-			SyncPushHandler(msg);
-			event_states.SyncPushReceived = true;
-		end
-	elseif prefix == SKC_Main.CHANNELS.SYNC_REQUEST then
-		local db_name, edit_timestamp = strsplit(",",msg,2);
-		edit_timestamp = NumOut(edit_timestamp);
-		SyncRequestHandler(db_name,edit_timestamp,sender);
+	elseif prefix == SKC_Main.CHANNELS.LOOT_OUTCOME then
+		--[[ 
+			Send: Loot outcome (including roll values) for all players
+			Read: Print loot outcome
+		--]]
 	end
 	return;
 end
@@ -1988,24 +2029,22 @@ local function AwardLoot(name)
 	return false;
 end
 
-local function SyncCheck()
+local function LoginSyncCheckSend()
 	if event_states.SyncRequestSent then return end -- sync check already performed
-	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncCheck()") end
+	if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncCheckSend()") end
 	-- Send edit_timestamp of each database to each online member of GuildData (will sync with first response)
 	for idx = 1, SKC_DB.NumGuildMembers do
 		local full_name, _, _, _, _, _, _, _, online = GetGuildRosterInfo(idx);
 		local name = StripRealmName(full_name);
-		local sync_valid = false;
+		local sync_valid = online and name ~= UnitName("player") and SKC_DB.GuildData.Exists(name);
 		if SYNC_RQST_CHAR_OVRD ~= nil then
-			sync_valid = online and SYNC_RQST_CHAR_OVRD == name;
-		else
-			sync_valid = online and name ~= UnitName("player");
+			sync_valid = sync_valid and SYNC_RQST_CHAR_OVRD == name;	
 		end
 		if sync_valid then
 			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncRequest sent to "..name) end
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_REQUEST,"GuildData,"..NilToStr(SKC_DB.GuildData.edit_timestamp),"WHISPER",name);
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_REQUEST,"LootPrio,"..NilToStr(SKC_DB.LootPrio.edit_timestamp),"WHISPER",name);
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.SYNC_REQUEST,"SK1,"..NilToStr(SKC_DB.SK_Lists.SK1.edit_timestamp),"WHISPER",name);
+			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_CHECK,"GuildData,"..NilToStr(SKC_DB.GuildData.edit_timestamp),"WHISPER",name);
+			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_CHECK,"LootPrio,"..NilToStr(SKC_DB.LootPrio.edit_timestamp),"WHISPER",name);
+			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_CHECK,"SK1,"..NilToStr(SKC_DB.SK_Lists.SK1.edit_timestamp),"WHISPER",name);
 		end
 	end
 	return;
@@ -2067,7 +2106,7 @@ local function SyncRaidAndLiveList()
 	for raidIndex = 1,40 do
 		local name = GetRaidRosterInfo(raidIndex);
 		if name ~= nil and name ~= UnitName("player") and UnitIsConnected(name) then
-			SyncPush("SK1",name);
+			LoginSyncPushSend("SK1",name);
 		end
 	end
 
@@ -2481,7 +2520,7 @@ local function EventHandler(self,event,...)
 	elseif event == "GUILD_ROSTER_UPDATE" then
 		FetchGuildInfo(InitSetup);
 		event_states.GuildRosterUpdated = true;
-		SyncCheck();
+		LoginSyncCheckSend();
 		event_states.SyncRequestSent = true;
 	elseif event == "RAID_ROSTER_UPDATE" then
 		SyncRaidAndLiveList();
