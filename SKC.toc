@@ -9,6 +9,7 @@
 ## DefaultState: enabled
 ## SavedVariablesPerCharacter: SKC_DB
 
+ChatThrottleLib.lua
 main.lua
 init.lua
 
