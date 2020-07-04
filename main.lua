@@ -2051,7 +2051,8 @@ local function LoginSyncCheckSend()
 	local msg = nil;
 	for _,db_name in ipairs(db_lsit) do
 		msg = db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
-		local success = C_ChatInfo.SendAddonMessage(CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD");
+		-- local success = C_ChatInfo.SendAddonMessage(CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD");
+		local success = ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD");
 		if COMM_VERBOSE and success then SKC_Main:Print("WARN",msg) end
 	end
 	return;
