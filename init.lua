@@ -72,27 +72,38 @@ core.commands = {
     -- all members
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - shows help info");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - toggles SKC GUI");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item name>|r - displays loot prio for given item name");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item name>|r - displays loot prio for given item");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc log|r - export skc log (CSV) for past 90 days");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - displays bench");
     if core.SKC_Main:isML() then
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - adds character to bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - clears bench");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc on|r - activates loot distribution with skc");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc off|r - deactivates loot distribution with skc");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc on|r - enables loot distribution with skc");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc off|r - disables loot distribution with skc");
     end
     if core.SKC_Main:isGL() then
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - sets inactivity threshold to # days");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init prio|r - initialze loot prio with a CSV");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init guild|r - initialze guild data with a CSV");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init sk <SK#>|r - initialze sk list (SK#) with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init sk <MSK/TSK>|r - initialze sk list with a CSV");
     end
 		print(" ");
 	end,
-  ["prio"] = function(itemName)
+  ["prio"] = function(...)
+    local itemName = "";
+    for idx,arg in ipairs({...}) do
+      if idx == 1 then
+        itemName = arg;
+      else
+        itemName = itemName.." "..arg;
+      end
+    end
     SKC_DB.LootPrio:PrintPrio(itemName)
+    return;
   end,
-  ["log"] = function() core.SKC_Main:ExportLog(); end,
+  ["log"] = function() 
+    -- opens UI to export log
+    core.SKC_Main:ExportLog(); 
+  end,
   ["bench"] = {
     ["show"] = function()
       -- Prints the current bench
@@ -113,9 +124,11 @@ core.commands = {
     end,
     ["prio"] = function()
       -- Initializes the loot prio with a CSV pasted into a window
+      core.SKC_Main:CSVImport("Loot Priority Import"); 
     end,
     ["guild"] = function()
       -- Initializes the guild data with a CSV pasted into a window
+      core.SKC_Main:CSVImport("Loot Priority Import"); 
     end,
   },
 };
@@ -185,10 +198,3 @@ end
 local events = CreateFrame("Frame");
 events:RegisterEvent("ADDON_LOADED");
 events:SetScript("OnEvent", core.init);
-
--- Register addon message prefixs
--- C_ChatInfo.RegisterAddonMessagePrefix("TEST_CHANNEL");
--- C_ChatInfo.RegisterAddonMessagePrefix(core.SKC_Main.CHANNELS.SYNC_PUSH);
-for key,channel in pairs(core.SKC_Main.CHANNELS) do
-  C_ChatInfo.RegisterAddonMessagePrefix(channel);
-end

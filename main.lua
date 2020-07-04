@@ -10,9 +10,9 @@ local SKC_UICSV = {}; -- Table for GUI associated with CSV import and export
 --------------------------------------
 -- DEV CONTROLS
 --------------------------------------
-local ML_OVRD = false; -- override master looter permissions
+local ML_OVRD = true; -- override master looter permissions
 local GL_OVRD = true; -- override guild leader permissions
-local HARD_DB_RESET = true; -- resets SKC_DB
+local HARD_DB_RESET = false; -- resets SKC_DB
 local OVRD_CHARS = { -- characters which are pushed into GuildData
 	Mctester = true,
 	Skc = true,
@@ -52,7 +52,7 @@ local UI_DIMENSIONS = { -- ui dimensions
 	CSV_WIDTH = 660,
 	CSV_HEIGHT = 300,
 	CSV_EB_WIDTH = 600,
-	CSV_EB_HEIGHT = 230,
+	CSV_EB_HEIGHT = 200,
 };
 
 local THEME = { -- general color themes
@@ -456,14 +456,8 @@ local LOG_OPTIONS = {
 	["Action"] = {
 		Text = "Action",
 		Options = {
-			SKI = "SK List Initialization",
-			GBI = "Guild Data Initialization",
-			LPI = "Loot Prio Initialization",
 			ALD = "Automatic Loot Distribution",
-			MLD = "Manual Loot Distribution",
-			MSK = "Manual SK List Edit",
-			AGDE = "Automatic Guild Data Edit",
-			MGDE = "Manual Guild Data Edit",
+			ManSK = "Manual SK List Edit",
 		},
 	},
 	["Source"] = {
@@ -473,14 +467,11 @@ local LOG_OPTIONS = {
 			THIS_PLAYER = UnitName("player"),
 		},
 	},
-	["Target Database"] = {
-		Text = "Target Database",
+	["SK List"] = {
+		Text = "SK List",
 		Options = {
-			SK1 = "SK1",
-			SK2 = "SK2",
-			SK3 = "SK3",
-			GD = "Guild Data",
-			LP = "Loot Prio",
+			MSK = "MSK",
+			TSK = "TSK",
 		}
 	},
 	["Character"] = {
@@ -489,28 +480,18 @@ local LOG_OPTIONS = {
 	["Item"] = {
 		Text = "Item",
 	},
-	["Target Value"] = {
-		Text = "Target Value",
-		Options = {
-			ASKP = "Absolute SK Position",
-			SP = "Spec",
-			GR = "Guild Role",
-			ST = "Status",
-			ACT = "Activity",
-		}
+	["Previous SK Position"] = {
+		Text = "Previous SK Position",
 	},
-	["Previous Value"] = {
-		Text = "Previous Value",
-	},
-	["New Value"] = {
-		Text = "New Value",
+	["New SK Position"] = {
+		Text = "New SK Position",
 	},
 };
 
 --------------------------------------
--- SHARED VARIABLES
+-- REGISTER CHANNELS
 --------------------------------------
-SKC_Main.CHANNELS = { -- channels for inter addon communication (const)
+CHANNELS = { -- channels for inter addon communication (const)
 	LOGIN_SYNC_CHECK = "?Q!@$8aZpc8QqYyH",
 	LOGIN_SYNC_PUSH = "6-F?8&2qBmrJE?pR",
 	LOGIN_SYNC_PUSH_RQST = "d$8B=qB4VsW&4Y^D",
@@ -519,6 +500,9 @@ SKC_Main.CHANNELS = { -- channels for inter addon communication (const)
 	LOOT_DECISION = "ksg(AkE.*/@&+`8Q",
 	LOOT_OUTCOME = "aP@yX9hQfU89K&C4",
 };
+for _,channel in pairs(CHANNELS) do
+	C_ChatInfo.RegisterAddonMessagePrefix(channel);
+end
 --------------------------------------
 -- LOCAL VARIABLES
 --------------------------------------
@@ -529,7 +513,7 @@ local UnFilteredCnt = 0; -- defines max count of sk cards to scroll over
 local SK_MessagesSent = 0;
 local SK_MessagesReceived = 0;
 local FilterStates = {
-	SK1 = {
+	MSK = {
 		DPS = true,
 		Healer = true,
 		Tank = true,
@@ -555,7 +539,7 @@ local event_states = { -- tracks if certain events have fired
 	RaidLoggingActive = false, -- latches true when raid is entered (controls RaidLog)
 	SyncRequestSent = false,
 	LoginSyncName = {
-		SK1 = nil,
+		MSK = nil,
 		GuildData = nil,
 		LootPrio = nil,
 	}
@@ -572,8 +556,9 @@ local InitSetup = false; -- used to control for first time setup
 Prio = {
 	sk_list = nil, -- associated sk_list
 	reserved = false, -- true if main prio over alts
-	DE = true, -- true if item should be disenchanted before going to guild bank
-	prio = {}, -- map of SpecClass to prio level (P1,P2,P3,P4,P5,OS)
+	DE = false, -- true if item should be disenchanted before going to guild banker
+	open_roll = false, -- open roll for this tiem
+	prio = {}, -- map of SpecClass to prio level (P1,P2,P3,P4,P5)
 };
 Prio.__index = Prio;
 
@@ -584,8 +569,9 @@ function Prio:new(prio)
 		setmetatable(obj,Prio);
 		obj.prio = {}; -- default is equal prio for all (considered OS for all)
 		obj.reserved = false;
-		obj.DE = true;
-		obj.sk_list = "SK1";
+		obj.DE = false;
+		obj.open_roll = false;
+		obj.sk_list = "MSK";
 		return obj;
 	else
 		-- set metatable of existing table
@@ -596,7 +582,8 @@ end
 
 LootPrio = {
 	items = {},-- hash table mapping itemName to Prio object
-	edit_timestamp = nil, -- timestamp of most recent edit
+	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
+	edit_ts_generic = nil, -- timestamp of most recent edit (non-raid)
 }; 
 LootPrio.__index = LootPrio;
 
@@ -607,7 +594,8 @@ function LootPrio:new(loot_prio)
 		obj.items = {};
 		-- initialize default prio
 		obj.items["DEFAULT"] = Prio:new(nil);
-		obj.edit_timestamp = 0;
+		obj.edit_ts_raid = 0;
+		obj.edit_ts_generic = 0;
 		setmetatable(obj,LootPrio);
 		return obj;
 	else
@@ -654,7 +642,8 @@ SK_List = { --a doubly linked list table where each node is referenced by player
 	bottom = nil, -- bottom name in list
 	live_bottom = nil, -- bottom name in live list
 	list = {}, -- list of SK_Node
-	edit_timestamp = nil, -- timestamp of most recent edit
+	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
+	edit_ts_generic = nil, -- timestamp of most recent edit
 };
 SK_List.__index = SK_List;
 
@@ -667,7 +656,8 @@ function SK_List:new(sk_list)
 		obj.bottom = nil;
 		obj.live_bottom = nil;
 		obj.list = {};
-		obj.edit_timestamp = 0;
+		obj.edit_ts_raid = 0;
+		obj.edit_ts_generic = 0;
 		return obj;
 	else
 		-- set metatable of existing table and all sub tables
@@ -687,7 +677,7 @@ CharacterData = {
 	["Guild Role"] = nil, --Disenchanter, Guild Banker, or None
 	Status = nil, -- Main or Alt
 	Activity = nil, -- Active or Inactive
-	-- ["Loot History"] = {}, -- Table that maps timestamp to table with item (Rejuvenating Gem) and distribution method (SK1, Roll, DE, etc)
+	-- ["Loot History"] = {}, -- Table that maps timestamp to table with item (Rejuvenating Gem) and distribution method (MSK, Roll, DE, etc)
 }
 CharacterData.__index = CharacterData;
 
@@ -714,7 +704,8 @@ end
 
 GuildData = {
 	data = {}, --a hash table that maps character name to CharacterData
-	edit_timestamp = nil, -- timestamp of most recent edit
+	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
+	edit_ts_generic = nil, -- timestamp of most recent edit
 };
 GuildData.__index = GuildData;
 
@@ -724,7 +715,8 @@ function GuildData:new(guild_data)
 		local obj = {};
 		setmetatable(obj,GuildData);
 		obj.data = {};
-		obj.edit_timestamp = 0;
+		obj.edit_ts_raid = 0;
+		obj.edit_ts_generic = 0;
 		return obj;
 	else
 		-- set metatable of existing table and all sub tables
@@ -748,16 +740,22 @@ local function GetSpecClassColor(spec_class)
 	return nil,nil,nil,nil;
 end
 
+function LootPrio:length()
+	local count = 0;
+	for _ in pairs(self.items) do count = count + 1 end
+	return count;
+end
+
 function LootPrio:PrintPrio(itemName)
 	-- prints the prio of given item
 	-- prints default if nil
 	local data;
 	if itemName == nil or self.items[itemName] == nil then
-		data = self.default;
-		SKC_Main:Print("IMPORTANT","Default Loot Prio:")
+		data = self.items.DEFAULT;
+		SKC_Main:Print("IMPORTANT","DEFAULT")
 	else
 		data = self.items[itemName];
-		SKC_Main:Print("IMPORTANT","Loot Prio for "..itemName..":")
+		SKC_Main:Print("IMPORTANT",itemName)
 	end
 	-- print reserved states
 	if data.reserved then
@@ -765,22 +763,31 @@ function LootPrio:PrintPrio(itemName)
 	else
 		SKC_Main:Print("IMPORTANT","Reserved: FALSE");
 	end
+	-- print open roll
+	if data.open_roll then
+		SKC_Main:Print("IMPORTANT","Open Roll: TRUE");
+	else
+		SKC_Main:Print("IMPORTANT","Open Roll: FALSE");
+	end
 	-- create map from prio level to concatenated string of SpecClass's
 	local spec_class_map = {};
-	for i = 1,PRIO_TIERS.SK.P5 do
+	for i = 1,6 do
 		spec_class_map[i] = {};
 	end
-	-- SKC_Main:Print("NORMAL",#(spec_class_map[1]));
-	for key,value in pairs(data.prio) do
+	for spec_class_idx,plvl in pairs(data.prio) do
 		-- SKC_Main:Print("NORMAL","Prio");
 		-- SKC_Main:Print("NORMAL","Prio Tier ["..key.."]: "..value);
-		spec_class_map[value][#(spec_class_map[value]) + 1] = key;
+		spec_class_map[plvl][#(spec_class_map[plvl]) + 1] = SPEC_CLASS[spec_class_idx];
 	end
-	for tier,tbl in ipairs(spec_class_map) do
-		SKC_Main:Print("IMPORTANT","Prio Tier ["..tier.."]:");
-		for idx,spec_class in pairs(tbl) do
+	for plvl,tbl in ipairs(spec_class_map) do
+		if plvl == 6 then
+			SKC_Main:Print("IMPORTANT","OS Prio:");
+		else
+			SKC_Main:Print("IMPORTANT","MS Prio "..plvl..":");
+		end
+		for _,spec_class in pairs(tbl) do
 			local hex = select(4, GetSpecClassColor(spec_class));
-			DEFAULT_CHAT_FRAME:AddMessage("  "..string.format("|cff%s%s|r",hex:upper(),spec_class));
+			DEFAULT_CHAT_FRAME:AddMessage("         "..string.format("|cff%s%s|r",hex:upper(),spec_class));
 		end
 	end
 	return;
@@ -813,7 +820,9 @@ function SK_List:SetLiveBottom()
 	end
 	-- assign
 	self.live_bottom = live_bottom_tmp;
-	self.edit_timestamp = time();
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
 	return true;
 end
 
@@ -828,7 +837,9 @@ function SK_List:ResetPos()
 		current_name = self.list[current_name].below;
 		idx = idx + 1;
 	end
-	self.edit_timestamp = time();
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
 	return true;
 end
 
@@ -846,7 +857,9 @@ function SK_List:PushTop(name)
 	-- adjust top tracker
 	self.top = name;
 	-- reset positions
-	self.edit_timestamp = time();
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
 	return self:ResetPos();
 end
 
@@ -856,7 +869,9 @@ function SK_List:ResetLoot()
 		sk_node.loot_decision = LOOT_DECISION.PASS;
 		sk_node.loot_prio = PRIO_TIERS.PASS;
 	end
-	self.edit_timestamp = time();
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
 	return;
 end
 
@@ -916,7 +931,9 @@ function SK_List:InsertBelow(name,new_above_name,verbose)
 		self.top = name;
 		self.bottom = name;
 		self.list[name] = SK_Node:new(self.list[name],name,nil);
-		self.edit_timestamp = time();
+		local ts = time();
+		self.edit_ts_generic = ts;
+		if SKC_Active then self.edit_ts_raid = ts end
 		if verbose then self:PrintNode(name) end
 		return true;
 	elseif name == new_above_name then
@@ -974,7 +991,9 @@ function SK_List:InsertBelow(name,new_above_name,verbose)
 	if self.list[name].above == name then self.top = name end
 	-- adjust position
 	self:ResetPos();
-	self.edit_timestamp = time();
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
 	if verbose then self:PrintNode(name) end
 	return true;
 end
@@ -1052,7 +1071,9 @@ end
 
 function SK_List:SetLive(name,live_status)
 	self.list[name].live = live_status;
-	self.edit_timestamp = time();
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
 	return;
 end
 
@@ -1074,7 +1095,9 @@ end
 
 function GuildData:Add(name,class)
 	self.data[name] = CharacterData:new(nil,name,class);
-	self.edit_timestamp = time();
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
 	return;
 end
 
@@ -1089,7 +1112,9 @@ function GuildData:SetData(name,field,value)
 	if field == "Spec" then
 		self.data[name]["Raid Role"] = CLASSES[self.data[name].Class].Specs[self.data[name].Spec].RR
 	end
-	self.edit_timestamp = time();
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
 	return;
 end
 
@@ -1109,7 +1134,7 @@ local function NumOut(inpt)
 end
 
 local function BoolOut(inpt)
-	if inpt == " " then return nil else return inpt == "1" end
+	if inpt == " " then return nil else return ( (inpt == "1") or (inpt == "TRUE") ) end
 end
 
 local function NilToStr(inpt)
@@ -1120,7 +1145,7 @@ local function BoolToStr(inpt)
 	if inpt then return "1" else return "0" end
 end
 
-local function WriteToLog(time_in,action,src,trgt_db,character,item,trgt_val,prev_val,new_val)
+local function WriteToLog(time_in,action,src,sk_list,character,item,prev_sk_pos,new_sk_pos)
 	-- writes new log entry (if raid logging active)
 	if not event_states.RaidLoggingActive then return end
 	local idx = #SKC_DB.RaidLog + 1;
@@ -1132,12 +1157,11 @@ local function WriteToLog(time_in,action,src,trgt_db,character,item,trgt_val,pre
 	end
 	SKC_DB.RaidLog[idx][2] = action;
 	SKC_DB.RaidLog[idx][3] = src;
-	SKC_DB.RaidLog[idx][4] = trgt_db;
+	SKC_DB.RaidLog[idx][4] = sk_list;
 	SKC_DB.RaidLog[idx][5] = character;
 	SKC_DB.RaidLog[idx][6] = item;
-	SKC_DB.RaidLog[idx][7] = trgt_val;
-	SKC_DB.RaidLog[idx][8] = prev_val;
-	SKC_DB.RaidLog[idx][9] = new_val;
+	SKC_DB.RaidLog[idx][7] = prev_sk_pos;
+	SKC_DB.RaidLog[idx][8] = new_sk_pos;
 	return;
 end
 
@@ -1148,12 +1172,11 @@ local function ResetRaidLogging()
 		LOG_OPTIONS["Timestamp"].Text,
 		LOG_OPTIONS["Action"].Text,
 		LOG_OPTIONS["Source"].Text,
-		LOG_OPTIONS["Target Database"].Text,
+		LOG_OPTIONS["SK List"].Text,
 		LOG_OPTIONS["Character"].Text,
 		LOG_OPTIONS["Item"].Text,
-		LOG_OPTIONS["Target Value"].Text,
-		LOG_OPTIONS["Previous Value"].Text,
-		LOG_OPTIONS["New Value"].Text
+		LOG_OPTIONS["Previous SK Position"].Text,
+		LOG_OPTIONS["New SK Position"].Text
 	);
 	SKC_Main:Print("WARN","Initialized RaidLog");
 end
@@ -1164,6 +1187,7 @@ local function StripRealmName(full_name)
 end
 
 local function FetchGuildInfo(init)
+	if init then SKC_Main:Print("WARN","Populating fresh GuildData") end
 	SKC_DB.InGuild = IsInGuild();
 	SKC_DB.NumGuildMembers = GetNumGuildMembers()
 	-- Determine # of level 60s and add any new 60s
@@ -1176,16 +1200,14 @@ local function FetchGuildInfo(init)
 			if not SKC_DB.GuildData:Exists(name) then
 				-- new player, add to DB and SK lists
 				SKC_DB.GuildData:Add(name,class);
-				SKC_DB.SK_Lists.SK1:PushBack(name);
-				SKC_DB.SK_Lists.SK2:PushBack(name);
-				SKC_DB.SK_Lists.SK3:PushBack(name);
+				SKC_DB.MSK:PushBack(name);
+				SKC_DB.TSK:PushBack(name);
 				if init then
-					SKC_DB.GuildData.edit_timestamp = 0;
-					SKC_DB.SK_Lists.SK1.edit_timestamp = 0;
-					SKC_DB.SK_Lists.SK2.edit_timestamp = 0;
-					SKC_DB.SK_Lists.SK3.edit_timestamp = 0;
+					SKC_DB.GuildData.edit_ts_generic = 0;
+					SKC_DB.MSK.edit_ts_generic = 0;
+					SKC_DB.TSK.edit_ts_generic = 0;
 				end
-				SKC_Main:Print("NORMAL","["..cnt.."] "..name.." added to database!");
+				-- SKC_Main:Print("NORMAL","["..cnt.."] "..name.." added to database!");
 			end
 		end
 	end
@@ -1194,7 +1216,8 @@ local function FetchGuildInfo(init)
 	return;
 end
 
-local function OnAddonLoad()
+local function OnAddonLoad(addon_name)
+	if addon_name ~= "SKC" then return end
 	-- Initialize DBs 
 	if SKC_DB == nil or HARD_DB_RESET then
 		InitSetup = true;
@@ -1209,34 +1232,26 @@ local function OnAddonLoad()
 		SKC_DB.LootPrio = nil;
 		SKC_Main:Print("WARN","Initialized LootPrio");
 	end
-	if SKC_DB.SK_Lists == nil or HARD_DB_RESET then 
-		SKC_DB.SK_Lists = {};
-		SKC_DB.SK_Lists.SK1 = nil;
-		SKC_DB.SK_Lists.SK2 = nil;
-		SKC_DB.SK_Lists.SK3 = nil;
-		SKC_Main:Print("WARN","Initialized SK Lists");
+	if SKC_DB.MSK == nil or HARD_DB_RESET then 
+		SKC_DB.MSK = nil;
+		SKC_Main:Print("WARN","Initialized MSK List");
 	end
-	if HARD_DB_RESET then 
-		ResetRaidLogging();
+	if SKC_DB.TSK == nil or HARD_DB_RESET then 
+		SKC_DB.TSK = nil;
+		SKC_Main:Print("WARN","Initialized TSK List");
+	end
+	if SKC_DB.RaidLog == nil or HARD_DB_RESET then
+		SKC_DB.RaidLog = {};
+		SKC_Main:Print("WARN","Initialized RaidLog");
 	end
 	SKC_DB.Bench = {}; -- array of names on bench
 	-- Initialize or refresh metatables
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
 	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
-	SKC_DB.SK_Lists.SK1 = SK_List:new(SKC_DB.SK_Lists.SK1);
-	SKC_DB.SK_Lists.SK2 = SK_List:new(SKC_DB.SK_Lists.SK2);
-	SKC_DB.SK_Lists.SK3 = SK_List:new(SKC_DB.SK_Lists.SK3);
+	SKC_DB.MSK = SK_List:new(SKC_DB.MSK);
+	SKC_DB.TSK = SK_List:new(SKC_DB.TSK);
+	event_states.AddonLoaded = true;
 	return;
-end
-
-local function isML()
-	-- Check if current player is master looter
-	return(ML_OVRD or IsMasterLooter());
-end
-
-local function isGL()
-	-- Check if current player is guild leader
-	return(GL_OVRD or IsGuildLeader());
 end
 
 local function GetScrollMax()
@@ -1267,16 +1282,15 @@ local function UpdateSKUI(sk_list)
 	end
 
 	-- Populate non filtered cards
-	-- SKC_DB.SK_Lists[sk_list]:PrintList();
-	SKC_DB.SK_Lists[sk_list]:PrintNode(SKC_DB.SK_Lists[sk_list].bottom);
-	local print_order = SKC_DB.SK_Lists[sk_list]:ReturnList();
+	-- SKC_DB[sk_list]:PrintNode(SKC_DB[sk_list].bottom);
+	local print_order = SKC_DB[sk_list]:ReturnList();
 	local idx = 1;
 	for key,name in ipairs(print_order) do
 		local class_tmp = SKC_DB.GuildData:GetData(name,"Class");
 		local raid_role_tmp = SKC_DB.GuildData:GetData(name,"Raid Role");
 		local status_tmp = SKC_DB.GuildData:GetData(name,"Status");
 		local activity_tmp = SKC_DB.GuildData:GetData(name,"Activity");
-		local live_tmp = SKC_DB.SK_Lists[sk_list]:GetLive(name);
+		local live_tmp = SKC_DB[sk_list]:GetLive(name);
 		-- only add cards to list which are not being filtered
 		if FilterStates[sk_list][class_tmp] and 
 		   FilterStates[sk_list][raid_role_tmp] and
@@ -1284,7 +1298,7 @@ local function UpdateSKUI(sk_list)
 		   FilterStates[sk_list][activity_tmp] and
 		   (live_tmp or (not live_tmp and not FilterStates[sk_list].Live)) then
 			-- Add number text
-			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(SKC_DB.SK_Lists[sk_list]:GetPos(name));
+			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(SKC_DB[sk_list]:GetPos(name));
 			SKC_UIMain[sk_list].NumberFrame[idx]:Show();
 			-- Add name text
 			SKC_UIMain[sk_list].NameFrame[idx].Text:SetText(name)
@@ -1301,8 +1315,8 @@ local function UpdateSKUI(sk_list)
 end
 
 local function OnCheck_FilterFunction (self, button)
-	FilterStates["SK1"][self.text:GetText()] = self:GetChecked();
-	UpdateSKUI("SK1");
+	FilterStates["MSK"][self.text:GetText()] = self:GetChecked();
+	UpdateSKUI("MSK");
 	return;
 end
 
@@ -1329,7 +1343,80 @@ local function PopulateData(sk_list)
 	Refresh_Details(nil);
 	-- Update SK cards
 	UpdateSKUI(sk_list);
-return
+	return;
+end
+
+local function SyncPushSend(db_name,addon_channel,game_channel,name)
+	-- send target database to name
+	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushSend for "..db_name.." through "..game_channel) end
+	if name ~= nil then
+		name = StripRealmName(name);
+		if COMM_VERBOSE then SKC_Main:Print("WARN","name: "..name) end
+	end
+	local db_msg = nil;
+	if db_name == "MSK" or db_name == "TSK" then
+		db_msg = "INIT,"..
+			db_name..","..
+			NilToStr(SKC_DB[db_name].edit_ts_generic);
+		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+		db_msg = "META,"..
+			db_name..","..
+			NilToStr(SKC_DB[db_name].top)..","..
+			NilToStr(SKC_DB[db_name].bottom)..","..
+			NilToStr(SKC_DB[db_name].live_bottom);
+		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+		for node_name,node in pairs(SKC_DB[db_name].list) do
+			db_msg = "DATA,"..
+				db_name..","..
+				NilToStr(node_name)..","..
+				NilToStr(node.above)..","..
+				NilToStr(node.below)..","..
+				NilToStr(node.abs_pos)..","..
+				NilToStr(node.loot_decision)..","..
+				NilToStr(node.loot_prio)..","..
+				BoolToStr(node.live);
+			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+		end
+	elseif db_name == "GuildData" then
+		db_msg = "INIT,"..
+			db_name..","..
+			NilToStr(SKC_DB.GuildData.edit_ts_generic);
+		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+		for name,c_data in pairs(SKC_DB.GuildData.data) do
+			db_msg = "DATA,"..
+				db_name..","..
+				NilToStr(name)..","..
+				NilToStr(c_data.Class)..","..
+				NilToStr(c_data.Spec)..","..
+				NilToStr(c_data["Raid Role"])..","..
+				NilToStr(c_data["Guild Role"])..","..
+				NilToStr(c_data.Status)..","..
+				NilToStr(c_data.Activity);
+			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+		end
+	elseif db_name == "LootPrio" then
+		db_msg = "INIT,"..
+			db_name..","..
+			NilToStr(SKC_DB.LootPrio.edit_ts_generic);
+		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);	
+		for item,prio in pairs(SKC_DB.LootPrio.items) do
+			db_msg = "META,"..
+				db_name..","..
+				NilToStr(item)..","..
+				NilToStr(prio.sk_list)..","..
+				BoolToStr(prio.reserved)..","..
+				BoolToStr(prio.DE)..","..
+				BoolToStr(prio.open_roll);
+			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+			db_msg = "DATA,"..db_name..","..item..",";
+			for _,plvl in ipairs(prio) do
+				db_msg = db_msg..","..plvl;
+			end
+			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+		end
+	end
+	C_ChatInfo.SendAddonMessage(addon_channel,"END,"..db_name..", ,",game_channel,name); --awkward spacing to make csv parsing work
+	return;
 end
 
 local function OnLoad_EditDropDown_Spec(self)
@@ -1360,34 +1447,26 @@ local function OnLoad_EditDropDown_Activity(self)
 end
 
 function OnClick_EditDropDownOption(field,value) -- Must be global
+	-- Triggered when drop down of edit button is selected
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	local class = SKC_UIMain["Details_border"]["Class"].Data:GetText();
 	-- Edit GuildData
 	local prev_val = SKC_DB.GuildData:GetData(name,field);
 	prev_val = SKC_DB.GuildData:SetData(name,field,value);
-	-- log
-	WriteToLog(
-		nil,
-		LOG_OPTIONS["Action"].Options.MGDE,
-		LOG_OPTIONS["Source"].Options.THIS_PLAYER,
-		LOG_OPTIONS["Target Database"].Options.GD,
-		name,
-		"",
-		field,
-		prev_val,
-		value
-	);
 	-- Refresh details
 	Refresh_Details(name);
 	-- Reset menu toggle
 	DD_State = 0;
-	-- Refresh SK Cards
-	local sk_list = "SK1";
-	UpdateSKUI(sk_list);
+	-- -- Refresh SK Cards
+	-- local sk_list = "MSK";
+	-- UpdateSKUI(sk_list);
+	-- send GuildData to all players
+	SyncPushSend("GuildData",CHANNELS.SYNC_PUSH,"GUILD",nil);
 	return;
 end
 
 local function OnClick_EditDetails(self, button)
+	-- Manages drop down menu that is generated for edit buttons
 	if not self:IsEnabled() then return end
 	-- SKC_UIMain.EditFrame:Show();
 	local ID = self:GetID();
@@ -1430,7 +1509,7 @@ local function OnClick_SK_Card(self, button)
 		SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
 		SKC_UIMain["Details_border"]["Status"].Btn:Enable();
 		SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
-		if isGL() or isML() then
+		if SKC_Main:isGL() or SKC_Main:isML() then
 			SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
 			SKC_UIMain["Details_border"].FullSK_Btn:Enable();
 			SKC_UIMain["Details_border"].SetSK_Btn:Enable();
@@ -1438,102 +1517,29 @@ local function OnClick_SK_Card(self, button)
 	end
 end
 
-local function SyncPushSend(db_name,addon_channel,game_channel,name)
-	-- send target database to name
-	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushSend for "..db_name.." through "..game_channel) end
-	if name ~= nil then
-		name = StripRealmName(name);
-		if COMM_VERBOSE then SKC_Main:Print("WARN","name: "..name) end
-	end
-	local db_msg = nil;
-	if db_name == "SK1" or db_name == "SK2" or db_name == "SK3" then
-		db_msg = "INIT,"..
-			db_name..","..
-			NilToStr(SKC_DB.SK_Lists[db_name].edit_timestamp);
-		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
-		db_msg = "META,"..
-			db_name..","..
-			NilToStr(SKC_DB.SK_Lists[db_name].top)..","..
-			NilToStr(SKC_DB.SK_Lists[db_name].bottom)..","..
-			NilToStr(SKC_DB.SK_Lists[db_name].live_bottom);
-		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
-		for node_name,node in pairs(SKC_DB.SK_Lists[db_name].list) do
-			db_msg = "DATA,"..
-				db_name..","..
-				NilToStr(node_name)..","..
-				NilToStr(node.above)..","..
-				NilToStr(node.below)..","..
-				NilToStr(node.abs_pos)..","..
-				NilToStr(node.loot_decision)..","..
-				NilToStr(node.loot_prio)..","..
-				BoolToStr(node.live);
-			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
-		end
-	elseif db_name == "GuildData" then
-		db_msg = "INIT,"..
-			db_name..","..
-			NilToStr(SKC_DB.GuildData.edit_timestamp);
-		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
-		for name,c_data in pairs(SKC_DB.GuildData.data) do
-			db_msg = "DATA,"..
-				db_name..","..
-				NilToStr(name)..","..
-				NilToStr(c_data.Class)..","..
-				NilToStr(c_data.Spec)..","..
-				NilToStr(c_data["Raid Role"])..","..
-				NilToStr(c_data["Guild Role"])..","..
-				NilToStr(c_data.Status)..","..
-				NilToStr(c_data.Activity);
-			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
-		end
-	elseif db_name == "LootPrio" then
-		db_msg = "INIT,"..
-			db_name..","..
-			NilToStr(SKC_DB.LootPrio.edit_timestamp);
-		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);	
-		for item,prio in pairs(SKC_DB.LootPrio.items) do
-			db_msg = "META,"..
-				db_name..","..
-				NilToStr(item)..","..
-				NilToStr(prio.sk_list)..","..
-				BoolToStr(prio.reserved)..","..
-				BoolToStr(prio.DE);
-			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
-			db_msg = "DATA,"..db_name..","..item..",";
-			for _,plvl in ipairs(prio) do
-				db_msg = db_msg..","..plvl;
-			end
-			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
-		end
-	end
-	C_ChatInfo.SendAddonMessage(addon_channel,"END,"..db_name..", ,",game_channel,name); --awkward spacing to make csv parsing work
-	return;
-end
-
 local function OnClick_FullSK(self)
-	local sk_list = "SK1";
+	local sk_list = "MSK";
 	-- On click event for full SK of details targeted character
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	-- Get initial position
-	local prev_pos = SKC_DB.SK_Lists[sk_list]:GetPos(name);
+	local prev_pos = SKC_DB[sk_list]:GetPos(name);
 	-- Execute full SK
-	local success = SKC_DB.SK_Lists[sk_list]:PushBack(name);
+	local success = SKC_DB[sk_list]:PushBack(name);
 	if success then 
 		-- log
 		WriteToLog(
 			nil,
-			LOG_OPTIONS["Action"].Options.MSK,
+			LOG_OPTIONS["Action"].Options.ManSK,
 			LOG_OPTIONS["Source"].Options.THIS_PLAYER,
-			LOG_OPTIONS["Target Database"].Options[sk_list],
+			LOG_OPTIONS["SK List"].Options[sk_list],
 			name,
 			"",
-			LOG_OPTIONS["Target Value"].Options.ASKP,
 			prev_pos,
-			SKC_DB.SK_Lists[sk_list]:GetPos(name)
+			SKC_DB[sk_list]:GetPos(name)
 		);
 		SKC_Main:Print("IMPORTANT","Full SK on "..name);
 		-- send SK data to all players
-		SyncPushSend(sk_list,SKC_Main.CHANNELS.SYNC_PUSH,"GUILD",nil);
+		SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		-- Refresh SK List
 		UpdateSKUI(sk_list);
 	else
@@ -1545,28 +1551,27 @@ end
 local function OnClick_SingleSK(self)
 	-- On click event for full SK of details targeted character
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
-	local sk_list = "SK1";
+	local sk_list = "MSK";
 	-- Get initial position
-	local prev_pos = SKC_DB.SK_Lists[sk_list]:GetPos(name);
+	local prev_pos = SKC_DB[sk_list]:GetPos(name);
 	-- Execute full SK
-	local name_below = SKC_DB.SK_Lists[sk_list]:GetBelow(name);
-	local success = SKC_DB.SK_Lists[sk_list]:InsertBelow(name,name_below);
+	local name_below = SKC_DB[sk_list]:GetBelow(name);
+	local success = SKC_DB[sk_list]:InsertBelow(name,name_below);
 	if success then 
 		-- log
 		WriteToLog(
 			nil,
-			LOG_OPTIONS["Action"].Options.MSK,
+			LOG_OPTIONS["Action"].Options.ManSK,
 			LOG_OPTIONS["Source"].Options.THIS_PLAYER,
-			LOG_OPTIONS["Target Database"].Options[sk_list],
+			LOG_OPTIONS["SK List"].Options[sk_list],
 			name,
 			"",
-			LOG_OPTIONS["Target Value"].Options.ASKP,
 			prev_pos,
-			SKC_DB.SK_Lists[sk_list]:GetPos(name)
+			SKC_DB[sk_list]:GetPos(name)
 		);
 		SKC_Main:Print("IMPORTANT","Single SK on "..name);
 		-- send SK data to all players
-		SyncPushSend(sk_list,SKC_Main.CHANNELS.SYNC_PUSH,"GUILD",nil);
+		SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		-- Refresh SK List
 		UpdateSKUI(sk_list);
 	else
@@ -1591,27 +1596,26 @@ local function OnClick_NumberCard(self,button)
 	if SetSK_Flag and SKC_UIMain["Details_border"]["Name"].Data ~= nil then
 		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 		local new_abs_pos = tonumber(self.Text:GetText());
-		local sk_list = "SK1";
+		local sk_list = "MSK";
 		-- Get initial position
-		local prev_pos = SKC_DB.SK_Lists[sk_list]:GetPos(name);
+		local prev_pos = SKC_DB[sk_list]:GetPos(name);
 		-- Set new position
-		local success = SKC_DB.SK_Lists[sk_list]:SetByPos(name,new_abs_pos);
+		local success = SKC_DB[sk_list]:SetByPos(name,new_abs_pos);
 		if success then
 			-- log
 			WriteToLog(
 				nil,
-				LOG_OPTIONS["Action"].Options.MSK,
+				LOG_OPTIONS["Action"].Options.ManSK,
 				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
-				LOG_OPTIONS["Target Database"].Options[sk_list],
+				LOG_OPTIONS["SK List"].Options[sk_list],
 				name,
 				"",
-				LOG_OPTIONS["Target Value"].Options.ASKP,
 				prev_pos,
-				SKC_DB.SK_Lists[sk_list]:GetPos(name)
+				SKC_DB[sk_list]:GetPos(name)
 			);
-			SKC_Main:Print("IMPORTANT","Set SK position of "..name.." to "..SKC_DB.SK_Lists[sk_list]:GetPos(name));
+			SKC_Main:Print("IMPORTANT","Set SK position of "..name.." to "..SKC_DB[sk_list]:GetPos(name));
 			-- send SK data to all players
-			SyncPushSend(sk_list,SKC_Main.CHANNELS.SYNC_PUSH,"GUILD",nil);
+			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 			-- Refresh SK List
 			UpdateSKUI(sk_list);
 		else
@@ -1670,7 +1674,7 @@ local function SetSKItem()
 end
 
 local function SendLootDecision()
-	C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOOT_DECISION,LootDecision,"WHISPER",MasterLooter);
+	C_ChatInfo.SendAddonMessage(CHANNELS.LOOT_DECISION,LootDecision,"WHISPER",MasterLooter);
 end
 
 local function InitTimerBarValue()
@@ -1730,7 +1734,7 @@ local function OnClick_ROLL(self,button)
 	return;
 end
 
-local function CreateUICSV(name)
+local function CreateUICSV(name,import_btn)
 	SKC_UICSV[name] = CreateFrame("Frame",name,UIParent,"UIPanelDialogTemplate");
 	SKC_UICSV[name]:SetSize(UI_DIMENSIONS.CSV_WIDTH,UI_DIMENSIONS.CSV_HEIGHT);
 	SKC_UICSV[name]:SetPoint("CENTER");
@@ -1754,15 +1758,20 @@ local function CreateUICSV(name)
 	SKC_UICSV[name].EditBox:SetSize(UI_DIMENSIONS.CSV_EB_WIDTH,1000)
 	SKC_UICSV[name].SF:SetScrollChild(SKC_UICSV[name].EditBox)
 
+	-- Add import button
+	if import_btn then
+		SKC_UICSV[name].ImportBtn = CreateFrame("Button", nil, SKC_UICSV[name], "GameMenuButtonTemplate");
+		SKC_UICSV[name].ImportBtn:SetPoint("BOTTOM",SKC_UICSV[name],"BOTTOM",0,15);
+		SKC_UICSV[name].ImportBtn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
+		SKC_UICSV[name].ImportBtn:SetText("Import");
+		SKC_UICSV[name].ImportBtn:SetNormalFontObject("GameFontNormal");
+		SKC_UICSV[name].ImportBtn:SetHighlightFontObject("GameFontHighlight");
+	end
+
 	-- set framel level and hide
 	SKC_UICSV[name]:SetFrameLevel(4);
 	SKC_UICSV[name]:Hide();
 	return SKC_UICSV[name];
-end
-
-local function ToggleUICSV(name,force_show)
-	local menu = SKC_UICSV[name] or CreateUICSV(name);
-	menu:SetShown(force_show or not menu:IsShown());
 end
 
 local function StartPersonalLootDecision()
@@ -1803,7 +1812,7 @@ local function DetermineWinner()
 			-- If character SK'd, they win!
 			SKC_Main:Print("IMPORTANT",winner.." won "..SK_Item.." by SK!");
 			-- SK character
-			-- local sk_success = SKC_DB.SK_Lists["SK1"]:FullSK(name);
+			-- local sk_success = SKC_DB["MSK"]:FullSK(name);
 			-- Give loot!
 			local awarded_success = SKC_Main:AwardLoot(name);
 			return(sk_success and awarded_success);
@@ -1826,43 +1835,43 @@ end
 local function SyncPushRead(msg)
 	-- Write data to given datbase
 	local part, db_name, msg_rem = strsplit(",",msg,3);
-	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead "..db_name.." "..part) end
-	if db_name == "SK1" or db_name == "SK2" or db_name == "SK3" then
+	-- if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead "..db_name.." "..part) end
+	if db_name == "MSK" or db_name == "TSK" then
 		if part == "INIT" then
 			local time_stamp = msg_rem;
 			time_stamp = NumOut(time_stamp);
-			SKC_DB.SK_Lists[db_name] = SK_List:new(nil);
-			SKC_DB.SK_Lists[db_name].edit_timestamp = time_stamp;
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB.SK_Lists[db_name]:length()) end
+			SKC_DB[db_name] = SK_List:new(nil);
+			SKC_DB[db_name].edit_ts_generic = time_stamp;
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
 		elseif part == "META" then
 			local top, bottom, live_bottom = strsplit(",",msg_rem,3);
-			SKC_DB.SK_Lists[db_name].top = StrOut(top);
-			SKC_DB.SK_Lists[db_name].bottom = StrOut(bottom);
-			SKC_DB.SK_Lists[db_name].live_bottom = StrOut(live_bottom);
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB.SK_Lists[db_name]:length()) end
+			SKC_DB[db_name].top = StrOut(top);
+			SKC_DB[db_name].bottom = StrOut(bottom);
+			SKC_DB[db_name].live_bottom = StrOut(live_bottom);
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
 		elseif part == "DATA" then
 			local name, above, below, abs_pos, loot_decision, loot_prio, live = strsplit(",",msg_rem,7);
 			name = StrOut(name);
 			-- if COMM_VERBOSE then SKC_Main:Print("WARN","DATA: "..msg_rem) end
-			SKC_DB.SK_Lists[db_name].list[name] = SK_Node:new(nil,nil,nil);
-			SKC_DB.SK_Lists[db_name].list[name].above = StrOut(above);
-			SKC_DB.SK_Lists[db_name].list[name].below = StrOut(below);
-			SKC_DB.SK_Lists[db_name].list[name].abs_pos = NumOut(abs_pos);
-			SKC_DB.SK_Lists[db_name].list[name].loot_decision = NumOut(loot_decision);
-			SKC_DB.SK_Lists[db_name].list[name].loot_prio = NumOut(loot_prio);
-			SKC_DB.SK_Lists[db_name].list[name].live = BoolOut(live);
-			-- if COMM_VERBOSE then SKC_Main:Print("WARN",SKC_DB.SK_Lists[db_name].list[name].above.."-->"..name.."-->"..SKC_DB.SK_Lists[db_name].list[name].below) end
+			SKC_DB[db_name].list[name] = SK_Node:new(nil,nil,nil);
+			SKC_DB[db_name].list[name].above = StrOut(above);
+			SKC_DB[db_name].list[name].below = StrOut(below);
+			SKC_DB[db_name].list[name].abs_pos = NumOut(abs_pos);
+			SKC_DB[db_name].list[name].loot_decision = NumOut(loot_decision);
+			SKC_DB[db_name].list[name].loot_prio = NumOut(loot_prio);
+			SKC_DB[db_name].list[name].live = BoolOut(live);
+			-- if COMM_VERBOSE then SKC_Main:Print("WARN",SKC_DB[db_name].list[name].above.."-->"..name.."-->"..SKC_DB[db_name].list[name].below) end
 		elseif part == "END" then
-			if COMM_VERBOSE then SKC_DB.SK_Lists[db_name]:PrintNode(SKC_DB.SK_Lists[db_name].bottom) end
+			if COMM_VERBOSE then SKC_DB[db_name]:PrintNode(SKC_DB[db_name].bottom) end
 			SKC_Main:ReloadUIMain();
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB.SK_Lists[db_name]:length()) end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
 		end
 	elseif db_name == "GuildData" then
 		if part == "INIT" then
 			local time_stamp = msg_rem;
 			time_stamp = NumOut(time_stamp);
 			SKC_DB.GuildData = GuildData:new(nil);
-			SKC_DB.GuildData.edit_timestamp = time_stamp;
+			SKC_DB.GuildData.edit_ts_generic = time_stamp;
 		elseif part == "META" then
 			-- nothing to do
 		elseif part == "DATA" then
@@ -1884,14 +1893,15 @@ local function SyncPushRead(msg)
 			local time_stamp = msg_rem;
 			time_stamp = NumOut(time_stamp);
 			SKC_DB.LootPrio = LootPrio:new(nil);
-			SKC_DB.LootPrio.edit_timestamp = time_stamp;
+			SKC_DB.LootPrio.edit_ts_generic = time_stamp;
 		elseif part == "META" then
-			local item, sk_list, res, de = strsplit(",",msg_rem,4);
+			local item, sk_list, res, de, open_roll = strsplit(",",msg_rem,5);
 			item = StrOut(item);
 			SKC_DB.LootPrio.items[item] = Prio:new(nil);
 			SKC_DB.LootPrio.items[item].sk_list = StrOut(sk_list);
 			SKC_DB.LootPrio.items[item].reserved = BoolOut(res);
 			SKC_DB.LootPrio.items[item].DE = BoolOut(de);
+			SKC_DB.LootPrio.items[item].open_roll = BoolOut(open_roll);
 		elseif part == "DATA" then
 			local item, msg_rem = strsplit(",",msg_rem,2);
 			item = StrOut(item);
@@ -1907,75 +1917,73 @@ local function SyncPushRead(msg)
 	return;
 end
 
-local function LoginSyncCheckRead(db_name,their_edit_timestamp,name,addon_channel)
+local function LoginSyncCheckRead(db_name,their_edit_ts_raid,their_edit_ts_generic,name,addon_channel)
 	-- Arbitrate based on timestamp to push or pull database
-	if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncCheckRead for: "..db_name..", from: "..name..", ts:"..their_edit_timestamp) end
-	if db_name == "SK1" or db_name == "SK2" or db_name == "SK3" then
-		if SKC_DB.SK_Lists[db_name].edit_timestamp > their_edit_timestamp then
-			SyncPushSend(db_name,addon_channel,"WHISPER",name);
-		elseif SKC_DB.SK_Lists[db_name].edit_timestamp < their_edit_timestamp then
-			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushRqst for "..db_name.." from "..name) end
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",name);
-		end
-	elseif db_name == "GuildData" then
-		if SKC_DB.GuildData.edit_timestamp > their_edit_timestamp then
-			SyncPushSend(db_name,addon_channel,"WHISPER",name);
-		elseif SKC_DB.GuildData.edit_timestamp < their_edit_timestamp then
-			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushRqst for "..db_name.." from "..name) end
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",name);
-		end
-	elseif db_name == "LootPrio" then
-		if SKC_DB.LootPrio.edit_timestamp > their_edit_timestamp then
-			SyncPushSend(db_name,addon_channel,"WHISPER",name);
-		elseif SKC_DB.LootPrio.edit_timestamp < their_edit_timestamp then
-			if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushRqst for "..db_name.." from "..name) end
-			C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",name);
-		end
+	local my_edit_ts_raid = SKC_DB[db_name].edit_ts_raid;
+	local my_edit_ts_generic = SKC_DB[db_name].edit_ts_generic;
+	if COMM_VERBOSE then 
+		SKC_Main:Print("WARN","LoginSyncCheckRead for: "..db_name..", from: "..name);
+		SKC_Main:Print("WARN","my raid ts:"..my_edit_ts_raid..", their raid ts:"..their_edit_ts_raid);
+		SKC_Main:Print("WARN","my generic ts:"..my_edit_ts_generic..", their generic ts:"..their_edit_ts_generic);
 	end
+	if (my_edit_ts_raid > their_edit_ts_raid) or ( (my_edit_ts_raid == their_edit_ts_raid) and (my_edit_ts_generic > their_edit_ts_generic) ) then
+		-- I have newer RAID data
+		-- OR I have the same RAID data but newer generic data
+		-- --> send them my data
+		SyncPushSend(db_name,addon_channel,"WHISPER",name);
+	elseif (my_edit_ts_raid < their_edit_ts_raid) or ( (my_edit_ts_raid == their_edit_ts_raid) and (my_edit_ts_generic < their_edit_ts_generic) ) then
+		-- I have older RAID data
+		-- OR I have the same RAID data but older generic data
+		-- --> request their data
+		if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushRqst for "..db_name.." from "..name) end
+		C_ChatInfo.SendAddonMessage(CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",name);
+	end
+	return;
 end
 
 local function AddonMessageRead(prefix,msg,channel,sender)
 	sender = StripRealmName(sender);
-	if prefix == SKC_Main.CHANNELS.LOGIN_SYNC_CHECK then
+	if prefix == CHANNELS.LOGIN_SYNC_CHECK then
 		--[[ 
 			Send (LoginSyncCheckSend): Upon login character requests sync for each database
 			Read (LoginSyncCheckRead): Arbitrate based on timestamp to push or pull database
 		--]]
 		if sender ~= UnitName("player") then
 			if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: LOGIN_SYNC_CHECK, sender: "..sender) end
-			local db_name, edit_timestamp = strsplit(",",msg,2);
-			edit_timestamp = NumOut(edit_timestamp);
-			LoginSyncCheckRead(db_name,edit_timestamp,sender,SKC_Main.CHANNELS.LOGIN_SYNC_PUSH);
+			local db_name, edit_ts_raid, edit_ts_generic = strsplit(",",msg,3);
+			edit_ts_raid = NumOut(edit_ts_raid);
+			edit_ts_generic = NumOut(edit_ts_generic);
+			LoginSyncCheckRead(db_name,edit_ts_raid,edit_ts_generic,sender,CHANNELS.LOGIN_SYNC_PUSH);
 		end
-	elseif prefix == SKC_Main.CHANNELS.LOGIN_SYNC_PUSH then
+	elseif prefix == CHANNELS.LOGIN_SYNC_PUSH then
 		--[[ 
 			Send (SyncPushSend): Push given database to target player
 			Read (SyncPushRead): Write given database to player (only accept first push)
 		--]]
 		local part, db_name, msg_rem = strsplit(",",msg,3);
 		if (event_states.LoginSyncName[db_name] == nil or event_states.LoginSyncName[db_name] == sender) and sender ~= UnitName("player") then
-			if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: LOGIN_SYNC_PUSH, sender: "..sender) end
+			-- if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: LOGIN_SYNC_PUSH, sender: "..sender) end
 			SyncPushRead(msg);
 			event_states.LoginSyncName[db_name] = sender;
 		end
-	elseif prefix == SKC_Main.CHANNELS.LOGIN_SYNC_PUSH_RQST then
+	elseif prefix == CHANNELS.LOGIN_SYNC_PUSH_RQST then
 		--[[ 
 			Send (LoginSyncCheckRead): Request a push for given database from target player
 			Read (SyncPushSend): Respond with push for given database
 		--]]
 		if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: LOGIN_SYNC_PUSH_RQST, sender: "..sender) end
-		SyncPushSend(msg,SKC_Main.CHANNELS.SYNC_PUSH,"WHISPER",sender);
-	elseif prefix == SKC_Main.CHANNELS.SYNC_PUSH then
+		SyncPushSend(msg,CHANNELS.SYNC_PUSH,"WHISPER",sender);
+	elseif prefix == CHANNELS.SYNC_PUSH then
 		--[[ 
 			Send (SyncPushSend): Push given database to target player
 			Read (SyncPushRead): Write given datbase to player (accepts as many as possible)
 		--]]
 		-- Reject if message was from self
 		if sender ~= UnitName("player") then
-			if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: SYNC_PUSH, sender: "..sender) end
+			-- if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: SYNC_PUSH, sender: "..sender) end
 			SyncPushRead(msg);
 		end
-	elseif prefix == SKC_Main.CHANNELS.LOOT then
+	elseif prefix == CHANNELS.LOOT then
 		--[[ 
 			Send: Send loot items for which each player is elligible to make a decision on
 			Read: Initiate loot decision GUI for player
@@ -1988,7 +1996,7 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		-- initiate personal loot decision
 		if COMM_VERBOSE then SKC_Main:Print("WARN",MasterLooter.." initiated decision for "..SK_Item) end
 		SKC_Main:StartPersonalLootDecision();
-	elseif prefix == SKC_Main.CHANNELS.LOOT_DECISION then
+	elseif prefix == CHANNELS.LOOT_DECISION then
 		--[[ 
 			Send: Send loot decision to 
 			Read: Determine loot winner
@@ -2000,15 +2008,15 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		local name = StripRealmName(sender);
 		if COMM_VERBOSE then SKC_Main:Print("WARN",name.." wants to "..msg..".") end
 		-- Save loot decision
-		-- SKC_DB.SK_Lists["SK1"].list[name].loot_decision = msg;
+		-- SKC_DB["MSK"].list[name].loot_decision = msg;
 		-- Determine loot prio of character
-		-- SKC_DB.SK_Lists["SK1"].list[name].loot_prio = SKC_Main:DetermineLootPrio(name);
+		-- SKC_DB["MSK"].list[name].loot_prio = SKC_Main:DetermineLootPrio(name);
 		-- check if all messages received
 		if SK_MessagesReceived >= SK_MessagesSent then
 			-- Determine winner and allocate loot
 			local success = DetermineWinner();
 		end
-	elseif prefix == SKC_Main.CHANNELS.LOOT_OUTCOME then
+	elseif prefix == CHANNELS.LOOT_OUTCOME then
 		--[[ 
 			Send: Loot outcome (including roll values) for all players
 			Read: Print loot outcome
@@ -2038,10 +2046,14 @@ end
 local function LoginSyncCheckSend()
 	if event_states.SyncRequestSent then return end -- sync check already performed
 	if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncCheckSend()") end
-	-- Send edit_timestamp of each database to each online member of GuildData (will sync with first response)
-	C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_CHECK,"GuildData,"..NilToStr(SKC_DB.GuildData.edit_timestamp),"GUILD");
-	C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_CHECK,"LootPrio,"..NilToStr(SKC_DB.LootPrio.edit_timestamp),"GUILD");
-	C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOGIN_SYNC_CHECK,"SK1,"..NilToStr(SKC_DB.SK_Lists.SK1.edit_timestamp),"GUILD");
+	-- Send timestamps of each database to each online member of GuildData (will sync with first response)
+	local db_lsit = {"GuildData","LootPrio","MSK","TSK"}
+	local msg = nil;
+	for _,db_name in ipairs(db_lsit) do
+		msg = db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
+		local success = C_ChatInfo.SendAddonMessage(CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD");
+		if COMM_VERBOSE and success then SKC_Main:Print("WARN",msg) end
+	end
 	return;
 end
 
@@ -2071,7 +2083,7 @@ local function SyncRaidAndLiveList()
 	ActivateSKC();
 
 	-- Check if ML
-	if not isML() then return end
+	if not SKC_Main:isML() then return end
 
 	-- Check SKC ACtive
 	if not SKC_Active then return end
@@ -2080,25 +2092,25 @@ local function SyncRaidAndLiveList()
 	if Loot_Decision_Pending then return end
 
 	-- Scan all SK lists and assign live status
-	local sk_lists = {"SK1","SK2","SK3"};
+	local sk_lists = {"MSK","TSK"};
 	for _,sk_list in pairs(sk_lists) do
-		for name,_ in pairs(SKC_DB.SK_Lists[sk_list].list) do
-			SKC_DB.SK_Lists[sk_list]:SetLive(name,UnitInRaid(name) ~= nil);
+		for name,_ in pairs(SKC_DB[sk_list].list) do
+			SKC_DB[sk_list]:SetLive(name,UnitInRaid(name) ~= nil);
 		end
 	end
 
 	-- Scan bench and adjust live
 	for idx,name in ipairs(SKC_DB.Bench) do
-		SK_Lists[sk_list]:SetLive(name,true);
+		SKC_DB[sk_list]:SetLive(name,true);
 	end
 
 	-- Set live_bottom for all lists
 	for _,sk_list in pairs(sk_lists) do
-		SKC_DB.SK_Lists[sk_list]:SetLiveBottom();
+		SKC_DB[sk_list]:SetLiveBottom();
 	end
 
 	-- Sync SK lists with raid
-	SyncPushSend("SK1",SKC_Main.CHANNELS.SYNC_PUSH,"RAID")
+	SyncPushSend("MSK",CHANNELS.SYNC_PUSH,"RAID")
 
 	-- Reload GUI
 	SKC_Main:ReloadUIMain();
@@ -2112,7 +2124,7 @@ local function InitiateLootDecision()
 	-- Make loot decision active
 	Loot_Decision_Pending = true;
 	-- Reset guild loot decisions and loot prio
-	-- SKC_DB.SK_Lists["SK1"]:ResetLoot();
+	-- SKC_DB["MSK"]:ResetLoot();
 	-- Reset message count
 	SK_MessagesReceived = 0;
 	SK_MessagesSent = 0;
@@ -2133,7 +2145,7 @@ local function InitiateLootDecision()
 			if char_name ~= nil then
 				-- send loot distribution initiation
 				SK_MessagesSent = SK_MessagesSent + 1;
-				C_ChatInfo.SendAddonMessage(SKC_Main.CHANNELS.LOOT_DIST,LOOT_DECSK_Item,"WHISPER",char_name);
+				C_ChatInfo.SendAddonMessage(CHANNELS.LOOT_DIST,LOOT_DECSK_Item,"WHISPER",char_name);
 			end
 		end
 	end
@@ -2168,7 +2180,7 @@ end
 function SKC_Main:ToggleUIMain(force_show)
 	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
 	-- Refresh Data
-	PopulateData("SK1");
+	PopulateData("MSK");
 	menu:SetShown(force_show or not menu:IsShown());
 end
 
@@ -2177,7 +2189,7 @@ function SKC_Main:ReloadUIMain()
 	if SKC_UIMain ~= nil then is_shown = SKC_UIMain:IsShown() end
 	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
 	-- Refresh Data
-	PopulateData("SK1");
+	PopulateData("MSK");
 	menu:SetShown(is_shown);
 end
 
@@ -2190,6 +2202,16 @@ function SKC_Main:Print(type,...)
     local hex = select(4, SKC_Main:GetThemeColor(type));
 	local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");
     DEFAULT_CHAT_FRAME:AddMessage(string.join(" ", prefix, ...));
+end
+
+function SKC_Main:isML()
+	-- Check if current player is master looter
+	return(ML_OVRD or IsMasterLooter());
+end
+
+function SKC_Main:isGL()
+	-- Check if current player is guild leader
+	return(GL_OVRD or IsGuildLeader());
 end
 
 function SKC_Main:BenchShow()
@@ -2234,7 +2256,9 @@ end
 
 function SKC_Main:ExportLog()
 	local name = "Log Export";
-	SKC_Main:ToggleUICSV(name,true);
+	-- instantiate frame
+	local menu = SKC_UICSV[name] or CreateUICSV(name,false);
+	menu:SetShown(true);
 	-- Add log data
 	local log_data = "";
 	for idx1,log_entry in ipairs(SKC_DB.RaidLog) do
@@ -2246,6 +2270,114 @@ function SKC_Main:ExportLog()
 	end
 	SKC_UICSV[name].EditBox:SetText(log_data);
 	SKC_UICSV[name].EditBox:HighlightText();
+end
+
+-- if part == "INIT" then
+-- 	local time_stamp = msg_rem;
+-- 	time_stamp = NumOut(time_stamp);
+-- 	SKC_DB.LootPrio = LootPrio:new(nil);
+-- 	SKC_DB.LootPrio.edit_ts_generic = time_stamp;
+-- elseif part == "META" then
+-- 	local item, sk_list, res, de, open_roll = strsplit(",",msg_rem,5);
+-- 	item = StrOut(item);
+-- 	SKC_DB.LootPrio.items[item] = Prio:new(nil);
+-- 	SKC_DB.LootPrio.items[item].sk_list = StrOut(sk_list);
+-- 	SKC_DB.LootPrio.items[item].reserved = BoolOut(res);
+-- 	SKC_DB.LootPrio.items[item].DE = BoolOut(de);
+-- 	SKC_DB.LootPrio.items[item].open_roll = BoolOut(open_roll);
+-- elseif part == "DATA" then
+-- 	local item, msg_rem = strsplit(",",msg_rem,2);
+-- 	item = StrOut(item);
+-- 	local plvl = nil;
+-- 	for idx,spec_class in ipairs(SPEC_CLASS) do
+-- 		plvl, msg_rem = strsplit(",",msg_rem,2);
+-- 		SKC_DB.LootPrio.items[item].prio[idx] = NumOut(plvl);
+-- 	end
+
+local function OnClick_ImportLootPrio()
+	-- imports loot prio CSV to database
+	-- reset database
+	SKC_DB.LootPrio = LootPrio:new(nil);
+	-- get text
+	local name = "Loot Priority Import";
+	local txt = SKC_UICSV[name].EditBox:GetText();
+	-- skip first 3 rows
+	local skip_cnt = 0;
+	local line = nil;
+	local txt_rem = txt;
+	while skip_cnt < 3 do
+		line, txt_rem = strsplit("\n",txt_rem,2);
+		skip_cnt = skip_cnt + 1;
+	end
+	-- read data
+	local valid = true;
+	while txt_rem ~= nil do
+		line, txt_rem = strsplit("\n",txt_rem,2);
+		local item, sk_list, res, de, open_roll, prios = strsplit(",",line,6);
+		item = StrOut(item);
+		sk_list = StrOut(sk_list);
+		-- check validity
+		valid = sk_list == "MSK" or sk_list == "TSK";
+		if not valid then
+			SKC_Main:Print("ERROR","Invalid SK List for "..item);
+			break;
+		end
+		-- write meta data for item
+		SKC_DB.LootPrio.items[item] = Prio:new(nil);
+		SKC_DB.LootPrio.items[item].sk_list = sk_list;
+		SKC_DB.LootPrio.items[item].reserved = BoolOut(res);
+		SKC_DB.LootPrio.items[item].DE = BoolOut(de);
+		SKC_DB.LootPrio.items[item].open_roll = BoolOut(open_roll);
+		-- read prios
+		local idx = 1;
+		while prios ~= nil do
+			valid = idx <= 22;
+			if not valid then
+				SKC_Main:Print("ERROR","Too many Class/Spec combinations");
+				break;
+			end
+			val, prios = strsplit(",",prios,2);
+			val = NumOut(val);
+			-- check prio value
+			valid = (val >= 1) and (val <= 6);
+			if not valid then
+				SKC_Main:Print("ERROR","Invalid prio level for "..item);
+				break;
+			end
+			-- write prio value
+			SKC_DB.LootPrio.items[item].prio[idx] = val;
+			idx = idx + 1;
+		end
+		if not valid then break end
+	end
+	if not valid then
+		SKC_DB.LootPrio = LootPrio:new(nil);
+		return;
+	end
+	-- update edit timestamp
+	local ts = time();
+	SKC_DB.LootPrio.edit_ts_raid = ts;
+	SKC_DB.LootPrio.edit_ts_generic = ts;
+	SKC_Main:Print("NORMAL","Loot Priority Import Complete");
+	SKC_Main:Print("NORMAL",SKC_DB.LootPrio:length().." items added");
+	return;
+end
+
+local function OnClick_ImportGuildData()
+	-- imports loot guild data CSV to database
+end
+
+function SKC_Main:CSVImport(name)
+	-- instantiate frame
+	local menu = SKC_UICSV[name] or CreateUICSV(name,true);
+	menu:SetShown(true);
+	-- bind function for import button
+	if name == "Loot Priority Import" then
+		SKC_UICSV[name].ImportBtn:SetScript("OnMouseDown",OnClick_ImportLootPrio);
+	elseif name == "Guild Data Import" then
+		SKC_UICSV[name].ImportBtn:SetScript("OnMouseDown",OnClick_ImportGuildData);
+	end
+	return;
 end
 
 function SKC_Main:CreateUIMain()
@@ -2281,7 +2413,7 @@ function SKC_Main:CreateUIMain()
 			local col = (idx - 1) % 4; -- zero based
 			SKC_UIMain[filter_border_key][value] = CreateFrame("CheckButton", nil, SKC_UIMain[filter_border_key], "UICheckButtonTemplate");
 			SKC_UIMain[filter_border_key][value]:SetSize(25,25);
-			SKC_UIMain[filter_border_key][value]:SetChecked(FilterStates["SK1"][value]);
+			SKC_UIMain[filter_border_key][value]:SetChecked(FilterStates["MSK"][value]);
 			SKC_UIMain[filter_border_key][value]:SetScript("OnClick",OnCheck_FilterFunction)
 			SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
 			SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
@@ -2294,7 +2426,7 @@ function SKC_Main:CreateUIMain()
 	end
 
 	-- SK List border
-	local sk_list = "SK1";
+	local sk_list = "MSK";
 	local sk_list_border_key = CreateUIBorder(sk_list,UI_DIMENSIONS.SK_LIST_WIDTH + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST,UI_DIMENSIONS.SK_LIST_HEIGHT + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST);
 	-- set position
 	SKC_UIMain[sk_list_border_key]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPRIGHT", UI_DIMENSIONS.MAIN_BORDER_PADDING, 0);
@@ -2488,7 +2620,7 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[decision_border_key].TimerBar:SetValue(0);
 
 	-- Populate Data
-	PopulateData("SK1");
+	PopulateData("MSK");
     
 	SKC_UIMain:Hide();
 	return SKC_UIMain;
@@ -2501,14 +2633,12 @@ local function EventHandler(self,event,...)
 	if event == "CHAT_MSG_ADDON" then
 		AddonMessageRead(...);
 	elseif event == "ADDON_LOADED" then
-		if not event_states.AddonLoaded then
-			OnAddonLoad();
-			event_states.AddonLoaded = true;
-		end
+		OnAddonLoad(...);
 	elseif event == "PLAYER_LOGIN" then
 		GuildRoster();
 	elseif event == "GUILD_ROSTER_UPDATE" then
 		FetchGuildInfo(InitSetup);
+		InitSetup = false;
 		event_states.GuildRosterUpdated = true;
 		LoginSyncCheckSend();
 		event_states.SyncRequestSent = true;
