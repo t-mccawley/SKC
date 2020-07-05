@@ -1517,7 +1517,7 @@ local function OnClick_SK_Card(self, button)
 end
 
 local function OnClick_FullSK(self)
-	local sk_list = "MSK";
+	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	-- On click event for full SK of details targeted character
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 	-- Get initial position
@@ -1550,7 +1550,7 @@ end
 local function OnClick_SingleSK(self)
 	-- On click event for full SK of details targeted character
 	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
-	local sk_list = "MSK";
+	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	-- Get initial position
 	local prev_pos = SKC_DB[sk_list]:GetPos(name);
 	-- Execute full SK
@@ -1595,7 +1595,7 @@ local function OnClick_NumberCard(self,button)
 	if SetSK_Flag and SKC_UIMain["Details_border"]["Name"].Data ~= nil then
 		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 		local new_abs_pos = tonumber(self.Text:GetText());
-		local sk_list = "MSK";
+		local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 		-- Get initial position
 		local prev_pos = SKC_DB[sk_list]:GetPos(name);
 		-- Set new position
@@ -2176,12 +2176,11 @@ end
 
 local function OnClick_SKListCycle()
 	-- cycle through SK lists
-	local sk_list_border_key = "sk_list_border";
-	local sk_list = SKC_UIMain[sk_list_border_key].Title.Text:GetText();
+	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	if sk_list == "MSK" then
-		SKC_UIMain[sk_list_border_key].Title.Text:SetText("TSK");
+		SKC_UIMain["sk_list_border"].Title.Text:SetText("TSK");
 	else
-		SKC_UIMain[sk_list_border_key].Title.Text:SetText("MSK");
+		SKC_UIMain["sk_list_border"].Title.Text:SetText("MSK");
 	end
 	-- populate data
 	PopulateData();
