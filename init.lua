@@ -120,14 +120,10 @@ core.commands = {
   ["init"] = {
     ["sk"] = function(sk_list)
       -- Initializes the specified SK list with a CSV pasted into a window
-      core.SKC_Main:Print("NORMAL",sk_list);
+      core.SKC_Main:CSVImport("SK List Import",sk_list);
     end,
     ["prio"] = function()
       -- Initializes the loot prio with a CSV pasted into a window
-      core.SKC_Main:CSVImport("Loot Priority Import"); 
-    end,
-    ["guild"] = function()
-      -- Initializes the guild data with a CSV pasted into a window
       core.SKC_Main:CSVImport("Loot Priority Import"); 
     end,
   },

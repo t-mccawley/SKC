@@ -1204,8 +1204,11 @@ local function FetchGuildInfo(init)
 				SKC_DB.TSK:PushBack(name);
 				if init then
 					SKC_DB.GuildData.edit_ts_generic = 0;
+					SKC_DB.GuildData.edit_ts_raid = 0;
 					SKC_DB.MSK.edit_ts_generic = 0;
+					SKC_DB.MSK.edit_ts_raid = 0;
 					SKC_DB.TSK.edit_ts_generic = 0;
+					SKC_DB.TSK.edit_ts_raid = 0;
 				end
 				-- SKC_Main:Print("NORMAL","["..cnt.."] "..name.." added to database!");
 			end
@@ -1220,6 +1223,7 @@ local function OnAddonLoad(addon_name)
 	if addon_name ~= "SKC" then return end
 	-- Initialize DBs 
 	if SKC_DB == nil or HARD_DB_RESET then
+		if HARD_DB_RESET then SKC_Main:Print("IMPORTANT","HARD_DB_RESET") end
 		InitSetup = true;
 		SKC_DB = {};
 		SKC_DB.Integrity = true; -- triggers false if something is wrong with DB and disables loot distribution w/ SKC
@@ -1358,13 +1362,13 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 		db_msg = "INIT,"..
 			db_name..","..
 			NilToStr(SKC_DB[db_name].edit_ts_generic);
-		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		db_msg = "META,"..
 			db_name..","..
 			NilToStr(SKC_DB[db_name].top)..","..
 			NilToStr(SKC_DB[db_name].bottom)..","..
 			NilToStr(SKC_DB[db_name].live_bottom);
-		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		for node_name,node in pairs(SKC_DB[db_name].list) do
 			db_msg = "DATA,"..
 				db_name..","..
@@ -1375,13 +1379,13 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 				NilToStr(node.loot_decision)..","..
 				NilToStr(node.loot_prio)..","..
 				BoolToStr(node.live);
-			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		end
 	elseif db_name == "GuildData" then
 		db_msg = "INIT,"..
 			db_name..","..
 			NilToStr(SKC_DB.GuildData.edit_ts_generic);
-		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		for name,c_data in pairs(SKC_DB.GuildData.data) do
 			db_msg = "DATA,"..
 				db_name..","..
@@ -1392,13 +1396,13 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 				NilToStr(c_data["Guild Role"])..","..
 				NilToStr(c_data.Status)..","..
 				NilToStr(c_data.Activity);
-			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		end
 	elseif db_name == "LootPrio" then
 		db_msg = "INIT,"..
 			db_name..","..
 			NilToStr(SKC_DB.LootPrio.edit_ts_generic);
-		C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);	
+		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");	
 		for item,prio in pairs(SKC_DB.LootPrio.items) do
 			db_msg = "META,"..
 				db_name..","..
@@ -1407,15 +1411,15 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 				BoolToStr(prio.reserved)..","..
 				BoolToStr(prio.DE)..","..
 				BoolToStr(prio.open_roll);
-			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 			db_msg = "DATA,"..db_name..","..item..",";
 			for _,plvl in ipairs(prio) do
 				db_msg = db_msg..","..plvl;
 			end
-			C_ChatInfo.SendAddonMessage(addon_channel,db_msg,game_channel,name);
+			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		end
 	end
-	C_ChatInfo.SendAddonMessage(addon_channel,"END,"..db_name..", ,",game_channel,name); --awkward spacing to make csv parsing work
+	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,"END,"..db_name..", ,",game_channel,name,"main_queue"); --awkward spacing to make csv parsing work
 	return;
 end
 
@@ -1674,7 +1678,7 @@ local function SetSKItem()
 end
 
 local function SendLootDecision()
-	C_ChatInfo.SendAddonMessage(CHANNELS.LOOT_DECISION,LootDecision,"WHISPER",MasterLooter);
+	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DECISION,LootDecision,"WHISPER",MasterLooter,"main_queue");
 end
 
 local function InitTimerBarValue()
@@ -1862,7 +1866,6 @@ local function SyncPushRead(msg)
 			SKC_DB[db_name].list[name].live = BoolOut(live);
 			-- if COMM_VERBOSE then SKC_Main:Print("WARN",SKC_DB[db_name].list[name].above.."-->"..name.."-->"..SKC_DB[db_name].list[name].below) end
 		elseif part == "END" then
-			if COMM_VERBOSE then SKC_DB[db_name]:PrintNode(SKC_DB[db_name].bottom) end
 			SKC_Main:ReloadUIMain();
 			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
 		end
@@ -1936,7 +1939,7 @@ local function LoginSyncCheckRead(db_name,their_edit_ts_raid,their_edit_ts_gener
 		-- OR I have the same RAID data but older generic data
 		-- --> request their data
 		if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncPushRqst for "..db_name.." from "..name) end
-		C_ChatInfo.SendAddonMessage(CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",name);
+		ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",name,"main_queue");
 	end
 	return;
 end
@@ -2051,10 +2054,10 @@ local function LoginSyncCheckSend()
 	local msg = nil;
 	for _,db_name in ipairs(db_lsit) do
 		msg = db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
-		-- local success = C_ChatInfo.SendAddonMessage(CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD");
-		local success = ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD");
-		if COMM_VERBOSE and success then SKC_Main:Print("WARN",msg) end
+		ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD",nil,"main_queue");
+		if COMM_VERBOSE then SKC_Main:Print("WARN",msg) end
 	end
+	event_states.SyncRequestSent = true;
 	return;
 end
 
@@ -2146,7 +2149,7 @@ local function InitiateLootDecision()
 			if char_name ~= nil then
 				-- send loot distribution initiation
 				SK_MessagesSent = SK_MessagesSent + 1;
-				C_ChatInfo.SendAddonMessage(CHANNELS.LOOT_DIST,LOOT_DECSK_Item,"WHISPER",char_name);
+				ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DIST,LOOT_DECSK_Item,"WHISPER",char_name,"main_queue");
 			end
 		end
 	end
@@ -2364,19 +2367,87 @@ local function OnClick_ImportLootPrio()
 	return;
 end
 
-local function OnClick_ImportGuildData()
-	-- imports loot guild data CSV to database
+local function OnClick_SKList(sk_list)
+	-- imports SK list CSV into database
+	-- get text
+	local name = "SK List Import";
+	local txt = SKC_UICSV[name].EditBox:GetText();
+	-- check that every name in text is in GuildData
+	local txt_rem = txt;
+	local valid = true;
+	local char_name = nil;
+	local new_sk_list = {};
+	local new_chars_map = {};
+	while txt_rem ~= nil do
+		char_name, txt_rem = strsplit("\n",txt_rem,2);
+		if SKC_DB.GuildData:Exists(char_name) then
+			new_sk_list[#new_sk_list + 1] = char_name;
+			new_chars_map[char_name] = (new_chars_map[char_name] or 0) + 1;
+		else
+			-- character not in GuildData
+			SKC_Main:Print("ERROR",char_name.." not in GuildData");
+			valid = false;
+		end
+	end
+	if not valid then
+		SKC_Main:Print("ERROR","SK list not imported");
+		return;
+	end;
+	-- check that every name in GuildData is in text
+	valid = true;
+	for guild_member,_ in pairs(SKC_DB.GuildData.data) do
+		if new_chars_map[guild_member] == nil then
+			-- guild member not in list
+			SKC_Main:Print("ERROR",guild_member.." not in your SK list");
+			valid = false;
+		elseif new_chars_map[guild_member] == 1 then
+			-- guild member is in list exactly once
+		elseif new_chars_map[guild_member] > 1 then
+			-- guild member is in list more than once
+			SKC_Main:Print("ERROR",guild_member.." is in your SK list more than once");
+			valid = false;
+		else
+			-- guild member not in list
+			SKC_Main:Print("ERROR","DUNNO");
+			valid = false;
+		end
+	end
+	if not valid then
+		SKC_Main:Print("ERROR","SK list not imported");
+		return;
+	end;
+	-- reset database
+	SKC_DB[sk_list] = SK_List:new(nil);
+	-- write new database
+	for idx,val in ipairs(new_sk_list) do
+		SKC_DB[sk_list]:PushBack(val);
+	end
+	SKC_DB[sk_list].edit_ts_generic = 0;
+	SKC_DB[sk_list].edit_ts_raid = 0;
+	SKC_Main:Print("NORMAL",sk_list.." imported");
+	return;
 end
 
-function SKC_Main:CSVImport(name)
-	-- instantiate frame
-	local menu = SKC_UICSV[name] or CreateUICSV(name,true);
-	menu:SetShown(true);
-	-- bind function for import button
+function SKC_Main:CSVImport(name,sk_list)
+	-- error checking + bind function for import button
 	if name == "Loot Priority Import" then
+		-- instantiate frame
+		local menu = SKC_UICSV[name] or CreateUICSV(name,true);
+		menu:SetShown(true);
 		SKC_UICSV[name].ImportBtn:SetScript("OnMouseDown",OnClick_ImportLootPrio);
-	elseif name == "Guild Data Import" then
-		SKC_UICSV[name].ImportBtn:SetScript("OnMouseDown",OnClick_ImportGuildData);
+	elseif name == "SK List Import" then
+		if sk_list ~= "MSK" and sk_list ~= "TSK" then
+			if sk_list == nil then
+				SKC_Main:Print("ERROR","No SK list name given")
+			else
+				SKC_Main:Print("ERROR",sk_list.." is not a list name");
+			end
+			return;
+		end
+		-- instantiate frame
+		local menu = SKC_UICSV[name] or CreateUICSV(name,true);
+		menu:SetShown(true);
+		SKC_UICSV[name].ImportBtn:SetScript("OnMouseDown",function() OnClick_SKList(sk_list) end);
 	end
 	return;
 end
@@ -2384,6 +2455,9 @@ end
 function SKC_Main:CreateUIMain()
 	-- If addon not yet loaded, reject
 	if not event_states.AddonLoaded then return end
+
+	-- Sync data with guild if not already done
+	LoginSyncCheckSend();
 
     SKC_UIMain = CreateFrame("Frame", "SKC_UIMain", UIParent, "UIPanelDialogTemplate");
 	SKC_UIMain:SetSize(UI_DIMENSIONS.MAIN_WIDTH,UI_DIMENSIONS.MAIN_HEIGHT);
@@ -2641,8 +2715,8 @@ local function EventHandler(self,event,...)
 		FetchGuildInfo(InitSetup);
 		InitSetup = false;
 		event_states.GuildRosterUpdated = true;
-		LoginSyncCheckSend();
-		event_states.SyncRequestSent = true;
+		-- Kick off timer to send sync request
+		if not HARD_DB_RESET then C_Timer.After(4,LoginSyncCheckSend) end;
 	elseif event == "RAID_ROSTER_UPDATE" then
 		SyncRaidAndLiveList();
 	elseif event == "PARTY_LOOT_METHOD_CHANGED" then
