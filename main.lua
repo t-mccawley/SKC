@@ -545,6 +545,7 @@ local event_states = { -- tracks if certain events have fired
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
 local SetSK_Flag = false; -- true when SK position is being set
+local SKC_Enable = true; -- controls if SKC loot distribution is enabled
 local SKC_Active = false; -- true when loot distribution is handled by SKC
 local Loot_Decision_Pending = false; -- true when loot distribution is active (do not edit live lists)
 local InitSetup = false; -- used to control for first time setup
@@ -613,6 +614,7 @@ SK_Node = {
 	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
 	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
 	live = false, -- used to indicate a node that is currently in the live list
+	last_live_time = nil, -- most recent time added to live list
 };
 SK_Node.__index = SK_Node;
 
@@ -627,6 +629,7 @@ function SK_Node:new(sk_node,above,below)
 		obj.loot_decision = LOOT_DECISION.PASS;
 		obj.loot_prio = PRIO_TIERS.PASS;
 		obj.live = false;
+		obj.last_live_time = time();
 		return obj;
 	else
 		-- set metatable of existing table
@@ -639,6 +642,7 @@ SK_List = { --a doubly linked list table where each node is referenced by player
 	top = nil, -- top name in list
 	bottom = nil, -- bottom name in list
 	live_bottom = nil, -- bottom name in live list
+	activity_thresh = nil, -- time threshold [seconds] which changes activity from Active to Inactive
 	list = {}, -- list of SK_Node
 	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
 	edit_ts_generic = nil, -- timestamp of most recent edit
@@ -653,6 +657,7 @@ function SK_List:new(sk_list)
 		obj.top = nil; 
 		obj.bottom = nil;
 		obj.live_bottom = nil;
+		obj.activity_thresh = 2592000; -- 30 days
 		obj.list = {};
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
@@ -1068,10 +1073,27 @@ function SK_List:GetBelow(name)
 end
 
 function SK_List:SetLive(name,live_status)
+	local prev_live_status = self.list[name].live;
 	self.list[name].live = live_status;
 	local ts = time();
+	if not prev_live_status and live_status then
+		-- newly added to live list
+		self.list[name].last_live_time = ts;
+	end
 	self.edit_ts_generic = ts;
 	if SKC_Active then self.edit_ts_raid = ts end
+	return;
+end
+
+function SK_List:CheckActivity(name)
+	-- checks activity level
+	-- returns true if still active
+	return ((time() - self.list[name].last_live_time) < self.activity_thresh);
+end
+
+function SK_List:SetActivityThreshold(new_thresh)
+	-- sets new activity threshold (input days, stored as seconds)
+	self.activity_thresh = new_thresh*86400;
 	return;
 end
 
@@ -1236,11 +1258,11 @@ local function OnAddonLoad(addon_name)
 	end
 	if SKC_DB.MSK == nil or HARD_DB_RESET then 
 		SKC_DB.MSK = nil;
-		SKC_Main:Print("WARN","Initialized MSK List");
+		SKC_Main:Print("WARN","Initialized MSK");
 	end
 	if SKC_DB.TSK == nil or HARD_DB_RESET then 
 		SKC_DB.TSK = nil;
-		SKC_Main:Print("WARN","Initialized TSK List");
+		SKC_Main:Print("WARN","Initialized TSK");
 	end
 	if SKC_DB.RaidLog == nil or HARD_DB_RESET then
 		SKC_DB.RaidLog = {};
@@ -1359,13 +1381,15 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 	if db_name == "MSK" or db_name == "TSK" then
 		db_msg = "INIT,"..
 			db_name..","..
-			NilToStr(SKC_DB[db_name].edit_ts_generic);
+			NilToStr(SKC_DB[db_name].edit_ts_generic)..","..
+			NilToStr(SKC_DB[db_name].edit_ts_raid);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		db_msg = "META,"..
 			db_name..","..
 			NilToStr(SKC_DB[db_name].top)..","..
 			NilToStr(SKC_DB[db_name].bottom)..","..
-			NilToStr(SKC_DB[db_name].live_bottom);
+			NilToStr(SKC_DB[db_name].live_bottom)..","..
+			NilToStr(SKC_DB[db_name].last_live_time);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		for node_name,node in pairs(SKC_DB[db_name].list) do
 			db_msg = "DATA,"..
@@ -1382,7 +1406,8 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 	elseif db_name == "GuildData" then
 		db_msg = "INIT,"..
 			db_name..","..
-			NilToStr(SKC_DB.GuildData.edit_ts_generic);
+			NilToStr(SKC_DB.GuildData.edit_ts_generic)..","..
+			NilToStr(SKC_DB.GuildData.edit_ts_raid);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		for name,c_data in pairs(SKC_DB.GuildData.data) do
 			db_msg = "DATA,"..
@@ -1399,7 +1424,8 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 	elseif db_name == "LootPrio" then
 		db_msg = "INIT,"..
 			db_name..","..
-			NilToStr(SKC_DB.LootPrio.edit_ts_generic);
+			NilToStr(SKC_DB.LootPrio.edit_ts_generic)..","..
+			NilToStr(SKC_DB.LootPrio.edit_ts_raid);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");	
 		for item,prio in pairs(SKC_DB.LootPrio.items) do
 			db_msg = "META,"..
@@ -1837,17 +1863,18 @@ local function SyncPushRead(msg)
 	-- if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead "..db_name.." "..part) end
 	if db_name == "MSK" or db_name == "TSK" then
 		if part == "INIT" then
-			local time_stamp = msg_rem;
-			time_stamp = NumOut(time_stamp);
+			local ts_generic, ts_raid = strsplit(",",msg_rem,2);
+			ts_generic = NumOut(ts_generic);
+			ts_raid = NumOut(ts_raid);
 			SKC_DB[db_name] = SK_List:new(nil);
-			SKC_DB[db_name].edit_ts_generic = time_stamp;
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
+			SKC_DB[db_name].edit_ts_generic = ts_generic;
+			SKC_DB[db_name].edit_ts_generic = ts_raid;
 		elseif part == "META" then
-			local top, bottom, live_bottom = strsplit(",",msg_rem,3);
+			local top, bottom, live_bottom, last_live_time = strsplit(",",msg_rem,4);
 			SKC_DB[db_name].top = StrOut(top);
 			SKC_DB[db_name].bottom = StrOut(bottom);
 			SKC_DB[db_name].live_bottom = StrOut(live_bottom);
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
+			SKC_DB[db_name].last_live_time = NumOut(last_live_time);
 		elseif part == "DATA" then
 			local name, above, below, abs_pos, loot_decision, loot_prio, live = strsplit(",",msg_rem,7);
 			name = StrOut(name);
@@ -1866,10 +1893,12 @@ local function SyncPushRead(msg)
 		end
 	elseif db_name == "GuildData" then
 		if part == "INIT" then
-			local time_stamp = msg_rem;
-			time_stamp = NumOut(time_stamp);
+			local ts_generic, ts_raid = strsplit(",",msg_rem,2);
+			ts_generic = NumOut(ts_generic);
+			ts_raid = NumOut(ts_raid);
 			SKC_DB.GuildData = GuildData:new(nil);
-			SKC_DB.GuildData.edit_ts_generic = time_stamp;
+			SKC_DB.GuildData.edit_ts_generic = ts_generic;
+			SKC_DB.GuildData.edit_ts_raid = ts_raid;
 		elseif part == "META" then
 			-- nothing to do
 		elseif part == "DATA" then
@@ -1884,14 +1913,16 @@ local function SyncPushRead(msg)
 			SKC_DB.GuildData.data[name].Activity = StrOut(activity);
 		elseif part == "END" then
 			SKC_Main:ReloadUIMain();
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushSend for "..db_name.." completed") end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
 		end
 	elseif db_name == "LootPrio" then
 		if part == "INIT" then
-			local time_stamp = msg_rem;
-			time_stamp = NumOut(time_stamp);
+			local ts_generic, ts_raid = strsplit(",",msg_rem,2);
+			ts_generic = NumOut(ts_generic);
+			ts_raid = NumOut(ts_raid);
 			SKC_DB.LootPrio = LootPrio:new(nil);
-			SKC_DB.LootPrio.edit_ts_generic = time_stamp;
+			SKC_DB.LootPrio.edit_ts_generic = ts_generic;
+			SKC_DB.LootPrio.edit_ts_generic = ts_raid;
 		elseif part == "META" then
 			local item, sk_list, res, de, open_roll = strsplit(",",msg_rem,5);
 			item = StrOut(item);
@@ -1909,7 +1940,7 @@ local function SyncPushRead(msg)
 				SKC_DB.LootPrio.items[item].prio[idx] = NumOut(plvl);
 			end
 		elseif part == "END" then
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushSend for "..db_name.." completed") end
+			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
 		end
 	end
 	return;
@@ -2058,22 +2089,17 @@ end
 
 local function ActivateSKC()
 	-- master control for wheter or not loot is managed with SKC
-	local loot_method, _, _ = GetLootMethod();
 	local active_prev = SKC_Active;
-	if loot_method == "master" and UnitInRaid("player") ~= nil then
-		-- current player is in raid with master loot method
-		SKC_Active = true;
-	else
-		SKC_Active = false;
-	end
+	-- set activity
+	SKC_Active = SKC_Enable and UnitInRaid("player") ~= nil and GetLootMethod() == "master";
 	-- add message
 	if SKC_Active and not active_prev then
-		SKC_Main:Print("IMPORTANT","Enabled");
+		SKC_Main:Print("IMPORTANT","Active");
 		if IsMasterLooter() then 
 			SKC_Main:Print("NORMAL","Don't forget to add benched characters");
 		end
 	elseif not SKC_Active and active_prev then
-		SKC_Main:Print("IMPORTANT","Disabled");
+		SKC_Main:Print("IMPORTANT","Inactive");
 	end
 end
 
@@ -2109,7 +2135,8 @@ local function SyncRaidAndLiveList()
 	end
 
 	-- Sync SK lists with raid
-	SyncPushSend("MSK",CHANNELS.SYNC_PUSH,"RAID")
+	SyncPushSend("MSK",CHANNELS.SYNC_PUSH,"RAID");
+	SyncPushSend("TSK",CHANNELS.SYNC_PUSH,"RAID");
 
 	-- Reload GUI
 	SKC_Main:ReloadUIMain();
@@ -2193,6 +2220,17 @@ function SKC_Main:ToggleUIMain(force_show)
 	-- Refresh Data
 	PopulateData();
 	menu:SetShown(force_show or not menu:IsShown());
+end
+
+function SKC_Main:Enable(enable_flag)
+	SKC_Enable = enable_flag;
+	if SKC_Enable then
+		SKC_Main:Print("IMPORTANT","Enabled");
+	else
+		SKC_Main:Print("IMPORTANT","Disabled");
+	end
+	ActivateSKC();
+	return;
 end
 
 function SKC_Main:ReloadUIMain()

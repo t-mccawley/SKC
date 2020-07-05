@@ -78,8 +78,8 @@ core.commands = {
     if core.SKC_Main:isML() then
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - adds character to bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - clears bench");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc on|r - enables loot distribution with skc");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc off|r - disables loot distribution with skc");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - enables loot distribution with skc");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - disables loot distribution with skc");
     end
     if core.SKC_Main:isGL() then
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - sets inactivity threshold to # days");
@@ -117,6 +117,22 @@ core.commands = {
       core.SKC_Main:BenchClear()
     end,
   },
+  ["enable"] = function()
+    core.SKC_Main:Enable(true);
+  end,
+  ["disable"] = function()
+    core.SKC_Main:Enable(false);
+  end,
+  ["activity"] = function(new_thresh)
+    new_thresh = tonumber(new_thresh);
+    if new_thresh ~= nil and new_thresh <= 90 then
+      SKC_DB["MSK"]:SetActivityThreshold(new_thresh);
+      SKC_DB["TSK"]:SetActivityThreshold(new_thresh);
+      core.SKC_Main:Print("NORMAL","Activity threshold set to "..new_thresh.." days")
+    else
+      core.SKC_Main:Print("ERROR","Must input a number less than 90 days")
+    end
+  end,
   ["init"] = {
     ["sk"] = function(sk_list)
       -- Initializes the specified SK list with a CSV pasted into a window
