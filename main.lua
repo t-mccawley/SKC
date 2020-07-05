@@ -513,25 +513,23 @@ local UnFilteredCnt = 0; -- defines max count of sk cards to scroll over
 local SK_MessagesSent = 0;
 local SK_MessagesReceived = 0;
 local FilterStates = {
-	MSK = {
-		DPS = true,
-		Healer = true,
-		Tank = true,
-		Live = false,
-		Main = true,
-		Alt = true,
-		Active = true,
-		Inactive = false,
-		Druid = true,
-		Hunter = true,
-		Mage = true,
-		Paladin = UnitFactionGroup("player") == "Alliance",
-		Priest = true;
-		Rogue = true,
-		Shaman = UnitFactionGroup("player") == "Horde",
-		Warlock = true,
-		Warrior = true,
-	},
+	DPS = true,
+	Healer = true,
+	Tank = true,
+	Live = false,
+	Main = true,
+	Alt = true,
+	Active = true,
+	Inactive = false,
+	Druid = true,
+	Hunter = true,
+	Mage = true,
+	Paladin = UnitFactionGroup("player") == "Alliance",
+	Priest = true;
+	Rogue = true,
+	Shaman = UnitFactionGroup("player") == "Horde",
+	Warlock = true,
+	Warrior = true,
 };
 local event_states = { -- tracks if certain events have fired
 	AddonLoaded = false,
@@ -1273,20 +1271,20 @@ local function OnMouseWheel_ScrollFrame(self,delta)
     return
 end
 
-local function UpdateSKUI(sk_list)
+local function UpdateSKUI()
 	-- populates the SK list
+	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 
 	-- Addon not yet loaded, return
 	if not event_states.AddonLoaded then return end
 
 	-- Hide all cards
 	for idx = 1, SKC_DB.Count60 do
-		SKC_UIMain[sk_list].NumberFrame[idx]:Hide();
-		SKC_UIMain[sk_list].NameFrame[idx]:Hide();
+		SKC_UIMain.sk_list.NumberFrame[idx]:Hide();
+		SKC_UIMain.sk_list.NameFrame[idx]:Hide();
 	end
 
 	-- Populate non filtered cards
-	-- SKC_DB[sk_list]:PrintNode(SKC_DB[sk_list].bottom);
 	local print_order = SKC_DB[sk_list]:ReturnList();
 	local idx = 1;
 	for key,name in ipairs(print_order) do
@@ -1296,31 +1294,31 @@ local function UpdateSKUI(sk_list)
 		local activity_tmp = SKC_DB.GuildData:GetData(name,"Activity");
 		local live_tmp = SKC_DB[sk_list]:GetLive(name);
 		-- only add cards to list which are not being filtered
-		if FilterStates[sk_list][class_tmp] and 
-		   FilterStates[sk_list][raid_role_tmp] and
-		   FilterStates[sk_list][status_tmp] and
-		   FilterStates[sk_list][activity_tmp] and
-		   (live_tmp or (not live_tmp and not FilterStates[sk_list].Live)) then
+		if FilterStates[class_tmp] and 
+		   FilterStates[raid_role_tmp] and
+		   FilterStates[status_tmp] and
+		   FilterStates[activity_tmp] and
+		   (live_tmp or (not live_tmp and not FilterStates.Live)) then
 			-- Add number text
-			SKC_UIMain[sk_list].NumberFrame[idx].Text:SetText(SKC_DB[sk_list]:GetPos(name));
-			SKC_UIMain[sk_list].NumberFrame[idx]:Show();
+			SKC_UIMain.sk_list.NumberFrame[idx].Text:SetText(SKC_DB[sk_list]:GetPos(name));
+			SKC_UIMain.sk_list.NumberFrame[idx]:Show();
 			-- Add name text
-			SKC_UIMain[sk_list].NameFrame[idx].Text:SetText(name)
+			SKC_UIMain.sk_list.NameFrame[idx].Text:SetText(name)
 			-- create class color background
-			SKC_UIMain[sk_list].NameFrame[idx].bg:SetColorTexture(CLASSES[class_tmp].color.r,CLASSES[class_tmp].color.g,CLASSES[class_tmp].color.b,0.25);
-			SKC_UIMain[sk_list].NameFrame[idx]:Show();
+			SKC_UIMain.sk_list.NameFrame[idx].bg:SetColorTexture(CLASSES[class_tmp].color.r,CLASSES[class_tmp].color.g,CLASSES[class_tmp].color.b,0.25);
+			SKC_UIMain.sk_list.NameFrame[idx]:Show();
 			-- increment
 			idx = idx + 1;
 		end
 	end
 	UnFilteredCnt = idx; -- 1 larger than max cards
 	-- update scroll length
-	SKC_UIMain[sk_list].SK_List_SF:GetScrollChild():SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,GetScrollMax());
+	SKC_UIMain.sk_list.SK_List_SF:GetScrollChild():SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,GetScrollMax());
 end
 
 local function OnCheck_FilterFunction (self, button)
-	FilterStates["MSK"][self.text:GetText()] = self:GetChecked();
-	UpdateSKUI("MSK");
+	FilterStates[self.text:GetText()] = self:GetChecked();
+	UpdateSKUI();
 	return;
 end
 
@@ -1342,11 +1340,11 @@ local function Refresh_Details(name)
 	return
 end
 
-local function PopulateData(sk_list)
+local function PopulateData()
 	-- Refresh details
 	Refresh_Details(nil);
 	-- Update SK cards
-	UpdateSKUI(sk_list);
+	UpdateSKUI();
 	return;
 end
 
@@ -1461,9 +1459,6 @@ function OnClick_EditDropDownOption(field,value) -- Must be global
 	Refresh_Details(name);
 	-- Reset menu toggle
 	DD_State = 0;
-	-- -- Refresh SK Cards
-	-- local sk_list = "MSK";
-	-- UpdateSKUI(sk_list);
 	-- send GuildData to all players
 	SyncPushSend("GuildData",CHANNELS.SYNC_PUSH,"GUILD",nil);
 	return;
@@ -1545,7 +1540,7 @@ local function OnClick_FullSK(self)
 		-- send SK data to all players
 		SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		-- Refresh SK List
-		UpdateSKUI(sk_list);
+		UpdateSKUI();
 	else
 		SKC_Main:Print("ERROR","Full SK on "..name.." rejected");
 	end
@@ -1577,7 +1572,7 @@ local function OnClick_SingleSK(self)
 		-- send SK data to all players
 		SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		-- Refresh SK List
-		UpdateSKUI(sk_list);
+		UpdateSKUI();
 	else
 		SKC_Main:Print("ERROR","Single SK on "..name.." rejected");
 	end
@@ -1621,7 +1616,7 @@ local function OnClick_NumberCard(self,button)
 			-- send SK data to all players
 			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 			-- Refresh SK List
-			UpdateSKUI(sk_list);
+			UpdateSKUI();
 		else
 			SKC_Main:Print("ERROR","Set SK on "..name.." rejected");
 		end
@@ -2178,13 +2173,26 @@ local function CreateUIBorder(title,width,height)
 
 	return border_key
 end
+
+local function OnClick_SKListCycle()
+	-- cycle through SK lists
+	local sk_list_border_key = "sk_list_border";
+	local sk_list = SKC_UIMain[sk_list_border_key].Title.Text:GetText();
+	if sk_list == "MSK" then
+		SKC_UIMain[sk_list_border_key].Title.Text:SetText("TSK");
+	else
+		SKC_UIMain[sk_list_border_key].Title.Text:SetText("MSK");
+	end
+	-- populate data
+	PopulateData();
+end
 --------------------------------------
 -- SHARED FUNCTIONS
 --------------------------------------
 function SKC_Main:ToggleUIMain(force_show)
 	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
 	-- Refresh Data
-	PopulateData("MSK");
+	PopulateData();
 	menu:SetShown(force_show or not menu:IsShown());
 end
 
@@ -2193,7 +2201,7 @@ function SKC_Main:ReloadUIMain()
 	if SKC_UIMain ~= nil then is_shown = SKC_UIMain:IsShown() end
 	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
 	-- Refresh Data
-	PopulateData("MSK");
+	PopulateData();
 	menu:SetShown(is_shown);
 end
 
@@ -2488,7 +2496,7 @@ function SKC_Main:CreateUIMain()
 			local col = (idx - 1) % 4; -- zero based
 			SKC_UIMain[filter_border_key][value] = CreateFrame("CheckButton", nil, SKC_UIMain[filter_border_key], "UICheckButtonTemplate");
 			SKC_UIMain[filter_border_key][value]:SetSize(25,25);
-			SKC_UIMain[filter_border_key][value]:SetChecked(FilterStates["MSK"][value]);
+			SKC_UIMain[filter_border_key][value]:SetChecked(FilterStates[value]);
 			SKC_UIMain[filter_border_key][value]:SetScript("OnClick",OnCheck_FilterFunction)
 			SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
 			SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
@@ -2501,53 +2509,65 @@ function SKC_Main:CreateUIMain()
 	end
 
 	-- SK List border
-	local sk_list = "MSK";
-	local sk_list_border_key = CreateUIBorder(sk_list,UI_DIMENSIONS.SK_LIST_WIDTH + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST,UI_DIMENSIONS.SK_LIST_HEIGHT + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST);
+	-- Create Border
+	local sk_list_border_key = "sk_list_border";
+	SKC_UIMain[sk_list_border_key] = CreateFrame("Frame",sk_list_border_key,SKC_UIMain,"TranslucentFrameTemplate");
+	SKC_UIMain[sk_list_border_key]:SetSize(UI_DIMENSIONS.SK_LIST_WIDTH + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST,UI_DIMENSIONS.SK_LIST_HEIGHT + 2*UI_DIMENSIONS.SK_LIST_BORDER_OFFST);
+	SKC_UIMain[sk_list_border_key].Bg:SetAlpha(0.0);
+	-- Create Title
+	SKC_UIMain[sk_list_border_key].Title = CreateFrame("Frame",title_key,SKC_UIMain[sk_list_border_key],"TranslucentFrameTemplate");
+	SKC_UIMain[sk_list_border_key].Title:SetSize(UI_DIMENSIONS.SK_TAB_TITLE_CARD_WIDTH,UI_DIMENSIONS.SK_TAB_TITLE_CARD_HEIGHT);
+	SKC_UIMain[sk_list_border_key].Title:SetPoint("BOTTOM",SKC_UIMain[sk_list_border_key],"TOP",0,-20);
+	SKC_UIMain[sk_list_border_key].Title.Text = SKC_UIMain[sk_list_border_key].Title:CreateFontString(nil,"ARTWORK")
+	SKC_UIMain[sk_list_border_key].Title.Text:SetFontObject("GameFontNormal")
+	SKC_UIMain[sk_list_border_key].Title.Text:SetPoint("CENTER",0,0)
+	SKC_UIMain[sk_list_border_key].Title.Text:SetText("MSK")
+	SKC_UIMain[sk_list_border_key].Title:SetScript("OnMouseDown",OnClick_SKListCycle);
 	-- set position
 	SKC_UIMain[sk_list_border_key]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPRIGHT", UI_DIMENSIONS.MAIN_BORDER_PADDING, 0);
 
 	-- Create SK list panel
-	SKC_UIMain[sk_list] = CreateFrame("Frame",sk_list,SKC_UIMain,"InsetFrameTemplate");
-	SKC_UIMain[sk_list]:SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,UI_DIMENSIONS.SK_LIST_HEIGHT);
-	SKC_UIMain[sk_list]:SetPoint("TOP",SKC_UIMain[sk_list_border_key],"TOP",0,-UI_DIMENSIONS.SK_LIST_BORDER_OFFST);
+	SKC_UIMain.sk_list = CreateFrame("Frame",sk_list,SKC_UIMain,"InsetFrameTemplate");
+	SKC_UIMain.sk_list:SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,UI_DIMENSIONS.SK_LIST_HEIGHT);
+	SKC_UIMain.sk_list:SetPoint("TOP",SKC_UIMain[sk_list_border_key],"TOP",0,-UI_DIMENSIONS.SK_LIST_BORDER_OFFST);
 
 	-- Create scroll frame on SK list
-    SKC_UIMain[sk_list].SK_List_SF = CreateFrame("ScrollFrame","SK_List_SF",SKC_UIMain[sk_list],"UIPanelScrollFrameTemplate2");
-    SKC_UIMain[sk_list].SK_List_SF:SetPoint("TOPLEFT",SKC_UIMain[sk_list],"TOPLEFT",0,-2);
-	SKC_UIMain[sk_list].SK_List_SF:SetPoint("BOTTOMRIGHT",SKC_UIMain[sk_list],"BOTTOMRIGHT",0,2);
-	SKC_UIMain[sk_list].SK_List_SF:SetClipsChildren(true);
-	SKC_UIMain[sk_list].SK_List_SF:SetScript("OnMouseWheel",OnMouseWheel_ScrollFrame);
-	SKC_UIMain[sk_list].SK_List_SF.ScrollBar:SetPoint("TOPLEFT",SKC_UIMain[sk_list].SK_List_SF,"TOPRIGHT",-22,-21);
+	SKC_UIMain.sk_list.SK_List_SF = CreateFrame("ScrollFrame","SK_List_SF",SKC_UIMain.sk_list,"UIPanelScrollFrameTemplate2");
+	SKC_UIMain.sk_list.SK_List_SF:SetPoint("TOPLEFT",SKC_UIMain.sk_list,"TOPLEFT",0,-2);
+	SKC_UIMain.sk_list.SK_List_SF:SetPoint("BOTTOMRIGHT",SKC_UIMain.sk_list,"BOTTOMRIGHT",0,2);
+	SKC_UIMain.sk_list.SK_List_SF:SetClipsChildren(true);
+	SKC_UIMain.sk_list.SK_List_SF:SetScript("OnMouseWheel",OnMouseWheel_ScrollFrame);
+	SKC_UIMain.sk_list.SK_List_SF.ScrollBar:SetPoint("TOPLEFT",SKC_UIMain.sk_list.SK_List_SF,"TOPRIGHT",-22,-21);
 
 	-- Create scroll child
-	local scroll_child = CreateFrame("Frame",nil,SKC_UIMain[sk_list].SK_List_SF);
+	local scroll_child = CreateFrame("Frame",nil,SKC_UIMain.sk_list.SK_List_SF);
 	scroll_child:SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,GetScrollMax());
-	SKC_UIMain[sk_list].SK_List_SF:SetScrollChild(scroll_child);
+	SKC_UIMain.sk_list.SK_List_SF:SetScrollChild(scroll_child);
 
 	-- Create SK cards
-	SKC_UIMain[sk_list].NumberFrame = {};
-	SKC_UIMain[sk_list].NameFrame = {};
+	SKC_UIMain.sk_list.NumberFrame = {};
+	SKC_UIMain.sk_list.NameFrame = {};
 	for idx = 1, SKC_DB.Count60 do
 		-- Create number frames
-		SKC_UIMain[sk_list].NumberFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain[sk_list].SK_List_SF,"InsetFrameTemplate");
-		SKC_UIMain[sk_list].NumberFrame[idx]:SetSize(30,UI_DIMENSIONS.SK_CARD_HEIGHT);
-		SKC_UIMain[sk_list].NumberFrame[idx]:SetPoint("TOPLEFT",SKC_UIMain[sk_list].SK_List_SF:GetScrollChild(),"TOPLEFT",8,-1*((idx-1)*(UI_DIMENSIONS.SK_CARD_HEIGHT + UI_DIMENSIONS.SK_CARD_SPACING) + UI_DIMENSIONS.SK_CARD_SPACING));
-		SKC_UIMain[sk_list].NumberFrame[idx].Text = SKC_UIMain[sk_list].NumberFrame[idx]:CreateFontString(nil,"ARTWORK")
-		SKC_UIMain[sk_list].NumberFrame[idx].Text:SetFontObject("GameFontHighlightSmall")
-		SKC_UIMain[sk_list].NumberFrame[idx].Text:SetPoint("CENTER",0,0)
-		SKC_UIMain[sk_list].NumberFrame[idx]:SetScript("OnMouseDown",OnClick_NumberCard);
+		SKC_UIMain.sk_list.NumberFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain.sk_list.SK_List_SF,"InsetFrameTemplate");
+		SKC_UIMain.sk_list.NumberFrame[idx]:SetSize(30,UI_DIMENSIONS.SK_CARD_HEIGHT);
+		SKC_UIMain.sk_list.NumberFrame[idx]:SetPoint("TOPLEFT",SKC_UIMain.sk_list.SK_List_SF:GetScrollChild(),"TOPLEFT",8,-1*((idx-1)*(UI_DIMENSIONS.SK_CARD_HEIGHT + UI_DIMENSIONS.SK_CARD_SPACING) + UI_DIMENSIONS.SK_CARD_SPACING));
+		SKC_UIMain.sk_list.NumberFrame[idx].Text = SKC_UIMain.sk_list.NumberFrame[idx]:CreateFontString(nil,"ARTWORK")
+		SKC_UIMain.sk_list.NumberFrame[idx].Text:SetFontObject("GameFontHighlightSmall")
+		SKC_UIMain.sk_list.NumberFrame[idx].Text:SetPoint("CENTER",0,0)
+		SKC_UIMain.sk_list.NumberFrame[idx]:SetScript("OnMouseDown",OnClick_NumberCard);
 		-- Create named card frames
-		SKC_UIMain[sk_list].NameFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain[sk_list].SK_List_SF,"InsetFrameTemplate");
-		SKC_UIMain[sk_list].NameFrame[idx]:SetSize(UI_DIMENSIONS.SK_CARD_WIDTH,UI_DIMENSIONS.SK_CARD_HEIGHT);
-		SKC_UIMain[sk_list].NameFrame[idx]:SetPoint("TOPLEFT",SKC_UIMain[sk_list].SK_List_SF:GetScrollChild(),"TOPLEFT",43,-1*((idx-1)*(UI_DIMENSIONS.SK_CARD_HEIGHT + UI_DIMENSIONS.SK_CARD_SPACING) + UI_DIMENSIONS.SK_CARD_SPACING));
-		SKC_UIMain[sk_list].NameFrame[idx].Text = SKC_UIMain[sk_list].NameFrame[idx]:CreateFontString(nil,"ARTWORK")
-		SKC_UIMain[sk_list].NameFrame[idx].Text:SetFontObject("GameFontHighlightSmall")
-		SKC_UIMain[sk_list].NameFrame[idx].Text:SetPoint("CENTER",0,0)
+		SKC_UIMain.sk_list.NameFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain.sk_list.SK_List_SF,"InsetFrameTemplate");
+		SKC_UIMain.sk_list.NameFrame[idx]:SetSize(UI_DIMENSIONS.SK_CARD_WIDTH,UI_DIMENSIONS.SK_CARD_HEIGHT);
+		SKC_UIMain.sk_list.NameFrame[idx]:SetPoint("TOPLEFT",SKC_UIMain.sk_list.SK_List_SF:GetScrollChild(),"TOPLEFT",43,-1*((idx-1)*(UI_DIMENSIONS.SK_CARD_HEIGHT + UI_DIMENSIONS.SK_CARD_SPACING) + UI_DIMENSIONS.SK_CARD_SPACING));
+		SKC_UIMain.sk_list.NameFrame[idx].Text = SKC_UIMain.sk_list.NameFrame[idx]:CreateFontString(nil,"ARTWORK")
+		SKC_UIMain.sk_list.NameFrame[idx].Text:SetFontObject("GameFontHighlightSmall")
+		SKC_UIMain.sk_list.NameFrame[idx].Text:SetPoint("CENTER",0,0)
 		-- Add texture for color
-		SKC_UIMain[sk_list].NameFrame[idx].bg = SKC_UIMain[sk_list].NameFrame[idx]:CreateTexture(nil,"BACKGROUND");
-		SKC_UIMain[sk_list].NameFrame[idx].bg:SetAllPoints(true);
+		SKC_UIMain.sk_list.NameFrame[idx].bg = SKC_UIMain.sk_list.NameFrame[idx]:CreateTexture(nil,"BACKGROUND");
+		SKC_UIMain.sk_list.NameFrame[idx].bg:SetAllPoints(true);
 		-- Bind function for click event
-		SKC_UIMain[sk_list].NameFrame[idx]:SetScript("OnMouseDown",OnClick_SK_Card);
+		SKC_UIMain.sk_list.NameFrame[idx]:SetScript("OnMouseDown",OnClick_SK_Card);
 	end
 
 	-- Create details panel
@@ -2695,7 +2715,7 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[decision_border_key].TimerBar:SetValue(0);
 
 	-- Populate Data
-	PopulateData("MSK");
+	PopulateData();
     
 	SKC_UIMain:Hide();
 	return SKC_UIMain;
