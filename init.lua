@@ -132,10 +132,9 @@ core.commands = {
   ["activity"] = function(new_thresh)
     new_thresh = tonumber(new_thresh);
     if new_thresh == nil then
-      core.SKC_Main:Print("NORMAL","Activity threshold is "..SKC_DB.MSK:GetActivityThreshold().." days")
+      core.SKC_Main:Print("NORMAL","Activity threshold is "..SKC_DB.GuildData:GetActivityThreshold().." days")
     elseif new_thresh <= 90 then
-      SKC_DB["MSK"]:SetActivityThreshold(new_thresh);
-      SKC_DB["TSK"]:SetActivityThreshold(new_thresh);
+      SKC_DB.GuildData:SetActivityThreshold(new_thresh);
       core.SKC_Main:Print("NORMAL","Activity threshold set to "..new_thresh.." days")
     else
       core.SKC_Main:Print("ERROR","Must input a number less than 90 days")

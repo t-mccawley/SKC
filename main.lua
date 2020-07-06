@@ -18,7 +18,6 @@ local OVRD_CHARS = { -- characters which are pushed into GuildData
 	Skc = true,
 };
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
-local SYNC_RQST_CHAR_OVRD = "Mctester"; -- override for which character to send sync request to
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
@@ -549,8 +548,15 @@ local event_states = { -- tracks if certain events have fired
 	SyncRequestSent = false,
 	LoginSyncName = {
 		MSK = nil,
+		TSK = nil,
 		GuildData = nil,
 		LootPrio = nil,
+	},
+	SyncCompleted = {
+		MSK = false,
+		TSK = false,
+		GuildData = false,
+		LootPrio = false,
 	},
 };
 local LootTimer = nil; -- current loot timer
@@ -562,6 +568,129 @@ local InitSetup = false; -- used to control for first time setup
 --------------------------------------
 -- CLASS DEFINITIONS / CONSTRUCTORS
 --------------------------------------
+CharacterData = {
+	Name = nil, -- character name
+	Class = nil, -- character class
+	Spec = nil, -- character specialization
+	["Raid Role"] = nil, --DPS, Healer, or Tank
+	["Guild Role"] = nil, --Disenchanter, Guild Banker, or None
+	Status = nil, -- Main or Alt
+	Activity = nil, -- Active or Inactive
+	last_live_time = nil, -- most recent time added to ANY live list
+}
+CharacterData.__index = CharacterData;
+
+function CharacterData:new(character_data,name,class)
+	if character_data == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,CharacterData);
+		obj.Name = name;
+		obj.Class = class;
+		local default_spec = CLASSES[class].DEFAULT_SPEC;
+		obj.Spec = CLASSES[class].Specs[default_spec].val;
+		obj["Raid Role"] = CHARACTER_DATA["Raid Role"].OPTIONS[CLASSES[class].Specs[default_spec].RR].val;
+		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.val;
+		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.val;
+		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.val;
+		obj.last_live_time = time();
+		return obj;
+	else
+		-- set metatable of existing table
+		setmetatable(character_data,CharacterData);
+		return character_data;
+	end
+end
+
+GuildData = {
+	data = {}, --a hash table that maps character name to CharacterData
+	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
+	edit_ts_generic = nil, -- timestamp of most recent edit
+	activity_thresh = nil, -- time threshold [days] which changes activity from Active to Inactive
+};
+GuildData.__index = GuildData;
+
+function GuildData:new(guild_data)
+	if guild_data == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,GuildData);
+		obj.data = {};
+		obj.edit_ts_raid = 0;
+		obj.edit_ts_generic = 0;
+		obj.activity_thresh = 30;
+		return obj;
+	else
+		-- set metatable of existing table and all sub tables
+		setmetatable(guild_data,GuildData);
+		for key,value in pairs(guild_data.data) do
+			guild_data.data[key] = CharacterData:new(value,nil,nil);
+		end
+		return guild_data;
+	end
+end
+
+SK_Node = {
+	above = nil, -- character name above this character in ths SK list
+	below = nil, -- character name below this character in the SK list
+	abs_pos = nil, -- absolute position of this node in the full list
+	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
+	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
+	live = false, -- used to indicate a node that is currently in the live list
+};
+SK_Node.__index = SK_Node;
+
+function SK_Node:new(sk_node,above,below)
+	if sk_node == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,SK_Node);
+		obj.above = above or nil;
+		obj.below = below or nil;
+		obj.abs_pos = 1;
+		obj.loot_decision = LOOT_DECISION.PASS;
+		obj.loot_prio = PRIO_TIERS.PASS;
+		obj.live = false;
+		return obj;
+	else
+		-- set metatable of existing table
+		setmetatable(sk_node,SK_Node);
+		return sk_node;
+	end
+end
+
+SK_List = { --a doubly linked list table where each node is referenced by player name. Each node is a SK_Node:
+	top = nil, -- top name in list
+	bottom = nil, -- bottom name in list
+	live_bottom = nil, -- bottom name in live list
+	list = {}, -- list of SK_Node
+	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
+	edit_ts_generic = nil, -- timestamp of most recent edit
+};
+SK_List.__index = SK_List;
+
+function SK_List:new(sk_list)
+	if sk_list == nil then
+		-- initalize fresh
+		local obj = {};
+		setmetatable(obj,SK_List);
+		obj.top = nil; 
+		obj.bottom = nil;
+		obj.live_bottom = nil;
+		obj.list = {};
+		obj.edit_ts_raid = 0;
+		obj.edit_ts_generic = 0;
+		return obj;
+	else
+		-- set metatable of existing table and all sub tables
+		setmetatable(sk_list,SK_List);
+		for key,value in pairs(sk_list.list) do
+			sk_list.list[key] = SK_Node:new(value,nil,nil);
+		end
+		return sk_list;
+	end
+end
+
 Prio = {
 	sk_list = nil, -- associated sk_list
 	reserved = false, -- true if main prio over alts
@@ -616,193 +745,113 @@ function LootPrio:new(loot_prio)
 		return loot_prio;
 	end
 end
-
-SK_Node = {
-	above = nil, -- character name above this character in ths SK list
-	below = nil, -- character name below this character in the SK list
-	abs_pos = nil, -- absolute position of this node in the full list
-	loot_decision = LOOT_DECISION.PASS, -- character current loot decision (PASS, SK, ROLL)
-	loot_prio = PRIO_TIERS.PASS, -- priority on given loot item
-	live = false, -- used to indicate a node that is currently in the live list
-	last_live_time = nil, -- most recent time added to live list
-};
-SK_Node.__index = SK_Node;
-
-function SK_Node:new(sk_node,above,below)
-	if sk_node == nil then
-		-- initalize fresh
-		local obj = {};
-		setmetatable(obj,SK_Node);
-		obj.above = above or nil;
-		obj.below = below or nil;
-		obj.abs_pos = 1;
-		obj.loot_decision = LOOT_DECISION.PASS;
-		obj.loot_prio = PRIO_TIERS.PASS;
-		obj.live = false;
-		obj.last_live_time = time();
-		return obj;
-	else
-		-- set metatable of existing table
-		setmetatable(sk_node,SK_Node);
-		return sk_node;
-	end
-end
-
-SK_List = { --a doubly linked list table where each node is referenced by player name. Each node is a SK_Node:
-	top = nil, -- top name in list
-	bottom = nil, -- bottom name in list
-	live_bottom = nil, -- bottom name in live list
-	activity_thresh = nil, -- time threshold [days] which changes activity from Active to Inactive
-	list = {}, -- list of SK_Node
-	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
-	edit_ts_generic = nil, -- timestamp of most recent edit
-};
-SK_List.__index = SK_List;
-
-function SK_List:new(sk_list)
-	if sk_list == nil then
-		-- initalize fresh
-		local obj = {};
-		setmetatable(obj,SK_List);
-		obj.top = nil; 
-		obj.bottom = nil;
-		obj.live_bottom = nil;
-		obj.activity_thresh = 30;
-		obj.list = {};
-		obj.edit_ts_raid = 0;
-		obj.edit_ts_generic = 0;
-		return obj;
-	else
-		-- set metatable of existing table and all sub tables
-		setmetatable(sk_list,SK_List);
-		for key,value in pairs(sk_list.list) do
-			sk_list.list[key] = SK_Node:new(value,nil,nil);
-		end
-		return sk_list;
-	end
-end
-
-CharacterData = {
-	Name = nil, -- character name
-	Class = nil, -- character class
-	Spec = nil, -- character specialization
-	["Raid Role"] = nil, --DPS, Healer, or Tank
-	["Guild Role"] = nil, --Disenchanter, Guild Banker, or None
-	Status = nil, -- Main or Alt
-	Activity = nil, -- Active or Inactive
-}
-CharacterData.__index = CharacterData;
-
-function CharacterData:new(character_data,name,class)
-	if character_data == nil then
-		-- initalize fresh
-		local obj = {};
-		setmetatable(obj,CharacterData);
-		obj.Name = name;
-		obj.Class = class;
-		local default_spec = CLASSES[class].DEFAULT_SPEC;
-		obj.Spec = CLASSES[class].Specs[default_spec].val;
-		obj["Raid Role"] = CHARACTER_DATA["Raid Role"].OPTIONS[CLASSES[class].Specs[default_spec].RR].val;
-		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.val;
-		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.val;
-		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.val;
-		return obj;
-	else
-		-- set metatable of existing table
-		setmetatable(character_data,CharacterData);
-		return character_data;
-	end
-end
-
-GuildData = {
-	data = {}, --a hash table that maps character name to CharacterData
-	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
-	edit_ts_generic = nil, -- timestamp of most recent edit
-};
-GuildData.__index = GuildData;
-
-function GuildData:new(guild_data)
-	if guild_data == nil then
-		-- initalize fresh
-		local obj = {};
-		setmetatable(obj,GuildData);
-		obj.data = {};
-		obj.edit_ts_raid = 0;
-		obj.edit_ts_generic = 0;
-		return obj;
-	else
-		-- set metatable of existing table and all sub tables
-		setmetatable(guild_data,GuildData);
-		for key,value in pairs(guild_data.data) do
-			guild_data.data[key] = CharacterData:new(value,nil,nil);
-		end
-		return guild_data;
-	end
-end
 --------------------------------------
 -- CLASS METHODS
 --------------------------------------
-local function GetSpecClassColor(spec_class)
-	-- Returns color code for given SpecClass
-	for class,tbl in pairs(CLASSES) do
-		if string.find(spec_class,class) ~= nil then
-			return tbl.color.r, tbl.color.g, tbl.color.b, tbl.color.hex;
-		end
-	end
-	return nil,nil,nil,nil;
-end
 
-function LootPrio:length()
+function GuildData:length()
 	local count = 0;
-	for _ in pairs(self.items) do count = count + 1 end
+	for _ in pairs(self.data) do count = count + 1 end
 	return count;
 end
 
-function LootPrio:PrintPrio(itemName)
-	-- prints the prio of given item
-	-- prints default if nil
-	local data;
-	if itemName == nil or self.items[itemName] == nil then
-		data = self.items.DEFAULT;
-		SKC_Main:Print("IMPORTANT","DEFAULT")
-	else
-		data = self.items[itemName];
-		SKC_Main:Print("IMPORTANT",itemName)
-	end
-	-- print reserved states
-	if data.reserved then
-		SKC_Main:Print("IMPORTANT","Reserved: TRUE");
-	else
-		SKC_Main:Print("IMPORTANT","Reserved: FALSE");
-	end
-	-- print open roll
-	if data.open_roll then
-		SKC_Main:Print("IMPORTANT","Open Roll: TRUE");
-	else
-		SKC_Main:Print("IMPORTANT","Open Roll: FALSE");
-	end
-	-- create map from prio level to concatenated string of SpecClass's
-	local spec_class_map = {};
-	for i = 1,6 do
-		spec_class_map[i] = {};
-	end
-	for spec_class_idx,plvl in pairs(data.prio) do
-		-- SKC_Main:Print("NORMAL","Prio");
-		-- SKC_Main:Print("NORMAL","Prio Tier ["..key.."]: "..value);
-		spec_class_map[plvl][#(spec_class_map[plvl]) + 1] = SPEC_CLASS[spec_class_idx];
-	end
-	for plvl,tbl in ipairs(spec_class_map) do
-		if plvl == 6 then
-			SKC_Main:Print("IMPORTANT","OS Prio:");
-		else
-			SKC_Main:Print("IMPORTANT","MS Prio "..plvl..":");
-		end
-		for _,spec_class in pairs(tbl) do
-			local hex = select(4, GetSpecClassColor(spec_class));
-			DEFAULT_CHAT_FRAME:AddMessage("         "..string.format("|cff%s%s|r",hex:upper(),spec_class));
-		end
-	end
+function GuildData:Add(name,class)
+	self.data[name] = CharacterData:new(nil,name,class);
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
 	return;
+end
+
+function GuildData:GetData(name,field)
+	-- returns text for a given name and field
+	local value = self.data[name][field];
+	if field == "Name" or field == "Class" then
+		return value;
+	elseif field == "Spec" then
+		local class = self.data[name].Class;
+		for _,data in pairs(CLASSES[class].Specs) do
+			if data.val == value then
+				return data.text;
+			end
+		end
+	else
+		for _,data in pairs(CHARACTER_DATA[field].OPTIONS) do
+			if data.val == value then
+				return data.text;
+			end
+		end
+	end
+end
+
+function GuildData:SetData(name,field,value)
+	-- assigns data based on field and string name of value
+	if field == "Name" or field == "Class" then
+		self.data[name][field] = value;
+	elseif field == "Spec" then
+		local class = self.data[name].Class;
+		self.data[name][field] = CLASSES[class].Specs[value].val;
+	elseif field == "Activity" then
+		local curr_str = self:GetData(name,field);
+		local new_str = CHARACTER_DATA[field].OPTIONS[value].text
+		if curr_str == "Active" and new_str == "Inactive" then
+			SKC_DB.GuildData:SetLastLiveTime(name,time()-SKC_DB.GuildData:GetActivityThreshold()*DAYS_TO_SECS);
+		elseif curr_str == "Inactive" and new_str == "Active" then
+			SKC_DB.GuildData:SetLastLiveTime(name,time());
+		end
+		self.data[name][field] = CHARACTER_DATA[field].OPTIONS[value].val;
+	else
+		self.data[name][field] = CHARACTER_DATA[field].OPTIONS[value].val;
+	end
+	-- update raid role
+	if field == "Spec" then
+		local class = self.data[name].Class;
+		local spec = value;
+		local raid_role = CLASSES[class].Specs[spec].RR;
+		self.data[name]["Raid Role"] = CHARACTER_DATA["Raid Role"].OPTIONS[raid_role].val;
+	end
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if SKC_Active then self.edit_ts_raid = ts end
+	return;
+end
+
+function GuildData:Exists(name)
+	-- returns true if given name is in data
+	return self.data[name] ~= nil;
+end
+
+function GuildData:SetLastLiveTime(name,ts)
+	self.data[name].last_live_time = ts;
+	return;
+end
+
+function GuildData:CalcActivity(name)
+	-- calculate time difference (in seconds)
+	return ((time() - self.data[name].last_live_time));
+end
+
+function GuildData:CheckActivity(name)
+	-- checks activity level
+	-- returns true if still active
+	return (self:CalcActivity(name) < self.activity_thresh*DAYS_TO_SECS);
+end
+
+function GuildData:SetActivityThreshold(new_thresh)
+	-- sets new activity threshold (input days, stored as seconds)
+	self.activity_thresh = new_thresh;
+	return;
+end
+
+function GuildData:GetActivityThreshold()
+	-- returns activity threshold in days
+	return self.activity_thresh;
+end
+
+function SK_List:length()
+	local count = 0;
+	for _ in pairs(self.list) do count = count + 1 end
+	return count;
 end
 
 function SK_List:GetPos(name)
@@ -1087,108 +1136,76 @@ function SK_List:SetLive(name,live_status)
 	local prev_live_status = self.list[name].live;
 	self.list[name].live = live_status;
 	local ts = time();
-	if not prev_live_status and live_status then
-		-- newly added to live list
-		self.list[name].last_live_time = ts;
-	end
 	self.edit_ts_generic = ts;
 	if SKC_Active then self.edit_ts_raid = ts end
 	return;
-end
-
-function SK_List:CalcActivity(name)
-	-- calculate time difference (in seconds)
-	return ((time() - self.list[name].last_live_time));
-end
-
-function SK_List:CheckActivity(name)
-	-- checks activity level
-	-- returns true if still active
-	return (self:CalcActivity(name) < self.activity_thresh*DAYS_TO_SECS);
-end
-
-function SK_List:SetActivityThreshold(new_thresh)
-	-- sets new activity threshold (input days, stored as seconds)
-	self.activity_thresh = new_thresh;
-	return;
-end
-
-function SK_List:GetActivityThreshold(new_thresh)
-	-- returns activity threshold in days
-	return self.activity_thresh;
 end
 
 function SK_List:GetLive(name)
 	return self.list[name].live;
 end
 
-function SK_List:length()
+function LootPrio:length()
 	local count = 0;
-	for _ in pairs(self.list) do count = count + 1 end
+	for _ in pairs(self.items) do count = count + 1 end
 	return count;
 end
 
-function GuildData:length()
-	local count = 0;
-	for _ in pairs(self.data) do count = count + 1 end
-	return count;
-end
-
-function GuildData:Add(name,class)
-	self.data[name] = CharacterData:new(nil,name,class);
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
-	return;
-end
-
-function GuildData:GetData(name,field)
-	-- returns text for a given name and field
-	local value = self.data[name][field];
-	if field == "Name" or field == "Class" then
-		return value;
-	elseif field == "Spec" then
-		local class = self.data[name].Class;
-		for _,data in pairs(CLASSES[class].Specs) do
-			if data.val == value then
-				return data.text;
-			end
-		end
-	else
-		for _,data in pairs(CHARACTER_DATA[field].OPTIONS) do
-			if data.val == value then
-				return data.text;
-			end
+local function GetSpecClassColor(spec_class)
+	-- Returns color code for given SpecClass
+	for class,tbl in pairs(CLASSES) do
+		if string.find(spec_class,class) ~= nil then
+			return tbl.color.r, tbl.color.g, tbl.color.b, tbl.color.hex;
 		end
 	end
+	return nil,nil,nil,nil;
 end
 
-function GuildData:SetData(name,field,value)
-	-- assigns data based on field and string name of value
-	if field == "Name" or field == "Class" then
-		self.data[name][field] = value;
-	elseif field == "Spec" then
-		local class = self.data[name].Class;
-		self.data[name][field] = CLASSES[class].Specs[value].val;
+function LootPrio:PrintPrio(itemName)
+	-- prints the prio of given item
+	-- prints default if nil
+	local data;
+	if itemName == nil or self.items[itemName] == nil then
+		data = self.items.DEFAULT;
+		SKC_Main:Print("IMPORTANT","DEFAULT")
 	else
-		self.data[name][field] = CHARACTER_DATA[field].OPTIONS[value].val;
+		data = self.items[itemName];
+		SKC_Main:Print("IMPORTANT",itemName)
 	end
-	-- update raid role
-	if field == "Spec" then
-		local class = self.data[name].Class;
-		local spec = value;
-		local raid_role = CLASSES[class].Specs[spec].RR;
-		self.data[name]["Raid Role"] = CHARACTER_DATA["Raid Role"].OPTIONS[raid_role].val;
+	-- print reserved states
+	if data.reserved then
+		SKC_Main:Print("IMPORTANT","Reserved: TRUE");
+	else
+		SKC_Main:Print("IMPORTANT","Reserved: FALSE");
 	end
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
+	-- print open roll
+	if data.open_roll then
+		SKC_Main:Print("IMPORTANT","Open Roll: TRUE");
+	else
+		SKC_Main:Print("IMPORTANT","Open Roll: FALSE");
+	end
+	-- create map from prio level to concatenated string of SpecClass's
+	local spec_class_map = {};
+	for i = 1,6 do
+		spec_class_map[i] = {};
+	end
+	for spec_class_idx,plvl in pairs(data.prio) do
+		-- SKC_Main:Print("NORMAL","Prio");
+		-- SKC_Main:Print("NORMAL","Prio Tier ["..key.."]: "..value);
+		spec_class_map[plvl][#(spec_class_map[plvl]) + 1] = SPEC_CLASS[spec_class_idx];
+	end
+	for plvl,tbl in ipairs(spec_class_map) do
+		if plvl == 6 then
+			SKC_Main:Print("IMPORTANT","OS Prio:");
+		else
+			SKC_Main:Print("IMPORTANT","MS Prio "..plvl..":");
+		end
+		for _,spec_class in pairs(tbl) do
+			local hex = select(4, GetSpecClassColor(spec_class));
+			DEFAULT_CHAT_FRAME:AddMessage("         "..string.format("|cff%s%s|r",hex:upper(),spec_class));
+		end
+	end
 	return;
-end
-
-function GuildData:Exists(name)
-	-- returns true if given name is in data
-	return self.data[name] ~= nil;
 end
 --------------------------------------
 -- LOCAL FUNCTIONS
@@ -1254,6 +1271,16 @@ local function StripRealmName(full_name)
 	return(name);
 end
 
+local function UpdatedActivity(name)
+	-- check if activity exceeds threshold and updates if different
+	local activity = "Inactive";
+	if SKC_DB.GuildData:CheckActivity(name) then activity = "Active" end
+	if SKC_DB.GuildData:GetData(name,"Activity") ~= activity then
+		if not init then SKC_Main:Print("IMPORTANT",name.." set to "..activity) end
+		SKC_DB.GuildData:SetData(name,"Activity",activity);
+	end
+end
+
 local function FetchGuildInfo(init)
 	if not SKC_Main:isGL() then return end -- only fetch data if guild leader
 	if init then SKC_Main:Print("WARN","Populating fresh GuildData") end
@@ -1273,14 +1300,8 @@ local function FetchGuildInfo(init)
 				SKC_DB.TSK:PushBack(name);
 				if not init then SKC_Main:Print("NORMAL",name.." added to databases") end
 			end
-			-- check activity level
-			-- update if different
-			local activity = "Inactive";
-			if SKC_DB.MSK:CheckActivity(name) then activity = "Active" end
-			if SKC_DB.GuildData:GetData(name,"Activity") ~= activity then
-				if not init then SKC_Main:Print("IMPORTANT",name.." set to "..activity) end
-				SKC_DB.GuildData:SetData(name,"Activity",activity);
-			end
+			-- check activity level and update
+			UpdatedActivity(name);
 		end
 	end
 	if init then
@@ -1405,7 +1426,6 @@ local function OnCheck_FilterFunction (self, button)
 end
 
 local function Refresh_Details(name)
-	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Last Raid"};
 	if name == nil then
 		-- reset
@@ -1418,14 +1438,17 @@ local function Refresh_Details(name)
 		for _,field in pairs(fields) do
 			if field == "Last Raid" then
 				-- calculate # days since last active
-				local days = math.floor(SKC_DB[sk_list]:CalcActivity(name)/DAYS_TO_SECS);
+				local days = math.floor(SKC_DB.GuildData:CalcActivity(name)/DAYS_TO_SECS);
 				SKC_UIMain["Details_border"][field].Data:SetText(days.." days ago");
 			else
 				SKC_UIMain["Details_border"][field].Data:SetText(SKC_DB.GuildData:GetData(name,field));
 			end
 		end
+		-- updated class color
 		local class_color = CLASSES[SKC_DB.GuildData:GetData(name,"Class")].color
 		SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(class_color.r,class_color.g,class_color.b,1.0);
+		-- update last raid time
+		UpdatedActivity(name);
 	end
 	return
 end
@@ -1456,8 +1479,7 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 			db_name..","..
 			NilToStr(SKC_DB[db_name].top)..","..
 			NilToStr(SKC_DB[db_name].bottom)..","..
-			NilToStr(SKC_DB[db_name].live_bottom)..","..
-			NilToStr(SKC_DB[db_name].last_live_time);
+			NilToStr(SKC_DB[db_name].live_bottom);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		for node_name,node in pairs(SKC_DB[db_name].list) do
 			db_msg = "DATA,"..
@@ -1475,18 +1497,20 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 		db_msg = "INIT,"..
 			db_name..","..
 			NilToStr(SKC_DB.GuildData.edit_ts_generic)..","..
-			NilToStr(SKC_DB.GuildData.edit_ts_raid);
+			NilToStr(SKC_DB.GuildData.edit_ts_raid)..","..
+			NilToStr(SKC_DB.GuildData.activity_thresh);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
-		for name,c_data in pairs(SKC_DB.GuildData.data) do
+		for guildie_name,c_data in pairs(SKC_DB.GuildData.data) do
 			db_msg = "DATA,"..
 				db_name..","..
-				NilToStr(name)..","..
+				NilToStr(guildie_name)..","..
 				NilToStr(c_data.Class)..","..
 				NilToStr(c_data.Spec)..","..
 				NilToStr(c_data["Raid Role"])..","..
 				NilToStr(c_data["Guild Role"])..","..
 				NilToStr(c_data.Status)..","..
-				NilToStr(c_data.Activity);
+				NilToStr(c_data.Activity)..","..
+				NilToStr(c_data.last_live_time);
 			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		end
 	elseif db_name == "LootPrio" then
@@ -1601,7 +1625,7 @@ local function OnClick_SK_Card(self, button)
 		SKC_UIMain["Details_border"]["Spec"].Btn:Enable();
 		SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
 		SKC_UIMain["Details_border"]["Status"].Btn:Enable();
-		-- SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
+		SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
 		if SKC_Main:isGL() or SKC_Main:isML() then
 			SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
 			SKC_UIMain["Details_border"].FullSK_Btn:Enable();
@@ -1922,12 +1946,95 @@ local function DetermineLootPrio(name)
 	-- Returns loot prio for given character for given SK item
 	-- Alt's have loot SpecClass tier + 100 (only works so long as max # tiers < 100)
 	-- OS (spec not found in prio doc) is equal to max tier + 1
-	
 end
+
+-- -- send target database to name
+-- if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushSend for "..db_name.." through "..game_channel) end
+-- if name ~= nil then
+-- 	name = StripRealmName(name);
+-- 	if COMM_VERBOSE then SKC_Main:Print("WARN","name: "..name) end
+-- end
+-- local db_msg = nil;
+-- if db_name == "MSK" or db_name == "TSK" then
+-- 	db_msg = "INIT,"..
+-- 		db_name..","..
+-- 		NilToStr(SKC_DB[db_name].edit_ts_generic)..","..
+-- 		NilToStr(SKC_DB[db_name].edit_ts_raid);
+-- 	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
+-- 	db_msg = "META,"..
+-- 		db_name..","..
+-- 		NilToStr(SKC_DB[db_name].top)..","..
+-- 		NilToStr(SKC_DB[db_name].bottom)..","..
+-- 		NilToStr(SKC_DB[db_name].live_bottom)..","..
+-- 		NilToStr(SKC_DB[db_name].last_live_time);
+-- 	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
+-- 	for node_name,node in pairs(SKC_DB[db_name].list) do
+-- 		db_msg = "DATA,"..
+-- 			db_name..","..
+-- 			NilToStr(node_name)..","..
+-- 			NilToStr(node.above)..","..
+-- 			NilToStr(node.below)..","..
+-- 			NilToStr(node.abs_pos)..","..
+-- 			NilToStr(node.loot_decision)..","..
+-- 			NilToStr(node.loot_prio)..","..
+-- 			BoolToStr(node.live);
+-- 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
+-- 	end
+-- elseif db_name == "GuildData" then
+-- 	db_msg = "INIT,"..
+-- 		db_name..","..
+-- 		NilToStr(SKC_DB.GuildData.edit_ts_generic)..","..
+-- 		NilToStr(SKC_DB.GuildData.edit_ts_raid);
+-- 	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
+-- 	for name,c_data in pairs(SKC_DB.GuildData.data) do
+-- 		db_msg = "DATA,"..
+-- 			db_name..","..
+-- 			NilToStr(name)..","..
+-- 			NilToStr(c_data.Class)..","..
+-- 			NilToStr(c_data.Spec)..","..
+-- 			NilToStr(c_data["Raid Role"])..","..
+-- 			NilToStr(c_data["Guild Role"])..","..
+-- 			NilToStr(c_data.Status)..","..
+-- 			NilToStr(c_data.Activity);
+-- 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
+-- 	end
+-- elseif db_name == "LootPrio" then
+-- 	db_msg = "INIT,"..
+-- 		db_name..","..
+-- 		NilToStr(SKC_DB.LootPrio.edit_ts_generic)..","..
+-- 		NilToStr(SKC_DB.LootPrio.edit_ts_raid);
+-- 	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");	
+-- 	for item,prio in pairs(SKC_DB.LootPrio.items) do
+-- 		db_msg = "META,"..
+-- 			db_name..","..
+-- 			NilToStr(item)..","..
+-- 			NilToStr(prio.sk_list)..","..
+-- 			BoolToStr(prio.reserved)..","..
+-- 			BoolToStr(prio.DE)..","..
+-- 			BoolToStr(prio.open_roll);
+-- 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
+-- 		db_msg = "DATA,"..db_name..","..item..",";
+-- 		for _,plvl in ipairs(prio) do
+-- 			db_msg = db_msg..","..plvl;
+-- 		end
+-- 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
+-- 	end
+-- end
+-- ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,"END,"..db_name..", ,",game_channel,name,"main_queue"); --awkward spacing to make csv parsing work
+-- return;
 
 local function SyncPushRead(msg)
 	-- Write data to given datbase
 	local part, db_name, msg_rem = strsplit(",",msg,3);
+	if part == "INIT" then
+		if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part) end
+		event_states.SyncCompleted[db_name] = false;
+	end
+	if part ~= "INIT" and event_states.SyncCompleted[db_name] then
+		-- getting data mid sync, ignore these
+		if COMM_VERBOSE then SKC_Main:Print("ERROR","REJECT SyncPushRead for "..db_name..", "..part) end
+		return;
+	end
 	if db_name == "MSK" or db_name == "TSK" then
 		if part == "INIT" then
 			local ts_generic, ts_raid = strsplit(",",msg_rem,2);
@@ -1937,15 +2044,13 @@ local function SyncPushRead(msg)
 			SKC_DB[db_name].edit_ts_generic = ts_generic;
 			SKC_DB[db_name].edit_ts_generic = ts_raid;
 		elseif part == "META" then
-			local top, bottom, live_bottom, last_live_time = strsplit(",",msg_rem,4);
+			local top, bottom, live_bottom = strsplit(",",msg_rem,3);
 			SKC_DB[db_name].top = StrOut(top);
 			SKC_DB[db_name].bottom = StrOut(bottom);
 			SKC_DB[db_name].live_bottom = StrOut(live_bottom);
-			SKC_DB[db_name].last_live_time = NumOut(last_live_time);
 		elseif part == "DATA" then
 			local name, above, below, abs_pos, loot_decision, loot_prio, live = strsplit(",",msg_rem,7);
 			name = StrOut(name);
-			-- if COMM_VERBOSE then SKC_Main:Print("WARN","DATA: "..msg_rem) end
 			SKC_DB[db_name].list[name] = SK_Node:new(nil,nil,nil);
 			SKC_DB[db_name].list[name].above = StrOut(above);
 			SKC_DB[db_name].list[name].below = StrOut(below);
@@ -1953,34 +2058,33 @@ local function SyncPushRead(msg)
 			SKC_DB[db_name].list[name].loot_decision = NumOut(loot_decision);
 			SKC_DB[db_name].list[name].loot_prio = NumOut(loot_prio);
 			SKC_DB[db_name].list[name].live = BoolOut(live);
-			-- if COMM_VERBOSE then SKC_Main:Print("WARN",SKC_DB[db_name].list[name].above.."-->"..name.."-->"..SKC_DB[db_name].list[name].below) end
 		elseif part == "END" then
-			SKC_Main:ReloadUIMain();
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
+			SKC_Main:ReloadUIMain();		
 		end
 	elseif db_name == "GuildData" then
 		if part == "INIT" then
-			local ts_generic, ts_raid = strsplit(",",msg_rem,2);
+			local ts_generic, ts_raid, activity_thresh = strsplit(",",msg_rem,3);
 			ts_generic = NumOut(ts_generic);
 			ts_raid = NumOut(ts_raid);
 			SKC_DB.GuildData = GuildData:new(nil);
 			SKC_DB.GuildData.edit_ts_generic = ts_generic;
 			SKC_DB.GuildData.edit_ts_raid = ts_raid;
+			SKC_DB.GuildData.activity_thresh = NumOut(activity_thresh);
 		elseif part == "META" then
 			-- nothing to do
 		elseif part == "DATA" then
-			local name, class, spec, rr, gr, status, activity = strsplit(",",msg_rem,7);
+			local name, class, spec, rr, gr, status, activity, last_live_time = strsplit(",",msg_rem,8);
 			name = StrOut(name);
 			class = StrOut(class);
 			SKC_DB.GuildData.data[name] = CharacterData:new(nil,name,class);
-			SKC_DB.GuildData.data[name].Spec = StrOut(spec);
-			SKC_DB.GuildData.data[name]["Raid Role"] = StrOut(rr);
-			SKC_DB.GuildData.data[name]["Guild Role"] = StrOut(gr);
-			SKC_DB.GuildData.data[name].Status = StrOut(status);
-			SKC_DB.GuildData.data[name].Activity = StrOut(activity);
+			SKC_DB.GuildData.data[name].Spec = NumOut(spec);
+			SKC_DB.GuildData.data[name]["Raid Role"] = NumOut(rr);
+			SKC_DB.GuildData.data[name]["Guild Role"] = NumOut(gr);
+			SKC_DB.GuildData.data[name].Status = NumOut(status);
+			SKC_DB.GuildData.data[name].Activity = NumOut(activity);
+			SKC_DB.GuildData.data[name].last_live_time = NumOut(last_live_time);
 		elseif part == "END" then
 			SKC_Main:ReloadUIMain();
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
 		end
 	elseif db_name == "LootPrio" then
 		if part == "INIT" then
@@ -2007,14 +2111,21 @@ local function SyncPushRead(msg)
 				SKC_DB.LootPrio.items[item].prio[idx] = NumOut(plvl);
 			end
 		elseif part == "END" then
-			if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
 		end
+	end
+	if part == "END" then
+		if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
+		event_states.SyncCompleted[db_name] = true 
 	end
 	return;
 end
 
 local function LoginSyncCheckRead(db_name,their_edit_ts_raid,their_edit_ts_generic,name,addon_channel)
 	-- Arbitrate based on timestamp to push or pull database
+	if not event_states.SyncCompleted[db_name] then
+		if COMM_VERBOSE then SKC_Main:Print("ERROR","LoginSyncCheckRead rejected, sync not completed for "..db_name) end
+		return;
+	end
 	local my_edit_ts_raid = SKC_DB[db_name].edit_ts_raid;
 	local my_edit_ts_generic = SKC_DB[db_name].edit_ts_generic;
 	if COMM_VERBOSE then 
@@ -2151,6 +2262,10 @@ local function LoginSyncCheckSend()
 		if COMM_VERBOSE then SKC_Main:Print("WARN",msg) end
 	end
 	event_states.SyncRequestSent = true;
+	event_states.SyncCompleted.MSK = true;
+	event_states.SyncCompleted.TSK = true;
+	event_states.SyncCompleted.GuildData = true;
+	event_states.SyncCompleted.LootPrio = true;
 	return;
 end
 
@@ -2705,7 +2820,8 @@ function SKC_Main:CreateUIMain()
 		SKC_UIMain[details_border_key][value].Data:SetPoint("CENTER",SKC_UIMain[details_border_key][value].Field,"RIGHT",45,0);
 		if idx == 3 or 
 		   idx == 5 or
-		   idx == 6 then
+		   idx == 6 or
+		   idx == 7 then
 			-- edit buttons
 			SKC_UIMain[details_border_key][value].Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
 			SKC_UIMain[details_border_key][value].Btn:SetID(idx);
@@ -2850,7 +2966,7 @@ local function EventHandler(self,event,...)
 		InitSetup = false;
 		event_states.GuildRosterUpdated = true;
 		-- Kick off timer to send sync request
-		if not HARD_DB_RESET then C_Timer.After(4,LoginSyncCheckSend) end;
+		if not HARD_DB_RESET then C_Timer.After(2,LoginSyncCheckSend) end;
 	elseif event == "RAID_ROSTER_UPDATE" then
 		SyncRaidAndLiveList();
 	elseif event == "PARTY_LOOT_METHOD_CHANGED" then
