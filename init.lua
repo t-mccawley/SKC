@@ -74,6 +74,7 @@ core.commands = {
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - toggles SKC GUI");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item name>|r - displays loot prio for given item");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc log|r - export skc log (CSV) for past 90 days");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - resets SKC data and re-sync with guild");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - displays bench");
     if core.SKC_Main:isML() then
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - adds character to bench");
@@ -103,6 +104,10 @@ core.commands = {
   ["log"] = function() 
     -- opens UI to export log
     core.SKC_Main:ExportLog(); 
+  end,
+  ["reset"] = function() 
+    -- resets and re-syncs data
+    core.SKC_Main:ResetData();
   end,
   ["bench"] = {
     ["show"] = function()

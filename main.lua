@@ -22,6 +22,7 @@ local SYNC_RQST_CHAR_OVRD = "Mctester"; -- override for which character to send 
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
+local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
 	MAIN_WIDTH = 920,
 	MAIN_HEIGHT = 455,
@@ -540,7 +541,7 @@ local event_states = { -- tracks if certain events have fired
 		MSK = nil,
 		GuildData = nil,
 		LootPrio = nil,
-	}
+	},
 };
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
@@ -1085,15 +1086,20 @@ function SK_List:SetLive(name,live_status)
 	return;
 end
 
+function SK_List:CalcActivity(name)
+	-- calculate time difference (in seconds)
+	return ((time() - self.list[name].last_live_time));
+end
+
 function SK_List:CheckActivity(name)
 	-- checks activity level
 	-- returns true if still active
-	return ((time() - self.list[name].last_live_time) < self.activity_thresh);
+	return (self:CalcActivity(name) < self.activity_thresh);
 end
 
 function SK_List:SetActivityThreshold(new_thresh)
 	-- sets new activity threshold (input days, stored as seconds)
-	self.activity_thresh = new_thresh*86400;
+	self.activity_thresh = new_thresh*DAYS_TO_SECS;
 	return;
 end
 
@@ -1207,11 +1213,13 @@ local function StripRealmName(full_name)
 end
 
 local function FetchGuildInfo(init)
+	if not SKC_Main:isGL() then return end -- only fetch data if guild leader
 	if init then SKC_Main:Print("WARN","Populating fresh GuildData") end
 	SKC_DB.InGuild = IsInGuild();
 	SKC_DB.NumGuildMembers = GetNumGuildMembers()
 	-- Determine # of level 60s and add any new 60s
 	local cnt = 0;
+	local sk_lists = {"MSK","TSK"};
 	for idx = 1, SKC_DB.NumGuildMembers do
 		local full_name, _, _, level, class = GetGuildRosterInfo(idx);
 		local name = StripRealmName(full_name);
@@ -1230,7 +1238,20 @@ local function FetchGuildInfo(init)
 					SKC_DB.TSK.edit_ts_generic = 0;
 					SKC_DB.TSK.edit_ts_raid = 0;
 				end
-				-- SKC_Main:Print("NORMAL","["..cnt.."] "..name.." added to database!");
+				SKC_Main:Print("NORMAL",name.." added to GuildData");
+			end
+			-- check activity level
+			-- update if different
+			for _,sk_list in ipairs(sk_lists) do
+				local activity = SKC_DB[sk_list]:CheckActivity(name);
+				if activity ~= SKC_DB.GuildData:GetData(name,"Activity") then
+					GuildData:SetData(name,"Activity",activity);
+					if activity then
+						SKC_Main:Print("IMPORTANT",name.." set to Active");
+					else
+						SKC_Main:Print("IMPORTANT",name.." set to Inactive");
+					end
+				end
 			end
 		end
 	end
@@ -1241,6 +1262,8 @@ end
 
 local function OnAddonLoad(addon_name)
 	if addon_name ~= "SKC" then return end
+	-- activate
+	SKC_Main:Enable(true);
 	-- Initialize DBs 
 	if SKC_DB == nil or HARD_DB_RESET then
 		if HARD_DB_RESET then SKC_Main:Print("IMPORTANT","HARD_DB_RESET") end
@@ -1345,8 +1368,9 @@ local function OnCheck_FilterFunction (self, button)
 end
 
 local function Refresh_Details(name)
-	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity"};
+	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Last Raid"};
 	if name == nil then
+		-- reset
 		for _,field in pairs(fields) do
 			SKC_UIMain["Details_border"][field].Data:SetText(nil);
 		end
@@ -1354,7 +1378,13 @@ local function Refresh_Details(name)
 		SKC_UIMain["Details_border"]["Name"].Data:SetText("            Click on a character."); -- lol, so elegant
 	else
 		for _,field in pairs(fields) do
-			SKC_UIMain["Details_border"][field].Data:SetText(SKC_DB.GuildData:GetData(name,field));
+			if field == "Last Raid" then
+				-- calculate # days since last active
+				local days = math.floor(SKC_DB:CalcActivity(name)/DAYS_TO_SECS);
+				SKC_UIMain["Details_border"][field].Data:SetText(days.." days ago");
+			else
+				SKC_UIMain["Details_border"][field].Data:SetText(SKC_DB.GuildData:GetData(name,field));
+			end
 		end
 		local class_color = CLASSES[SKC_DB.GuildData:GetData(name,"Class")].color
 		SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(class_color.r,class_color.g,class_color.b,1.0);
@@ -1860,7 +1890,6 @@ end
 local function SyncPushRead(msg)
 	-- Write data to given datbase
 	local part, db_name, msg_rem = strsplit(",",msg,3);
-	-- if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead "..db_name.." "..part) end
 	if db_name == "MSK" or db_name == "TSK" then
 		if part == "INIT" then
 			local ts_generic, ts_raid = strsplit(",",msg_rem,2);
@@ -2014,7 +2043,7 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		end
 	elseif prefix == CHANNELS.LOOT then
 		--[[ 
-			Send: Send loot items for which each player is elligible to make a decision on
+			Send (SendLoot): Send loot items for which each player is elligible to make a decision on
 			Read: Initiate loot decision GUI for player
 		--]]
 		if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: LOOT, sender: "..sender) end
@@ -2143,8 +2172,8 @@ local function SyncRaidAndLiveList()
 	return;
 end
 
-local function InitiateLootDecision()
-	-- Scans items / characters and initiates loot decisions for valid characters
+local function SendLoot()
+	-- Scans items / characters and sends loot item to elligible characters
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
 	if not IsMasterLooter() then return end
 	-- Make loot decision active
@@ -2161,7 +2190,7 @@ local function InitiateLootDecision()
 	local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
 	local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot)
 	-- Only perform SK for items of rarity threshold or higher
-	if lootType == 1 and lootRarity >= LOOT_DECISION.OPTIONS.RARITY_THRESHOLD then
+	if lootType == 1 and lootRarity >= LOOT_DECISION.OPTIONS.RARITY_THRESHOLD then --TODO make legendary items go instantly to ML
 		-- Valid item
 		SK_Item = GetLootSlotLink(i_loot);
 		SKC_Main:Print("NORMAL","Distributing "..SK_Item);
@@ -2171,7 +2200,7 @@ local function InitiateLootDecision()
 			if char_name ~= nil then
 				-- send loot distribution initiation
 				SK_MessagesSent = SK_MessagesSent + 1;
-				ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DIST,LOOT_DECSK_Item,"WHISPER",char_name,"main_queue");
+				ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,SK_Item,"WHISPER",char_name,"main_queue");
 			end
 		end
 	end
@@ -2231,6 +2260,13 @@ function SKC_Main:Enable(enable_flag)
 	end
 	ActivateSKC();
 	return;
+end
+
+function SKC_Main:ResetData()
+	HARD_DB_RESET = true;
+	OnAddonLoad("SKC");
+	HARD_DB_RESET = false;
+	LoginSyncCheckSend();
 end
 
 function SKC_Main:ReloadUIMain()
@@ -2613,7 +2649,7 @@ function SKC_Main:CreateUIMain()
 	-- set position
 	SKC_UIMain[details_border_key]:SetPoint("TOPLEFT", SKC_UIMain[sk_list_border_key], "TOPRIGHT", UI_DIMENSIONS.MAIN_BORDER_PADDING, 0);
 	-- create details fields
-	local details_fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity"};
+	local details_fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Last Raid"};
 	for idx,value in ipairs(details_fields) do
 		-- fields
 		SKC_UIMain[details_border_key][value] = CreateFrame("Frame",SKC_UIMain[details_border_key])
@@ -2779,7 +2815,7 @@ local function EventHandler(self,event,...)
 	elseif event == "PARTY_LOOT_METHOD_CHANGED" then
 		SyncRaidAndLiveList();
 	elseif event == "OPEN_MASTER_LOOT_LIST" then
-		InitiateLootDecision();
+		SendLoot();
 	elseif event == "RAID_INSTANCE_WELCOME" then
 		if not event_states.RaidLoggingActive then
 			event_states.RaidLoggingActive = true;
