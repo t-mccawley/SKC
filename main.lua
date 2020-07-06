@@ -352,12 +352,15 @@ local CHARACTER_DATA = { -- fields used to define character
 		text = "Raid Role",
 		OPTIONS = {
 			DPS = {
+				val = 0,
 				text = "DPS",
 			},
 			Healer = {
+				val = 1,
 				text = "Healer",
 			},
 			Tank = {
+				val = 2,
 				text = "Tank",
 			},
 		},
@@ -366,14 +369,17 @@ local CHARACTER_DATA = { -- fields used to define character
 		text = "Guild Role",
 		OPTIONS = {
 			None = {
+				val = 0,
 				text = "None",
 				func = function (self) OnClick_EditDropDownOption("Guild Role","None") end,
 			},
 			Disenchanter = {
+				val = 1,
 				text = "Disenchanter",
 				func = function (self) OnClick_EditDropDownOption("Guild Role","Disenchanter") end,
 			},
 			Banker = {
+				val = 2,
 				text = "Banker",
 				func = function (self) OnClick_EditDropDownOption("Guild Role","Banker") end,
 			},
@@ -383,10 +389,12 @@ local CHARACTER_DATA = { -- fields used to define character
 		text = "Status",
 		OPTIONS = {
 			Main = {
+				val = 0,
 				text = "Main",
 				func = function (self) OnClick_EditDropDownOption("Status","Main") end,
 			},
 			Alt = {
+				val = 1,
 				text = "Alt",
 				func = function (self) OnClick_EditDropDownOption("Status","Alt") end,
 			},
@@ -396,10 +404,12 @@ local CHARACTER_DATA = { -- fields used to define character
 		text = "Activity",
 		OPTIONS = {
 			Active = {
+				val = 0,
 				text = "Active",
 				func = function (self) OnClick_EditDropDownOption("Activity","Active") end,
 			},
 			Inactive = {
+				val = 1,
 				text = "Inactive",
 				func = function (self) OnClick_EditDropDownOption("Activity","Inactive") end,
 			},
@@ -546,7 +556,6 @@ local event_states = { -- tracks if certain events have fired
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
 local SetSK_Flag = false; -- true when SK position is being set
-local SKC_Enable = true; -- controls if SKC loot distribution is enabled
 local SKC_Active = false; -- true when loot distribution is handled by SKC
 local Loot_Decision_Pending = false; -- true when loot distribution is active (do not edit live lists)
 local InitSetup = false; -- used to control for first time setup
@@ -643,7 +652,7 @@ SK_List = { --a doubly linked list table where each node is referenced by player
 	top = nil, -- top name in list
 	bottom = nil, -- bottom name in list
 	live_bottom = nil, -- bottom name in live list
-	activity_thresh = nil, -- time threshold [seconds] which changes activity from Active to Inactive
+	activity_thresh = nil, -- time threshold [days] which changes activity from Active to Inactive
 	list = {}, -- list of SK_Node
 	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
 	edit_ts_generic = nil, -- timestamp of most recent edit
@@ -658,7 +667,7 @@ function SK_List:new(sk_list)
 		obj.top = nil; 
 		obj.bottom = nil;
 		obj.live_bottom = nil;
-		obj.activity_thresh = 2592000; -- 30 days
+		obj.activity_thresh = 30;
 		obj.list = {};
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
@@ -681,7 +690,6 @@ CharacterData = {
 	["Guild Role"] = nil, --Disenchanter, Guild Banker, or None
 	Status = nil, -- Main or Alt
 	Activity = nil, -- Active or Inactive
-	-- ["Loot History"] = {}, -- Table that maps timestamp to table with item (Rejuvenating Gem) and distribution method (MSK, Roll, DE, etc)
 }
 CharacterData.__index = CharacterData;
 
@@ -692,12 +700,12 @@ function CharacterData:new(character_data,name,class)
 		setmetatable(obj,CharacterData);
 		obj.Name = name;
 		obj.Class = class;
-		obj.Spec = CLASSES[class].DEFAULT_SPEC;
-		obj["Raid Role"] = CLASSES[class].Specs[obj.Spec].RR;
-		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.text;
-		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.text;
-		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.text;
-		-- obj["Loot History"] = {};
+		local default_spec = CLASSES[class].DEFAULT_SPEC;
+		obj.Spec = CLASSES[class].Specs[default_spec].val;
+		obj["Raid Role"] = CHARACTER_DATA["Raid Role"].OPTIONS[CLASSES[class].Specs[default_spec].RR].val;
+		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.val;
+		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.val;
+		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.val;
 		return obj;
 	else
 		-- set metatable of existing table
@@ -900,6 +908,8 @@ function SK_List:PrintNode(name)
 		SKC_Main:Print("ERROR",name.." not in list");
 	elseif self.top == nil then
 		SKC_Main:Print("IMPORTANT","EMPTY");
+	elseif self.top == name and self.top == self.bottom then
+		SKC_Main:Print("IMPORTANT",name);
 	elseif self.top == name then
 		SKC_Main:Print("IMPORTANT","TOP-->"..name.."-->"..self.list[name].below);
 	elseif self.bottom == name then
@@ -1094,13 +1104,18 @@ end
 function SK_List:CheckActivity(name)
 	-- checks activity level
 	-- returns true if still active
-	return (self:CalcActivity(name) < self.activity_thresh);
+	return (self:CalcActivity(name) < self.activity_thresh*DAYS_TO_SECS);
 end
 
 function SK_List:SetActivityThreshold(new_thresh)
 	-- sets new activity threshold (input days, stored as seconds)
-	self.activity_thresh = new_thresh*DAYS_TO_SECS;
+	self.activity_thresh = new_thresh;
 	return;
+end
+
+function SK_List:GetActivityThreshold(new_thresh)
+	-- returns activity threshold in days
+	return self.activity_thresh;
 end
 
 function SK_List:GetLive(name)
@@ -1128,15 +1143,42 @@ function GuildData:Add(name,class)
 end
 
 function GuildData:GetData(name,field)
-	-- returns all data for a given name
-	return self.data[name][field];
+	-- returns text for a given name and field
+	local value = self.data[name][field];
+	if field == "Name" or field == "Class" then
+		return value;
+	elseif field == "Spec" then
+		local class = self.data[name].Class;
+		for _,data in pairs(CLASSES[class].Specs) do
+			if data.val == value then
+				return data.text;
+			end
+		end
+	else
+		for _,data in pairs(CHARACTER_DATA[field].OPTIONS) do
+			if data.val == value then
+				return data.text;
+			end
+		end
+	end
 end
 
 function GuildData:SetData(name,field,value)
-	-- returns all data for a given name
-	self.data[name][field] = value;
+	-- assigns data based on field and string name of value
+	if field == "Name" or field == "Class" then
+		self.data[name][field] = value;
+	elseif field == "Spec" then
+		local class = self.data[name].Class;
+		self.data[name][field] = CLASSES[class].Specs[value].val;
+	else
+		self.data[name][field] = CHARACTER_DATA[field].OPTIONS[value].val;
+	end
+	-- update raid role
 	if field == "Spec" then
-		self.data[name]["Raid Role"] = CLASSES[self.data[name].Class].Specs[self.data[name].Spec].RR
+		local class = self.data[name].Class;
+		local spec = value;
+		local raid_role = CLASSES[class].Specs[spec].RR;
+		self.data[name]["Raid Role"] = CHARACTER_DATA["Raid Role"].OPTIONS[raid_role].val;
 	end
 	local ts = time();
 	self.edit_ts_generic = ts;
@@ -1219,7 +1261,6 @@ local function FetchGuildInfo(init)
 	SKC_DB.NumGuildMembers = GetNumGuildMembers()
 	-- Determine # of level 60s and add any new 60s
 	local cnt = 0;
-	local sk_lists = {"MSK","TSK"};
 	for idx = 1, SKC_DB.NumGuildMembers do
 		local full_name, _, _, level, class = GetGuildRosterInfo(idx);
 		local name = StripRealmName(full_name);
@@ -1230,30 +1271,25 @@ local function FetchGuildInfo(init)
 				SKC_DB.GuildData:Add(name,class);
 				SKC_DB.MSK:PushBack(name);
 				SKC_DB.TSK:PushBack(name);
-				if init then
-					SKC_DB.GuildData.edit_ts_generic = 0;
-					SKC_DB.GuildData.edit_ts_raid = 0;
-					SKC_DB.MSK.edit_ts_generic = 0;
-					SKC_DB.MSK.edit_ts_raid = 0;
-					SKC_DB.TSK.edit_ts_generic = 0;
-					SKC_DB.TSK.edit_ts_raid = 0;
-				end
-				SKC_Main:Print("NORMAL",name.." added to GuildData");
+				if not init then SKC_Main:Print("NORMAL",name.." added to databases") end
 			end
 			-- check activity level
 			-- update if different
-			for _,sk_list in ipairs(sk_lists) do
-				local activity = SKC_DB[sk_list]:CheckActivity(name);
-				if activity ~= SKC_DB.GuildData:GetData(name,"Activity") then
-					GuildData:SetData(name,"Activity",activity);
-					if activity then
-						SKC_Main:Print("IMPORTANT",name.." set to Active");
-					else
-						SKC_Main:Print("IMPORTANT",name.." set to Inactive");
-					end
-				end
+			local activity = "Inactive";
+			if SKC_DB.MSK:CheckActivity(name) then activity = "Active" end
+			if SKC_DB.GuildData:GetData(name,"Activity") ~= activity then
+				if not init then SKC_Main:Print("IMPORTANT",name.." set to "..activity) end
+				SKC_DB.GuildData:SetData(name,"Activity",activity);
 			end
 		end
+	end
+	if init then
+		SKC_DB.GuildData.edit_ts_generic = 0;
+		SKC_DB.GuildData.edit_ts_raid = 0;
+		SKC_DB.MSK.edit_ts_generic = 0;
+		SKC_DB.MSK.edit_ts_raid = 0;
+		SKC_DB.TSK.edit_ts_generic = 0;
+		SKC_DB.TSK.edit_ts_raid = 0;
 	end
 	SKC_DB.Count60 = cnt;
 	UnFilteredCnt = cnt;
@@ -1262,14 +1298,15 @@ end
 
 local function OnAddonLoad(addon_name)
 	if addon_name ~= "SKC" then return end
-	-- activate
-	SKC_Main:Enable(true);
 	-- Initialize DBs 
 	if SKC_DB == nil or HARD_DB_RESET then
 		if HARD_DB_RESET then SKC_Main:Print("IMPORTANT","HARD_DB_RESET") end
 		InitSetup = true;
 		SKC_DB = {};
-		SKC_DB.Integrity = true; -- triggers false if something is wrong with DB and disables loot distribution w/ SKC
+	end
+	if SKC_DB == nil or HARD_DB_RESET then
+		SKC_DB.SKC_Enable = nil;
+		SKC_Main:Enable(true);
 	end
 	if SKC_DB.GuildData == nil or HARD_DB_RESET then
 		SKC_DB.GuildData = nil;
@@ -1368,6 +1405,7 @@ local function OnCheck_FilterFunction (self, button)
 end
 
 local function Refresh_Details(name)
+	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Last Raid"};
 	if name == nil then
 		-- reset
@@ -1380,7 +1418,7 @@ local function Refresh_Details(name)
 		for _,field in pairs(fields) do
 			if field == "Last Raid" then
 				-- calculate # days since last active
-				local days = math.floor(SKC_DB:CalcActivity(name)/DAYS_TO_SECS);
+				local days = math.floor(SKC_DB[sk_list]:CalcActivity(name)/DAYS_TO_SECS);
 				SKC_UIMain["Details_border"][field].Data:SetText(days.." days ago");
 			else
 				SKC_UIMain["Details_border"][field].Data:SetText(SKC_DB.GuildData:GetData(name,field));
@@ -1392,9 +1430,9 @@ local function Refresh_Details(name)
 	return
 end
 
-local function PopulateData()
+local function PopulateData(name)
 	-- Refresh details
-	Refresh_Details(nil);
+	Refresh_Details(name);
 	-- Update SK cards
 	UpdateSKUI();
 	return;
@@ -1511,8 +1549,8 @@ function OnClick_EditDropDownOption(field,value) -- Must be global
 	-- Edit GuildData
 	local prev_val = SKC_DB.GuildData:GetData(name,field);
 	prev_val = SKC_DB.GuildData:SetData(name,field,value);
-	-- Refresh details
-	Refresh_Details(name);
+	-- Refresh data
+	PopulateData(name);
 	-- Reset menu toggle
 	DD_State = 0;
 	-- send GuildData to all players
@@ -1563,7 +1601,7 @@ local function OnClick_SK_Card(self, button)
 		SKC_UIMain["Details_border"]["Spec"].Btn:Enable();
 		SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
 		SKC_UIMain["Details_border"]["Status"].Btn:Enable();
-		SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
+		-- SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
 		if SKC_Main:isGL() or SKC_Main:isML() then
 			SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
 			SKC_UIMain["Details_border"].FullSK_Btn:Enable();
@@ -2120,7 +2158,7 @@ local function ActivateSKC()
 	-- master control for wheter or not loot is managed with SKC
 	local active_prev = SKC_Active;
 	-- set activity
-	SKC_Active = SKC_Enable and UnitInRaid("player") ~= nil and GetLootMethod() == "master";
+	SKC_Active = SKC_DB.SKC_Enable and UnitInRaid("player") ~= nil and GetLootMethod() == "master";
 	-- add message
 	if SKC_Active and not active_prev then
 		SKC_Main:Print("IMPORTANT","Active");
@@ -2252,8 +2290,8 @@ function SKC_Main:ToggleUIMain(force_show)
 end
 
 function SKC_Main:Enable(enable_flag)
-	SKC_Enable = enable_flag;
-	if SKC_Enable then
+	SKC_DB.SKC_Enable = enable_flag;
+	if SKC_DB.SKC_Enable then
 		SKC_Main:Print("IMPORTANT","Enabled");
 	else
 		SKC_Main:Print("IMPORTANT","Disabled");
@@ -2263,9 +2301,13 @@ function SKC_Main:Enable(enable_flag)
 end
 
 function SKC_Main:ResetData()
+	-- Reset data
 	HARD_DB_RESET = true;
 	OnAddonLoad("SKC");
 	HARD_DB_RESET = false;
+	-- re populate guild data
+	FetchGuildInfo(true);
+	event_states.SyncRequestSent = false;
 	LoginSyncCheckSend();
 end
 
@@ -2663,8 +2705,7 @@ function SKC_Main:CreateUIMain()
 		SKC_UIMain[details_border_key][value].Data:SetPoint("CENTER",SKC_UIMain[details_border_key][value].Field,"RIGHT",45,0);
 		if idx == 3 or 
 		   idx == 5 or
-		   idx == 6 or
-		   idx == 7 then
+		   idx == 6 then
 			-- edit buttons
 			SKC_UIMain[details_border_key][value].Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
 			SKC_UIMain[details_border_key][value].Btn:SetID(idx);

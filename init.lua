@@ -83,6 +83,7 @@ core.commands = {
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - disables loot distribution with skc");
     end
     if core.SKC_Main:isGL() then
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity|r - displays the current inactivity threshold in days");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - sets inactivity threshold to # days");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init prio|r - initialze loot prio with a CSV");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init sk <MSK/TSK>|r - initialze sk list with a CSV");
@@ -130,7 +131,9 @@ core.commands = {
   end,
   ["activity"] = function(new_thresh)
     new_thresh = tonumber(new_thresh);
-    if new_thresh ~= nil and new_thresh <= 90 then
+    if new_thresh == nil then
+      core.SKC_Main:Print("NORMAL","Activity threshold is "..SKC_DB.MSK:GetActivityThreshold().." days")
+    elseif new_thresh <= 90 then
       SKC_DB["MSK"]:SetActivityThreshold(new_thresh);
       SKC_DB["TSK"]:SetActivityThreshold(new_thresh);
       core.SKC_Main:Print("NORMAL","Activity threshold set to "..new_thresh.." days")
