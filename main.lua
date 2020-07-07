@@ -18,6 +18,7 @@ local OVRD_CHARS = { -- characters which are pushed into GuildData
 	Skc = true,
 };
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
+local LOOT_VERBOSE = true;
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
@@ -423,7 +424,8 @@ local LOOT_DECISION = {
 	OPTIONS = {
 		MAX_TIME = 30,
 		TIME_STEP = 1,
-		RARITY_THRESHOLD = 2, -- threshold to initiate loot decision (2 = greens, 3 = blues)
+		RARITY_LL = 4, -- threshold to initiate loot decision (2 = greens, 3 = blues)
+		RARITY_UL = 4,
 	},
 };
 
@@ -558,6 +560,11 @@ local event_states = { -- tracks if certain events have fired
 		GuildData = false,
 		LootPrio = false,
 	},
+};
+local loot_manager = { -- collection of temporary variables used by ML to manage loot
+	loot_msg_cnt = {}, -- map of item to count of messages sent to elligible player
+	loot_decision_rcvd = {}, -- map of item to count of loot decisions received
+	loot_distributed = {}, -- map of item to boolean if that item was distributed
 };
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
@@ -821,6 +828,12 @@ function GuildData:Exists(name)
 	return self.data[name] ~= nil;
 end
 
+function GuildData:GetSpecClass(name)
+	-- gets SpecClass of given name
+	if not self:Exists(name) return nil;
+	return (self.data[name].Spec..self.data[name].Class);
+end
+
 function GuildData:SetLastLiveTime(name,ts)
 	self.data[name].last_live_time = ts;
 	return;
@@ -846,6 +859,11 @@ end
 function GuildData:GetActivityThreshold()
 	-- returns activity threshold in days
 	return self.activity_thresh;
+end
+
+function SK_List:Exists(name)
+	-- returns true if given name is in data
+	return self.list[name] ~= nil;
 end
 
 function SK_List:length()
@@ -926,7 +944,7 @@ end
 
 function SK_List:ResetLoot()
 	-- Resets all player loot decisions / prio to PASS
-	for name,sk_node in pairs(self.list) do 
+	for _,sk_node in pairs(self.list) do 
 		sk_node.loot_decision = LOOT_DECISION.PASS;
 		sk_node.loot_prio = PRIO_TIERS.PASS;
 	end
@@ -1133,12 +1151,13 @@ function SK_List:GetBelow(name)
 end
 
 function SK_List:SetLive(name,live_status)
+	if not self:Exists(name) then return false end
 	local prev_live_status = self.list[name].live;
 	self.list[name].live = live_status;
 	local ts = time();
 	self.edit_ts_generic = ts;
 	if SKC_Active then self.edit_ts_raid = ts end
-	return;
+	return true;
 end
 
 function SK_List:GetLive(name)
@@ -1159,6 +1178,18 @@ local function GetSpecClassColor(spec_class)
 		end
 	end
 	return nil,nil,nil,nil;
+end
+
+function LootPrio:Exists(itemName)
+	-- returns true if given name is in data
+	return self.items[itemName] ~= nil;
+end
+
+function LootPrio:IsElligible(spec_class,item_name)
+	-- determines if spec_class is elligible for item_name
+	if spec_class == nil or item_name == nil then return false end
+	if not self:Exists(item_name) then return false end
+	return self.items[itemName].prio[spec_class] ~= nil;
 end
 
 function LootPrio:PrintPrio(itemName)
@@ -2192,12 +2223,18 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		end
 	elseif prefix == CHANNELS.LOOT then
 		--[[ 
-			Send (SendLoot): Send loot items for which each player is elligible to make a decision on
+			Send (BroadcastLoot: Send loot items for which each player is elligible to make a decision on
 			Read: Initiate loot decision GUI for player
 		--]]
 		if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: LOOT, sender: "..sender) end
 		-- save master looter
 		MasterLooter = StripRealmName(sender);
+		-- TODO:
+		-- If msg == "START" --> reset pending_loot
+		-- store item in pending_loot
+		-- if not current loot decision, kick off first one (every time one ends, it should check for more items in table)
+
+
 		-- save item
 		SK_Item = msg;
 		-- initiate personal loot decision
@@ -2277,7 +2314,7 @@ local function ActivateSKC()
 	-- add message
 	if SKC_Active and not active_prev then
 		SKC_Main:Print("IMPORTANT","Active");
-		if IsMasterLooter() then 
+		if SKC_Main:isML() then 
 			SKC_Main:Print("NORMAL","Don't forget to add benched characters");
 		end
 	elseif not SKC_Active and active_prev then
@@ -2285,7 +2322,20 @@ local function ActivateSKC()
 	end
 end
 
-local function SyncRaidAndLiveList()
+local function AddToLiveLists(name,live_list_status)
+	-- adds player to live lists and records time in guild data
+	local sk_lists = {"MSK","TSK"};
+	for _,sk_list in pairs(sk_lists) do
+		local success = SKC_DB[sk_list]:SetLive(name,live_status);
+		if not success return false end
+	end
+	-- update guild data
+	local ts = time();
+	SKC_DB.GuildData:SetLastLiveTime(name,ts);
+	return true;
+end
+
+local function SyncLiveList()
 	-- Start SKC
 	ActivateSKC();
 
@@ -2298,17 +2348,14 @@ local function SyncRaidAndLiveList()
 	-- Check if loot decision is pending
 	if Loot_Decision_Pending then return end
 
-	-- Scan all SK lists and assign live status
-	local sk_lists = {"MSK","TSK"};
-	for _,sk_list in pairs(sk_lists) do
-		for name,_ in pairs(SKC_DB[sk_list].list) do
-			SKC_DB[sk_list]:SetLive(name,UnitInRaid(name) ~= nil);
-		end
+	-- Scan all SK lists and assign live status	
+	for name,_ in pairs(SKC_DB[sk_list].list) do
+		AddToLiveLists(name,UnitInRaid(name) ~= nil);
 	end
 
 	-- Scan bench and adjust live
-	for idx,name in ipairs(SKC_DB.Bench) do
-		SKC_DB[sk_list]:SetLive(name,true);
+	for _,name in ipairs(SKC_DB.Bench) do
+		AddToLiveLists(name,true;
 	end
 
 	-- Set live_bottom for all lists
@@ -2325,42 +2372,69 @@ local function SyncRaidAndLiveList()
 	return;
 end
 
-local function SendLoot()
+local function ResetLootManager()
+	-- resets the loot manager
+	-- local loot_manager = { -- collection of temporary variables used by ML to manage loot
+	-- 	loot_msg_cnt = {}, -- map of item to count of messages sent to elligible player
+	-- 	loot_decision_rcvd = {}, -- map of item to count of loot decisions received
+	-- 	loot_distributed = {}, -- map of item to boolean if that item was distributed
+	-- }
+	loot_manager.loot_msg_cnt = {};
+	loot_manager.loot_decision_rcvd = {};
+	loot_manager.loot_distributed = {};
+	return;
+end
+
+local function BroadcastLoot()
 	-- Scans items / characters and sends loot item to elligible characters
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
-	if not IsMasterLooter() then return end
+	if not SKC_Main:isML() then return end
 	-- Make loot decision active
 	Loot_Decision_Pending = true;
+	-- Alert raid of new loot
+	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,"START","RAID",nil,"main_queue");
 	-- Reset guild loot decisions and loot prio
-	-- SKC_DB["MSK"]:ResetLoot();
-	-- Reset message count
-	SK_MessagesReceived = 0;
-	SK_MessagesSent = 0;
-	-- Determine item to start distribution event
-	-- Initiate for first item
-	local i_loot = 1;
-	-- get item data
-	local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
-	local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot)
-	-- Only perform SK for items of rarity threshold or higher
-	if lootType == 1 and lootRarity >= LOOT_DECISION.OPTIONS.RARITY_THRESHOLD then --TODO make legendary items go instantly to ML
-		-- Valid item
-		SK_Item = GetLootSlotLink(i_loot);
-		SKC_Main:Print("NORMAL","Distributing "..SK_Item);
-		-- Scan all possible characters to distribute loot
-		for i_char = 1,40 do
-			local char_name = GetMasterLootCandidate(i_loot,i_char);
-			if char_name ~= nil then
-				-- send loot distribution initiation
-				SK_MessagesSent = SK_MessagesSent + 1;
-				ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,SK_Item,"WHISPER",char_name,"main_queue");
+	SKC_DB.MSK:ResetLoot();
+	SKC_DB.TSK:ResetLoot();
+	ResetLootManager();
+	
+	-- Scan all items and alert elligible players of loot
+	-- Keep track of number of messages sent for each loot item
+	for i_loot = 1, GetNumLootItems() do
+		-- get item data
+		-- local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
+		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot);
+		-- Only perform SK for items if they are found in loot prio
+		if SKC_DB.LootPrio:Exists(lootName) then
+			-- Valid item
+			-- Reset message count for that item
+			loot_manager.loot_msg_cnt[lootName] = 0;
+			loot_manager.loot_decision_rcvd[lootName] = 0;
+			if LOOT_VERBOSE then 
+				SKC_Main:Print("WARN","Broadcasting  "..GetLootSlotLink(i_loot));
+			end
+			-- Scan all possible characters to determine those elligible
+			for i_char = 1,40 do
+				local char_name = GetMasterLootCandidate(i_loot,i_char);
+				if char_name ~= nil then
+					local spec_class = SKC_DB.GuildData:GetSpecClass(char_name);
+					if SKC_DB.LootPrio:IsElligible(spec_class,lootName) then
+						-- send loot distribution initiation
+						loot_manager.loot_msg_cnt[lootName] = loot_manager.loot_msg_cnt[lootName] + 1;
+						ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,lootName,"WHISPER",char_name,"main_queue");
+					end
+				end
+			end
+		else
+			-- give directly to ML
+			for i_char = 1,40 do
+				if GetMasterLootCandidate(i_loot, i_char) == UnitName("player") then
+					GiveMasterLoot(i_loot,i_char);
+					if LOOT_VERBOSE then SKC_Main:Print("WARN","Awarded "..GetLootSlotLink(i_loot).." to ML") end;
+				end
 			end
 		end
 	end
-	-- end loot decision
-	Loot_Decision_Pending = false;
-	-- sync live list
-	SyncRaidAndLiveList();
 	return;
 end
 
@@ -2968,11 +3042,11 @@ local function EventHandler(self,event,...)
 		-- Kick off timer to send sync request
 		if not HARD_DB_RESET then C_Timer.After(2,LoginSyncCheckSend) end;
 	elseif event == "RAID_ROSTER_UPDATE" then
-		SyncRaidAndLiveList();
+		SyncLiveList();
 	elseif event == "PARTY_LOOT_METHOD_CHANGED" then
-		SyncRaidAndLiveList();
+		SyncLiveList();
 	elseif event == "OPEN_MASTER_LOOT_LIST" then
-		SendLoot();
+		BroadcastLoot();
 	elseif event == "RAID_INSTANCE_WELCOME" then
 		if not event_states.RaidLoggingActive then
 			event_states.RaidLoggingActive = true;
