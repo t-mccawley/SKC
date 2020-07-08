@@ -1,5 +1,5 @@
 ## Interface: 11304
-## X-Min-Interface: 11302
+## X-Min-Interface: 11304
 ## Title: SKC
 ## Notes: Suicide Kings Classic
 ## Author: https://github.com/t-mccawley
