@@ -559,7 +559,6 @@ local event_states = { -- tracks if certain events have fired
 		GuildData = false,
 		LootPrio = false,
 	},
-	LootDistributionInProgress = false, -- true when loot distribution is active (do not edit live lists)
 	LootDecisionPending = false, -- true when loot decision is in process
 };
 local loot_manager = { -- collection of temporary variables used by ML to manage loot
@@ -1151,11 +1150,10 @@ function SK_List:GetBelow(name)
 	return self.list[name].below;
 end
 
-function SK_List:SetLive(name,live_status)
+function SK_List:SetLive(name,live_status,ts)
 	if not self:Exists(name) then return false end
 	local prev_live_status = self.list[name].live;
 	self.list[name].live = live_status;
-	local ts = time();
 	self.edit_ts_generic = ts;
 	if SKC_Active then self.edit_ts_raid = ts end
 	return true;
@@ -2345,31 +2343,28 @@ local function ActivateSKC()
 	end
 end
 
-local function AddToLiveLists(name,live_list_status)
+local function AddToLiveLists(name,live_list_status,ts)
 	-- adds player to live lists and records time in guild data
 	local sk_lists = {"MSK","TSK"};
 	for _,sk_list in pairs(sk_lists) do
-		local success = SKC_DB[sk_list]:SetLive(name,live_status);
+		local success = SKC_DB[sk_list]:SetLive(name,live_status,ts);
 		if not success then return false end
 	end
 	-- update guild data
-	local ts = time();
 	SKC_DB.GuildData:SetLastLiveTime(name,ts);
 	return true;
 end
 
-local function SyncLiveList()
+local function UpdateLiveList()
+	-- Adds every player in raid to live list
 	-- Start SKC
 	ActivateSKC();
-
-	-- Check if ML
-	if not SKC_Main:isML() then return end
 
 	-- Check SKC ACtive
 	if not SKC_Active then return end
 
-	-- Check if loot distribution is in process
-	if event_states.LootDistributionInProgress then return end
+	-- Determine timestamp
+	local ts = time();
 
 	-- Scan GuildData and assign live status	
 	for name,_ in pairs(SKC_DB.GuildData) do
@@ -2384,12 +2379,6 @@ local function SyncLiveList()
 	-- Set live_bottom for all lists
 	SKC_DB.MSK:SetLiveBottom();
 	SKC_DB.TSK:SetLiveBottom();
-
-	-- Sync SK lists with raid
-	-- TODO, make special live list table and push that instead
-	-- very wasteful to send entire SK list all the time?
-	SyncPushSend("MSK",CHANNELS.SYNC_PUSH,"GUILD");
-	SyncPushSend("TSK",CHANNELS.SYNC_PUSH,"GUILD");
 
 	-- Reload GUI
 	SKC_Main:ReloadUIMain();
@@ -2413,8 +2402,6 @@ local function BroadcastLoot()
 	-- Scans items / characters and sends loot item to elligible characters
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
 	if not SKC_Main:isML() then return end
-	-- Make loot decision active
-	event_states.LootDistributionInProgress = true;
 	-- Alert raid of new loot
 	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,"START","GUILD",nil,"main_queue");
 	-- Reset guild loot decisions and loot prio
@@ -2577,9 +2564,15 @@ function SKC_Main:BenchAdd(name)
 	if not SKC_DB.GuildData:Exists(name) then
 		SKC_Main:Print("ERROR",name.." not in guild database");
 		return false;
+	elseif (#SKC_DB.Bench == 19) then
+		-- 19 names x 13 characters (12 + comma) = 247 < 250 character limit for msg
+		SKC_Main:Print("ERROR","The bench can only contain 15 characters");
+		return false;
 	else
 		SKC_DB.Bench[#SKC_DB.Bench + 1] = name;
 		SKC_Main:Print("NORMAL",name.." added to bench");
+		-- TODO, send bench to all players
+		UpdateLiveList();
 		return true;
 	end
 end
@@ -2592,6 +2585,8 @@ function SKC_Main:BenchClear()
 	end
 	SKC_DB.Bench = {};
 	SKC_Main:Print("NORMAL","Bench cleared");
+	-- TODO, send bench to all players
+	UpdateLiveList();
 	return;
 end
 
@@ -3067,9 +3062,9 @@ local function EventHandler(self,event,...)
 		-- Kick off timer to send sync request
 		if not HARD_DB_RESET then C_Timer.After(2,LoginSyncCheckSend) end;
 	elseif event == "RAID_ROSTER_UPDATE" then
-		SyncLiveList();
+		UpdateLiveList();
 	elseif event == "PARTY_LOOT_METHOD_CHANGED" then
-		SyncLiveList();
+		UpdateLiveList();
 	elseif event == "OPEN_MASTER_LOOT_LIST" then
 		BroadcastLoot();
 	elseif event == "RAID_INSTANCE_WELCOME" then
