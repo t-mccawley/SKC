@@ -2387,7 +2387,7 @@ local function SyncLiveList()
 
 	-- Sync SK lists with raid
 	-- TODO, make special live list table and push that instead
-	-- very wasteful to send entire SK list all the time
+	-- very wasteful to send entire SK list all the time?
 	SyncPushSend("MSK",CHANNELS.SYNC_PUSH,"GUILD");
 	SyncPushSend("TSK",CHANNELS.SYNC_PUSH,"GUILD");
 
