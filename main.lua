@@ -566,7 +566,7 @@ local loot_manager = { -- collection of temporary variables used by ML to manage
 	loot_decision_rcvd = {}, -- map of item to count of loot decisions received
 	loot_distributed = {}, -- map of item to boolean if that item was distributed
 };
-local pending_loot = {}; -- array of item names to make loot decision about
+local pending_loot = {}; -- array of item links to make loot decision about
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
 local SetSK_Flag = false; -- true when SK position is being set
@@ -826,6 +826,18 @@ end
 function GuildData:Exists(name)
 	-- returns true if given name is in data
 	return self.data[name] ~= nil;
+end
+
+function GuildData:GetClass(name)
+	-- gets SpecClass of given name
+	if not self:Exists(name) then return nil end
+	return self.data[name].Class;
+end
+
+function GuildData:GetSpec(name)
+	-- gets SpecClass of given name
+	if not self:Exists(name) then return nil end
+	return self.data[name].Spec;
 end
 
 function GuildData:GetSpecClass(name)
@@ -1150,10 +1162,13 @@ function SK_List:GetBelow(name)
 	return self.list[name].below;
 end
 
-function SK_List:SetLive(name,live_status,ts)
-	if not self:Exists(name) then return false end
-	local prev_live_status = self.list[name].live;
+function SK_List:SetLive(name,live_status)
+	if not self:Exists(name) then 
+		SKC_Main:Print("ERROR",name.." does not exist")
+		return false;
+	end
 	self.list[name].live = live_status;
+	local ts = time();
 	self.edit_ts_generic = ts;
 	if SKC_Active then self.edit_ts_raid = ts end
 	return true;
@@ -1184,11 +1199,14 @@ function LootPrio:Exists(itemName)
 	return self.items[itemName] ~= nil;
 end
 
-function LootPrio:IsElligible(spec_class,item_name)
-	-- determines if spec_class is elligible for item_name
-	if spec_class == nil or item_name == nil then return false end
-	if not self:Exists(item_name) then return false end
-	return self.items[itemName].prio[spec_class] ~= nil;
+function LootPrio:GetPrio(itemName,spec)
+	if itemName == nil then return nil end
+	if not self:Exists(itemName) then return nil end
+	return self.items[itemName].prio[spec];
+end
+
+function LootPrio:IsElligible(itemName,spec)
+	return self:GetPrio(itemName,spec) ~= nil;
 end
 
 function LootPrio:PrintPrio(itemName)
@@ -1379,7 +1397,9 @@ local function OnAddonLoad(addon_name)
 		SKC_DB.RaidLog = {};
 		SKC_Main:Print("WARN","Initialized RaidLog");
 	end
-	SKC_DB.Bench = {}; -- array of names on bench
+	if SKC_DB.RaidLog == nil or HARD_DB_RESET then
+		SKC_DB.Bench = {}; -- array of names on bench
+	end
 	-- Initialize or refresh metatables
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
 	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
@@ -1566,10 +1586,18 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 			end
 			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		end
+	elseif db_name == "Bench" then
+		db_msg = "INIT,"..db_name;
+		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
+		db_msg = "DATA,"..db_name;
+		for _,char_name in ipairs(SKC_DB.Bench) do
+			db_msg = db_msg..","..char_name;
+		end
+		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 	end
-	local db_msg = "END,"..db_name..", ,";
+	local db_msg = "END,"..db_name..", ,"; --awkward spacing to make csv parsing work
 	if COMM_VERBOSE then SKC_Main:Print("WARN",db_msg) end
-	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue"); --awkward spacing to make csv parsing work
+	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 	return;
 end
 
@@ -1812,6 +1840,7 @@ end
 local function SetSKItem()
 	-- https://wow.gamepedia.com/ItemMixin
 	-- local itemID = 19395; -- Rejuv
+	local item = Item:CreateFromItemLink(pending_loot[1])
 	item:ContinueOnItemLoad(function()
 		-- item:GetItemLink();
 		local name, link, quality, iLevel, reqLevel, class, subclass, maxStack, equipSlot, texture, vendorPrice = GetItemInfo(pending_loot[1]);
@@ -1820,27 +1849,6 @@ local function SetSKItem()
 		SKC_UIMain[decision_border_key].ItemTexture:SetTexture(texture);
 		SKC_UIMain[decision_border_key].ItemLink:SetText(link);
 	end)
-end
-
-local function SendLootDecision()
-	local decision = "";
-	if LootDecision == LOOT_DECISION.SK then
-		decision = "SK";
-	elseif LootDecision == LOOT_DECISION.ROLL then
-		decision = "ROLL";
-	elseif LootDecision == LOOT_DECISION.PASS then
-		decision = "PASS";
-	end
-	SKC_Main:Print("NORMAL","You selected "..decision.." for "..pending_loot[1]);
-	local msg = LootDecision..","..pending_loot[1];
-	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DECISION,msg,"WHISPER",MasterLooter,"main_queue");
-	-- end loot decision
-	event_states.LootDecisionPending = false;
-	-- check if any more pending loot and initate new decision
-	if #pending_loot > 0 then
-		StartPersonalLootDecision();
-	end
-	return;
 end
 
 local function InitTimerBarValue()
@@ -1870,6 +1878,50 @@ local function StartLootTimer()
 	if LootTimer ~= nil and not LootTimer:IsCancelled() then LootTimer:Cancel() end
 	-- start new timer
 	LootTimer = C_Timer.NewTicker(LOOT_DECISION.OPTIONS.TIME_STEP, TimerBarHandler, LOOT_DECISION.OPTIONS.MAX_TIME/LOOT_DECISION.OPTIONS.TIME_STEP);
+	return;
+end
+
+local function StartPersonalLootDecision()
+	if event_states.LootDecisionPending then return end -- reject if loot decision is already pending
+	if pending_loot[1] == nil then 
+		SKC_Main:Print("ERROR","No loot to decide on")
+		return;
+	end
+	-- Begins personal loot decision process
+	event_states.LootDecisionPending = true;
+	SKC_Main:Print("IMPORTANT","Would you like to SK for "..pending_loot[1].."?");
+	LootDecision = LOOT_DECISION.PASS;
+	-- Show UI
+	SKC_Main:ToggleUIMain(true);
+	-- Enable buttons
+	SKC_UIMain["Decision_border"].Pass_Btn:Enable();
+	SKC_UIMain["Decision_border"].SK_Btn:Enable();
+	SKC_UIMain["Decision_border"].Roll_Btn:Enable();
+	-- Set item
+	SetSKItem();
+	-- Initiate timer
+	StartLootTimer();
+	return;
+end
+
+local function SendLootDecision()
+	local decision = "";
+	if LootDecision == LOOT_DECISION.SK then
+		decision = "SK";
+	elseif LootDecision == LOOT_DECISION.ROLL then
+		decision = "ROLL";
+	elseif LootDecision == LOOT_DECISION.PASS then
+		decision = "PASS";
+	end
+	SKC_Main:Print("NORMAL","You selected "..decision.." for "..pending_loot[1]);
+	local msg = pending_loot[1]..","..LootDecision;
+	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DECISION,msg,"WHISPER",MasterLooter,"main_queue");
+	-- end loot decision
+	event_states.LootDecisionPending = false;
+	-- check if any more pending loot and initate new decision
+	if #pending_loot > 0 then
+		StartPersonalLootDecision();
+	end
 	return;
 end
 
@@ -1940,27 +1992,21 @@ local function CreateUICSV(name,import_btn)
 	return SKC_UICSV[name];
 end
 
-local function StartPersonalLootDecision()
-	if event_states.LootDecisionPending then return end -- reject if loot decision is already pending
-	if pending_loot[1] == nil then 
-		SKC_Main:Print("ERROR","No loot to decide on")
-		return;
-	end
-	-- Begins personal loot decision process
-	event_states.LootDecisionPending = true;
-	SKC_Main:Print("IMPORTANT","Would you like to SK for "..pending_loot[1].."?");
-	LootDecision = LOOT_DECISION.PASS;
-	-- Show UI
-	SKC_Main:ToggleUIMain(true);
-	-- Enable buttons
-	SKC_UIMain["Decision_border"].Pass_Btn:Enable();
-	SKC_UIMain["Decision_border"].SK_Btn:Enable();
-	SKC_UIMain["Decision_border"].Roll_Btn:Enable();
-	-- Set item
-	SetSKItem();
-	-- Initiate timer
-	StartLootTimer();
-	return;
+local function AwardLoot(name)
+	-- Awards item to given character
+	-- for i_loot = 1, GetNumLootItems() do
+	-- 	if GetLootSlotLink(i_loot) ==  then
+	-- 		for i_char = 1,40 do
+	-- 			if StripRealmName(GetMasterLootCandidate(i_loot,i_char)) == name then
+	-- 				GiveMasterLoot(i_loot, i_char);
+
+	-- 				return true;
+	-- 			end
+	-- 		end
+	-- 	end
+	-- end
+
+	return false;
 end
 
 local function DetermineWinner()
@@ -2005,80 +2051,64 @@ local function DetermineLootPrio(name)
 	-- OS (spec not found in prio doc) is equal to max tier + 1
 end
 
--- -- send target database to name
--- if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushSend for "..db_name.." through "..game_channel) end
--- if name ~= nil then
--- 	name = StripRealmName(name);
--- 	if COMM_VERBOSE then SKC_Main:Print("WARN","name: "..name) end
--- end
--- local db_msg = nil;
--- if db_name == "MSK" or db_name == "TSK" then
--- 	db_msg = "INIT,"..
--- 		db_name..","..
--- 		NilToStr(SKC_DB[db_name].edit_ts_generic)..","..
--- 		NilToStr(SKC_DB[db_name].edit_ts_raid);
--- 	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
--- 	db_msg = "META,"..
--- 		db_name..","..
--- 		NilToStr(SKC_DB[db_name].top)..","..
--- 		NilToStr(SKC_DB[db_name].bottom)..","..
--- 		NilToStr(SKC_DB[db_name].live_bottom)..","..
--- 		NilToStr(SKC_DB[db_name].last_live_time);
--- 	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
--- 	for node_name,node in pairs(SKC_DB[db_name].list) do
--- 		db_msg = "DATA,"..
--- 			db_name..","..
--- 			NilToStr(node_name)..","..
--- 			NilToStr(node.above)..","..
--- 			NilToStr(node.below)..","..
--- 			NilToStr(node.abs_pos)..","..
--- 			NilToStr(node.loot_decision)..","..
--- 			NilToStr(node.loot_prio)..","..
--- 			BoolToStr(node.live);
--- 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
--- 	end
--- elseif db_name == "GuildData" then
--- 	db_msg = "INIT,"..
--- 		db_name..","..
--- 		NilToStr(SKC_DB.GuildData.edit_ts_generic)..","..
--- 		NilToStr(SKC_DB.GuildData.edit_ts_raid);
--- 	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
--- 	for name,c_data in pairs(SKC_DB.GuildData.data) do
--- 		db_msg = "DATA,"..
--- 			db_name..","..
--- 			NilToStr(name)..","..
--- 			NilToStr(c_data.Class)..","..
--- 			NilToStr(c_data.Spec)..","..
--- 			NilToStr(c_data["Raid Role"])..","..
--- 			NilToStr(c_data["Guild Role"])..","..
--- 			NilToStr(c_data.Status)..","..
--- 			NilToStr(c_data.Activity);
--- 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
--- 	end
--- elseif db_name == "LootPrio" then
--- 	db_msg = "INIT,"..
--- 		db_name..","..
--- 		NilToStr(SKC_DB.LootPrio.edit_ts_generic)..","..
--- 		NilToStr(SKC_DB.LootPrio.edit_ts_raid);
--- 	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");	
--- 	for item,prio in pairs(SKC_DB.LootPrio.items) do
--- 		db_msg = "META,"..
--- 			db_name..","..
--- 			NilToStr(item)..","..
--- 			NilToStr(prio.sk_list)..","..
--- 			BoolToStr(prio.reserved)..","..
--- 			BoolToStr(prio.DE)..","..
--- 			BoolToStr(prio.open_roll);
--- 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
--- 		db_msg = "DATA,"..db_name..","..item..",";
--- 		for _,plvl in ipairs(prio) do
--- 			db_msg = db_msg..","..plvl;
--- 		end
--- 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
--- 	end
--- end
--- ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,"END,"..db_name..", ,",game_channel,name,"main_queue"); --awkward spacing to make csv parsing work
--- return;
+local function ActivateSKC()
+	-- master control for wheter or not loot is managed with SKC
+	local active_prev = SKC_Active;
+	-- set activity
+	SKC_Active = SKC_DB.SKC_Enable and UnitInRaid("player") ~= nil and GetLootMethod() == "master";
+	-- add message
+	if SKC_Active and not active_prev then
+		SKC_Main:Print("IMPORTANT","Active");
+		if SKC_Main:isML() then 
+			SKC_Main:Print("NORMAL","Don't forget to add benched characters");
+		end
+	elseif not SKC_Active and active_prev then
+		SKC_Main:Print("IMPORTANT","Inactive");
+	end
+end
+
+local function AddToLiveLists(name,live_status)
+	-- adds player to live lists and records time in guild data
+	local sk_lists = {"MSK","TSK"};
+	for _,sk_list in pairs(sk_lists) do
+		local success = SKC_DB[sk_list]:SetLive(name,live_status);
+		if not success then return false end
+	end
+	-- update guild data
+	local ts = time();
+	SKC_DB.GuildData:SetLastLiveTime(name,ts);
+	return true;
+end
+
+local function UpdateLiveList()
+	-- Adds every player in raid to live list
+	-- Start SKC
+	ActivateSKC();
+
+	-- Check SKC ACtive
+	if not SKC_Active then return end
+
+	-- Scan raid and update live list	
+	for raidIndex = 1,40 do
+		local name = GetRaidRosterInfo(raidIndex);
+		if name ~= nil then
+			AddToLiveLists(name,true);
+		end
+	end
+
+	-- Scan bench and adjust live
+	for _,name in ipairs(SKC_DB.Bench) do
+		AddToLiveLists(name,true);
+	end
+
+	-- Set live_bottom for all lists
+	SKC_DB.MSK:SetLiveBottom();
+	SKC_DB.TSK:SetLiveBottom();
+
+	-- Reload GUI
+	SKC_Main:ReloadUIMain();
+	return;
+end
 
 local function SyncPushRead(msg)
 	-- Write data to given datbase
@@ -2163,9 +2193,20 @@ local function SyncPushRead(msg)
 				SKC_DB.LootPrio.items[item].prio[idx] = NumOut(plvl);
 			end
 		end
+	elseif db_name == "Bench" then
+		if part == "INIT" then
+			SKC_DB.Bench = {};
+		elseif part == "DATA" then
+			while msg_rem ~= nil do
+				char_name, msg_rem = strsplit(",",msg_rem,2);
+				SKC_DB.Bench[#SKC_DB.Bench + 1] = char_name;
+			end
+		elseif part == "END" then
+			UpdateLiveList();
+		end
 	end
 	if part == "END" then
-		if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part..", length: "..SKC_DB[db_name]:length()) end
+		if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushRead for "..db_name..", "..part) end
 		event_states.SyncCompleted[db_name] = true;
 		SKC_Main:ReloadUIMain();
 	end
@@ -2266,46 +2307,32 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 			Read: Determine loot winner
 		--]]
 		if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: LOOT_DECISION, sender: "..sender) end
+		if not SKC_Main:isML() then return end
+		-- get decision and associated loot
+		local lootLink, lootDecision = strsplit(",",msg,2);
 		-- Increment message counter
-		loot_manager.loot_decision_rcvd[lootName] = loot_manager.loot_decision_rcvd[lootName] + 1;
+		loot_manager.loot_decision_rcvd[lootLink] = loot_manager.loot_decision_rcvd[lootLink] + 1;
 		-- Alert ML of decision
 		local name = StripRealmName(sender);
-		if COMM_VERBOSE then SKC_Main:Print("WARN",name.." wants to "..msg..".") end
+		if COMM_VERBOSE then SKC_Main:Print("WARN",name.." wants to "..lootDecision.." for "..lootLink) end
 		-- TODO
 		-- Save loot decision
 		-- SKC_DB["MSK"].list[name].loot_decision = msg;
 		-- Determine loot prio of character
 		-- SKC_DB["MSK"].list[name].loot_prio = SKC_Main:DetermineLootPrio(name);
 		-- check if all messages received
-		if loot_manager.loot_decision_rcvd[lootName] >= loot_manager.loot_msg_cnt[lootName] then
+		if loot_manager.loot_decision_rcvd[lootLink] >= loot_manager.loot_msg_cnt[lootLink] then
 			-- Determine winner and allocate loot
 			local success = DetermineWinner();
 		end
 	elseif prefix == CHANNELS.LOOT_OUTCOME then
 		--[[ 
-			Send: Loot outcome (including roll values) for all players
+			Send: Loot outcome (including roll values) alert for all players
 			Read: Print loot outcome
 		--]]
 		if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: LOOT_OUTCOME, sender: "..sender) end
 	end
 	return;
-end
-
-local function AwardLoot(name)
-	-- Awards item to given character
-	-- for i_loot = 1, GetNumLootItems() do
-	-- 	if GetLootSlotLink(i_loot) ==  then
-	-- 		for i_char = 1,40 do
-	-- 			if StripRealmName(GetMasterLootCandidate(i_loot,i_char)) == name then
-	-- 				GiveMasterLoot(i_loot, i_char);
-
-	-- 				return true;
-	-- 			end
-	-- 		end
-	-- 	end
-	-- end
-
-	return false;
 end
 
 local function LoginSyncCheckSend()
@@ -2324,64 +2351,6 @@ local function LoginSyncCheckSend()
 	event_states.SyncCompleted.TSK = true;
 	event_states.SyncCompleted.GuildData = true;
 	event_states.SyncCompleted.LootPrio = true;
-	return;
-end
-
-local function ActivateSKC()
-	-- master control for wheter or not loot is managed with SKC
-	local active_prev = SKC_Active;
-	-- set activity
-	SKC_Active = SKC_DB.SKC_Enable and UnitInRaid("player") ~= nil and GetLootMethod() == "master";
-	-- add message
-	if SKC_Active and not active_prev then
-		SKC_Main:Print("IMPORTANT","Active");
-		if SKC_Main:isML() then 
-			SKC_Main:Print("NORMAL","Don't forget to add benched characters");
-		end
-	elseif not SKC_Active and active_prev then
-		SKC_Main:Print("IMPORTANT","Inactive");
-	end
-end
-
-local function AddToLiveLists(name,live_list_status,ts)
-	-- adds player to live lists and records time in guild data
-	local sk_lists = {"MSK","TSK"};
-	for _,sk_list in pairs(sk_lists) do
-		local success = SKC_DB[sk_list]:SetLive(name,live_status,ts);
-		if not success then return false end
-	end
-	-- update guild data
-	SKC_DB.GuildData:SetLastLiveTime(name,ts);
-	return true;
-end
-
-local function UpdateLiveList()
-	-- Adds every player in raid to live list
-	-- Start SKC
-	ActivateSKC();
-
-	-- Check SKC ACtive
-	if not SKC_Active then return end
-
-	-- Determine timestamp
-	local ts = time();
-
-	-- Scan GuildData and assign live status	
-	for name,_ in pairs(SKC_DB.GuildData) do
-		AddToLiveLists(name,UnitInRaid(name) ~= nil);
-	end
-
-	-- Scan bench and adjust live
-	for _,name in ipairs(SKC_DB.Bench) do
-		AddToLiveLists(name,true);
-	end
-
-	-- Set live_bottom for all lists
-	SKC_DB.MSK:SetLiveBottom();
-	SKC_DB.TSK:SetLiveBottom();
-
-	-- Reload GUI
-	SKC_Main:ReloadUIMain();
 	return;
 end
 
@@ -2419,20 +2388,24 @@ local function BroadcastLoot()
 		if SKC_DB.LootPrio:Exists(lootName) then
 			-- Valid item
 			-- Reset message count for that item
-			loot_manager.loot_msg_cnt[lootName] = 0;
-			loot_manager.loot_decision_rcvd[lootName] = 0;
+			local lootLink = GetLootSlotLink(i_loot);
+			loot_manager.loot_msg_cnt[lootLink] = 0;
+			loot_manager.loot_decision_rcvd[lootLink] = 0;
 			if LOOT_VERBOSE then 
-				SKC_Main:Print("WARN","Broadcasting  "..GetLootSlotLink(i_loot));
+				SKC_Main:Print("WARN","Broadcasting "..lootLink);
 			end
 			-- Scan all possible characters to determine those elligible
 			for i_char = 1,40 do
 				local char_name = GetMasterLootCandidate(i_loot,i_char);
 				if char_name ~= nil then
-					local spec_class = SKC_DB.GuildData:GetSpecClass(char_name);
-					if SKC_DB.LootPrio:IsElligible(spec_class,lootName) then
+					local spec = SKC_DB.GuildData:GetSpec(char_name);
+					SKC_Main:Print("WARN","Checking  "..char_name..", "..spec..", "..lootLink);
+					SKC_Main:Print("WARN","Prio:  "..SKC_DB.LootPrio:GetPrio(lootName,spec));
+					if SKC_DB.LootPrio:IsElligible(lootName,spec) then
 						-- send loot distribution initiation
-						loot_manager.loot_msg_cnt[lootName] = loot_manager.loot_msg_cnt[lootName] + 1;
-						ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,lootName,"WHISPER",char_name,"main_queue");
+						SKC_Main:Print("WARN","Elligible: "..char_name);
+						loot_manager.loot_msg_cnt[lootLink] = loot_manager.loot_msg_cnt[lootLink] + 1;
+						ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,lootLink,"WHISPER",char_name,"main_queue");
 					end
 				end
 			end
@@ -2557,8 +2530,11 @@ end
 
 function SKC_Main:BenchAdd(name)
 	-- add name to Bench if they exist in the guild DB
-	if not SKC_Main:isGL() and not SKC_Main:isML() then
-		SKC_Main:Print("ERROR","You must be master looter or guild leader to do that.")
+	if name == nil then
+		SKC_Main:Print("ERROR","You must give a character name")
+		return false;
+	elseif not SKC_Main:isGL() and not SKC_Main:isML() then
+		SKC_Main:Print("ERROR","You must be master looter or guild leader to do that")
 		return false;
 	end
 	if not SKC_DB.GuildData:Exists(name) then
@@ -2569,10 +2545,17 @@ function SKC_Main:BenchAdd(name)
 		SKC_Main:Print("ERROR","The bench can only contain 15 characters");
 		return false;
 	else
+		-- check if already in bench
+		for _,bench_name in ipairs(SKC_DB.Bench) do
+			if name == bench_name then
+				SKC_Main:Print("ERROR",name.." already in bench");
+				return false;
+			end
+		end
 		SKC_DB.Bench[#SKC_DB.Bench + 1] = name;
 		SKC_Main:Print("NORMAL",name.." added to bench");
-		-- TODO, send bench to all players
 		UpdateLiveList();
+		SyncPushSend("Bench",CHANNELS.SYNC_PUSH,"GUILD",nil);
 		return true;
 	end
 end
@@ -2585,8 +2568,8 @@ function SKC_Main:BenchClear()
 	end
 	SKC_DB.Bench = {};
 	SKC_Main:Print("NORMAL","Bench cleared");
-	-- TODO, send bench to all players
 	UpdateLiveList();
+	SyncPushSend("Bench",CHANNELS.SYNC_PUSH,"GUILD",nil);
 	return;
 end
 
@@ -2607,28 +2590,6 @@ function SKC_Main:ExportLog()
 	SKC_UICSV[name].EditBox:SetText(log_data);
 	SKC_UICSV[name].EditBox:HighlightText();
 end
-
--- if part == "INIT" then
--- 	local time_stamp = msg_rem;
--- 	time_stamp = NumOut(time_stamp);
--- 	SKC_DB.LootPrio = LootPrio:new(nil);
--- 	SKC_DB.LootPrio.edit_ts_generic = time_stamp;
--- elseif part == "META" then
--- 	local item, sk_list, res, de, open_roll = strsplit(",",msg_rem,5);
--- 	item = StrOut(item);
--- 	SKC_DB.LootPrio.items[item] = Prio:new(nil);
--- 	SKC_DB.LootPrio.items[item].sk_list = StrOut(sk_list);
--- 	SKC_DB.LootPrio.items[item].reserved = BoolOut(res);
--- 	SKC_DB.LootPrio.items[item].DE = BoolOut(de);
--- 	SKC_DB.LootPrio.items[item].open_roll = BoolOut(open_roll);
--- elseif part == "DATA" then
--- 	local item, msg_rem = strsplit(",",msg_rem,2);
--- 	item = StrOut(item);
--- 	local plvl = nil;
--- 	for idx,spec_class in ipairs(SPEC_CLASS) do
--- 		plvl, msg_rem = strsplit(",",msg_rem,2);
--- 		SKC_DB.LootPrio.items[item].prio[idx] = NumOut(plvl);
--- 	end
 
 local function OnClick_ImportLootPrio()
 	-- imports loot prio CSV to database
