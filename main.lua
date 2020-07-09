@@ -18,7 +18,7 @@ local OVRD_CHARS = { -- characters which are pushed into GuildData
 	Skc = true,
 };
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
-local LOOT_VERBOSE = true;
+local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
@@ -898,6 +898,18 @@ function SK_List:CheckIfFucked()
 	return false;
 end
 
+function SK_List:SetLootPrio(name,loot_prio)
+	if self.list[name] == nil then return false end
+	self.list[name].loot_prio = loot_prio;
+	return true;
+end
+
+function SK_List:SetLootDecision(name,loot_decision)
+	if self.list[name] == nil then return false end
+	self.list[name].loot_decision = loot_decision;
+	return true;
+end
+
 function SK_List:SetLiveBottom()
 	-- scan list to find bottom live player
 	if self:CheckIfFucked() then return false end
@@ -1199,14 +1211,24 @@ function LootPrio:Exists(itemName)
 	return self.items[itemName] ~= nil;
 end
 
-function LootPrio:GetPrio(itemName,spec)
+function LootPrio:GetSKList(itemName)
 	if itemName == nil then return nil end
 	if not self:Exists(itemName) then return nil end
-	return self.items[itemName].prio[spec];
+	if self.items[itemName].open_roll then
+		return "ROLL";
+	else
+		return self.items[itemName].sk_list;
+	end
 end
 
-function LootPrio:IsElligible(itemName,spec)
-	return self:GetPrio(itemName,spec) ~= nil;
+function LootPrio:GetPrio(itemName,spec_idx)
+	if itemName == nil then return nil end
+	if not self:Exists(itemName) then return nil end
+	return self.items[itemName].prio[spec_idx];
+end
+
+function LootPrio:IsElligible(itemName,spec_idx)
+	return self:GetPrio(itemName,spec_idx) ~= nil;
 end
 
 function LootPrio:PrintPrio(itemName)
@@ -1868,6 +1890,8 @@ local function TimerBarHandler()
 		-- send loot response
 		SKC_Main:Print("WARN","Time expired. You PASS on "..pending_loot[1].lootLink);
 		LootDecision = LOOT_DECISION.PASS;
+		LootTimer:Cancel();
+		SendLootDecision();
 	end
 
 	return;
@@ -1884,12 +1908,12 @@ end
 local function StartPersonalLootDecision()
 	if event_states.LootDecisionPending then return end -- reject if loot decision is already pending
 	if pending_loot[1] == nil then 
-		SKC_Main:Print("ERROR","No loot to decide on")
+		if LOOT_VERBOSE then SKC_Main:Print("ERROR","No loot to decide on") end
 		return;
 	end
 	-- Begins personal loot decision process
 	event_states.LootDecisionPending = true;
-	SKC_Main:Print("IMPORTANT","Would you like to SK for "..pending_loot[1].lootLink.."?");
+	SKC_Main:Print("IMPORTANT","Would you like to "..pending_loot[1].SKList.." for "..pending_loot[1].lootLink.."?");
 	LootDecision = LOOT_DECISION.PASS;
 	-- Show UI
 	SKC_Main:ToggleUIMain(true);
@@ -1897,7 +1921,7 @@ local function StartPersonalLootDecision()
 	SKC_UIMain["Decision_border"].Pass_Btn:Enable();
 	SKC_UIMain["Decision_border"].SK_Btn:Enable();
 	SKC_UIMain["Decision_border"].Roll_Btn:Enable();
-	-- Set item
+	-- Set item (in GUI)
 	SetSKItem();
 	-- Initiate timer
 	StartLootTimer();
@@ -1914,7 +1938,7 @@ local function SendLootDecision()
 		decision = "PASS";
 	end
 	SKC_Main:Print("NORMAL","You selected "..decision.." for "..pending_loot[1].lootLink);
-	local msg = pending_loot[1].lootName..","..pending_loot[1].lootLink..","..LootDecision;
+	local msg = pending_loot[1].lootName..","..LootDecision;
 	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DECISION,msg,"WHISPER",MasterLooter,"main_queue");
 	-- end loot decision
 	event_states.LootDecisionPending = false;
@@ -1992,6 +2016,15 @@ local function CreateUICSV(name,import_btn)
 	return SKC_UICSV[name];
 end
 
+local function GetLootIdx(lootName)
+	local lootIdx = nil;
+	for idx,tmp in ipairs(pending_loot) do
+		if tmp.lootName == lootName then return idx end
+	end
+	if lootIdx == nil then SKC_Main:Print("ERROR",lootName.." not found in pending list") end
+	return nil;
+end
+
 local function AwardLoot(name)
 	-- Awards item to given character
 	-- for i_loot = 1, GetNumLootItems() do
@@ -2009,10 +2042,13 @@ local function AwardLoot(name)
 	return false;
 end
 
-local function DetermineWinner()
+local function DetermineWinner(lootName)
 	-- Determine winner of loot decison
 
-	-- Get SK item name
+	-- Determine loot index
+	local lootIdx = GetLootIdx(lootName);
+
+	-- Fetch lootLink
 
 	-- Get SK list for item
 
@@ -2270,9 +2306,15 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 			if COMM_VERBOSE then SKC_Main:Print("WARN","Reset pending_loot") end
 			return;
 		end
+		-- split msg
+		local lootName, lootLink, SKList = strsplit(",",msg,3);
 		-- add to pending loot list
-		pending_loot[#pending_loot + 1] = msg;
-		if COMM_VERBOSE then SKC_Main:Print("WARN",msg.." added to pending_loot") end
+		local idx = #pending_loot + 1;
+		pending_loot[idx] = {};
+		pending_loot[idx].lootName = lootName;
+		pending_loot[idx].lootLink = lootLink;
+		pending_loot[idx].SKList = SKList;
+		if COMM_VERBOSE then SKC_Main:Print("WARN",lootName..","..lootLink..","..SKList.." added to pending_loot") end
 		-- initiate personal loot decision
 		StartPersonalLootDecision();
 	elseif prefix == CHANNELS.LOOT_DECISION then
@@ -2283,21 +2325,31 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Channel: LOOT_DECISION, sender: "..sender) end
 		if not SKC_Main:isML() then return end
 		-- get decision and associated loot
-		local lootLink, lootDecision = strsplit(",",msg,2);
+		local lootName, lootDecision = strsplit(",",msg,2);
 		-- Increment message counter
 		loot_manager.loot_decision_rcvd[lootName] = loot_manager.loot_decision_rcvd[lootName] + 1;
-		-- Alert ML of decision
-		local name = StripRealmName(sender);
-		if COMM_VERBOSE then SKC_Main:Print("WARN",name.." wants to "..lootDecision.." for "..lootLink) end
-		-- TODO
 		-- Save loot decision
-		-- SKC_DB["MSK"].list[name].loot_decision = msg;
-		-- Determine loot prio of character
-		-- SKC_DB["MSK"].list[name].loot_prio = SKC_Main:DetermineLootPrio(name);
+		local lootIdx = GetLootIdx(lootName);
+		local sk_list = pending_loot[lootIdx].SKList;
+		if sk_list == "ROLL" then sk_list = "MSK" end
+		SKC_DB[sk_list]:SetLootDecision()
+		-- TODO:
+		-- Need new Loot class that has fields:
+		-- item link
+		-- associated sk_list (MSK or TSK)
+		-- loot choice (SK or ROLL)
+		-- map of character names to decisions
+		-- map of character names to loot prio
+		-- map of character names to absolute SK position
+		-- LootManager is just a map of itemName to Loot object
+
+
+		-- Alert ML of decision
+		if COMM_VERBOSE then SKC_Main:Print("WARN",StripRealmName(sender).." wants to "..lootDecision.." for "..lootName) end
 		-- check if all messages received
 		if loot_manager.loot_decision_rcvd[lootName] >= loot_manager.loot_msg_cnt[lootName] then
 			-- Determine winner and allocate loot
-			local success = DetermineWinner();
+			local success = DetermineWinner(lootName);
 		end
 	elseif prefix == CHANNELS.LOOT_OUTCOME then
 		--[[ 
@@ -2365,20 +2417,20 @@ local function BroadcastLoot()
 			local lootLink = GetLootSlotLink(i_loot);
 			loot_manager.loot_msg_cnt[lootName] = 0;
 			loot_manager.loot_decision_rcvd[lootName] = 0;
-			if LOOT_VERBOSE then 
-				SKC_Main:Print("WARN","Broadcasting "..lootLink);
-			end
+			if LOOT_VERBOSE then SKC_Main:Print("WARN","Broadcasting "..lootLink) end
 			-- Scan all possible characters to determine those elligible
 			for i_char = 1,40 do
 				local char_name = GetMasterLootCandidate(i_loot,i_char);
 				if char_name ~= nil then
 					local spec = SKC_DB.GuildData:GetSpec(char_name);
-					SKC_Main:Print("WARN","Checking  "..char_name..", "..spec..", "..lootLink);
-					SKC_Main:Print("WARN","Prio:  "..SKC_DB.LootPrio:GetPrio(lootName,spec));
+					local sk_list = SKC_DB.LootPrio:GetSKList(lootName);
+					if LOOT_VERBOSE then SKC_Main:Print("WARN","Checking  "..char_name..", "..spec..", "..lootLink) end
+					if LOOT_VERBOSE then SKC_Main:Print("WARN","Prio:  "..SKC_DB.LootPrio:GetPrio(lootName,spec)) end
+					if LOOT_VERBOSE then SKC_Main:Print("WARN","SK List:  "..sk_list) end
 					if SKC_DB.LootPrio:IsElligible(lootName,spec) then
 						-- send loot distribution initiation
-						SKC_Main:Print("WARN","Elligible: "..char_name);
-						local loot_msg = lootName..","..lootLink;
+						if LOOT_VERBOSE then SKC_Main:Print("WARN","Elligible: "..char_name) end
+						local loot_msg = lootName..","..lootLink..","..sk_list;
 						ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,loot_msg,"WHISPER",char_name,"main_queue");
 						loot_manager.loot_msg_cnt[lootName] = loot_manager.loot_msg_cnt[lootName] + 1;
 					end
