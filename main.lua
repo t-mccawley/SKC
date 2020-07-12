@@ -423,7 +423,7 @@ local LOOT_DECISION = {
 	SK = 2,
 	ROLL = 3,
 	OPTIONS = {
-		MAX_TIME = 30,
+		MAX_TIME = 10,
 		TIME_STEP = 1,
 	},
 };
