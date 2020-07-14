@@ -17,6 +17,7 @@ local OVRD_CHARS = { -- characters which are pushed into GuildData
 	Mctester = true,
 	Skc = true,
 };
+local VERBOSE = true; -- general verbosity flag
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
 local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
 --------------------------------------
@@ -542,7 +543,7 @@ local FilterStates = {
 };
 local event_states = { -- tracks if certain events have fired
 	AddonLoaded = false,
-	GuildSyncInProgress = false,
+	GuildRosterUpdated = false,
 	RaidLoggingActive = false, -- latches true when raid is entered (controls RaidLog)
 	SyncRequestSent = false,
 	LoginSyncName = {
@@ -569,7 +570,7 @@ local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
 local SetSK_Flag = false; -- true when SK position is being set
 local SKC_Active = false; -- true when loot distribution is handled by SKC
-local InitSetup = false; -- used to control for first time setup
+local InitGuildSync = false; -- used to control for first time setup
 --------------------------------------
 -- CLASS DEFINITIONS / CONSTRUCTORS
 --------------------------------------
@@ -589,7 +590,6 @@ function CharacterData:new(character_data,name,class)
 	if character_data == nil then
 		-- initalize fresh
 		local obj = {};
-		setmetatable(obj,CharacterData);
 		obj.Name = name;
 		obj.Class = class;
 		local default_spec = CLASSES[class].DEFAULT_SPEC;
@@ -599,6 +599,7 @@ function CharacterData:new(character_data,name,class)
 		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.val;
 		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.val;
 		obj.last_live_time = time();
+		setmetatable(obj,CharacterData);
 		return obj;
 	else
 		-- set metatable of existing table
@@ -619,18 +620,18 @@ function GuildData:new(guild_data)
 	if guild_data == nil then
 		-- initalize fresh
 		local obj = {};
-		setmetatable(obj,GuildData);
 		obj.data = {};
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
 		obj.activity_thresh = 30;
+		setmetatable(obj,GuildData);
 		return obj;
 	else
 		-- set metatable of existing table and all sub tables
-		setmetatable(guild_data,GuildData);
 		for key,value in pairs(guild_data.data) do
 			guild_data.data[key] = CharacterData:new(value,nil,nil);
 		end
+		setmetatable(guild_data,GuildData);
 		return guild_data;
 	end
 end
@@ -647,11 +648,11 @@ function SK_Node:new(sk_node,above,below)
 	if sk_node == nil then
 		-- initalize fresh
 		local obj = {};
-		setmetatable(obj,SK_Node);
 		obj.above = above or nil;
 		obj.below = below or nil;
 		obj.abs_pos = 1;
 		obj.live = false;
+		setmetatable(obj,SK_Node);
 		return obj;
 	else
 		-- set metatable of existing table
@@ -674,20 +675,20 @@ function SK_List:new(sk_list)
 	if sk_list == nil then
 		-- initalize fresh
 		local obj = {};
-		setmetatable(obj,SK_List);
 		obj.top = nil; 
 		obj.bottom = nil;
 		obj.live_bottom = nil;
 		obj.list = {};
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
+		setmetatable(obj,SK_List);
 		return obj;
 	else
 		-- set metatable of existing table and all sub tables
-		setmetatable(sk_list,SK_List);
 		for key,value in pairs(sk_list.list) do
 			sk_list.list[key] = SK_Node:new(value,nil,nil);
 		end
+		setmetatable(sk_list,SK_List);
 		return sk_list;
 	end
 end
@@ -705,12 +706,12 @@ function Prio:new(prio)
 	if prio == nil then
 		-- initalize fresh
 		local obj = {};
-		setmetatable(obj,Prio);
 		obj.prio = {}; -- default is equal prio for all (considered OS for all)
 		obj.reserved = false;
 		obj.DE = false;
 		obj.open_roll = false;
 		obj.sk_list = "MSK";
+		setmetatable(obj,Prio);
 		return obj;
 	else
 		-- set metatable of existing table
@@ -730,19 +731,19 @@ function LootPrio:new(loot_prio)
 	if loot_prio == nil then
 		-- initalize fresh
 		local obj = {};
-		setmetatable(obj,LootPrio);
 		obj.items = {};
 		-- initialize default prio
 		obj.items["DEFAULT"] = Prio:new(nil);
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
+		setmetatable(obj,LootPrio);
 		return obj;
 	else
 		-- set metatable of existing table
-		setmetatable(loot_prio,LootPrio);
 		for key,value in pairs(loot_prio.items) do
 			loot_prio.items[key] = Prio:new(value);
 		end
+		setmetatable(loot_prio,LootPrio);
 		return loot_prio;
 	end
 end
@@ -762,7 +763,6 @@ function Loot:new(loot,item_name,item_link,loot_option,sk_list)
 	if loot == nil then
 		-- initalize fresh
 		local obj = {};
-		setmetatable(obj,Loot);
 		obj.itemName = item_name;
 		obj.itemLink = item_link;
 		obj.loot_option = loot_option or "SK";
@@ -770,6 +770,7 @@ function Loot:new(loot,item_name,item_link,loot_option,sk_list)
 		obj.decisions = {};
 		obj.prios = {};
 		obj.sk_pos = {};
+		setmetatable(obj,Loot);
 		return obj;
 	else
 		-- set metatable of existing table
@@ -789,18 +790,18 @@ function LootManager:new(loot_manager)
 	if loot_manager == nil then
 		-- initalize fresh
 		local obj = {};
-		setmetatable(obj,LootManager);
 		obj.loot_master = nil;
-		obj.current_loot =  Loot:new(nil);
+		obj.current_loot = Loot:new(nil);
 		obj.pending_loot = {};
+		setmetatable(obj,LootManager);
 		return obj;
 	else
 		-- set metatable of existing table
-		setmetatable(loot_manager,LootManager);
 		loot_manager.current_loot = Loot:new(loot_manager.current_loot);
 		for key,value in ipairs(loot_manager.pending_loot) do
 			loot_manager.pending_loot[key] = Loot:new(value);
 		end
+		setmetatable(loot_manager,LootManager);
 		return loot_manager;
 	end
 end
@@ -1397,7 +1398,7 @@ end
 
 function LootManager:AddLoot(item_name,item_link)
 	-- add new loot item to pending_loot
-	local idx = #self.pending_loo + 1;
+	local idx = #self.pending_loot + 1;
 	local loot_option = "SK"
 	if SKC_DB.LootPrio:GetOpenRoll(item_name) then loot_option = "ROLL" end
 	local sk_list = SKC_DB.LootPrio:GetSKList(item_name);
@@ -1424,15 +1425,12 @@ end
 function LootManager:SendLootMsgs(item_idx)
 	-- send loot message to all elligible characters
 	-- construct message
-	local loot_msg = item_name..","..self.pending_loot[item_idx].itemLink..","..self.pending_loot[item_idx].loot_option..","..self.pending_loot[item_idx].sk_list;
+	local loot_msg = self.pending_loot[item_idx].itemName..","..self.pending_loot[item_idx].itemLink..","..self.pending_loot[item_idx].loot_option..","..self.pending_loot[item_idx].sk_list;
 	-- scan elligible players and send message
 	for char_name,_ in pairs(self.pending_loot[item_idx].decisions) do
 		-- check that player is online
 		if UnitExists(char_name) then 
-			local success = ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,loot_msg,"WHISPER",char_name,"main_queue");
-			if not success then
-				SKC_Main:Print("ERROR","Loot message failed to send to "..char_name);
-			end
+			ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,loot_msg,"WHISPER",char_name,"main_queue");
 		else
 			SKC_Main:Print("ERROR",char_name.." does not exist");
 		end
@@ -1462,11 +1460,13 @@ function LootManager:StartPersonalLootDecision()
 	end
 	-- Begins personal loot decision process
 	local loot_option = self.current_loot.loot_option;
-	local alert_msg = "Would you like to "..loot_option;
+	local alert_msg = "Would you like to ";
 	if loot_option == "SK" then
-		alert_msg = alert_msg.." ["..self.current_loot.sk_list.."]"
+		alert_msg = alert_msg..self.current_loot.sk_list;
+	else
+		alert_msg = alert_msg..loot_option;
 	end
-	alert_msg = alert_msg.." for "..self.current_loot.lootLink.."?"
+	alert_msg = alert_msg.." for "..self.current_loot.itemLink.."?"
 	SKC_Main:Print("IMPORTANT",alert_msg);
 	-- Trigger GUI
 	SKC_Main:DisplayLootDecisionGUI(loot_option);
@@ -1754,11 +1754,18 @@ local function UpdatedActivity(name)
 	end
 end
 
-local function SyncGuildData(init)
+local function SyncGuildData()
 	-- synchronize GuildData with guild roster
-	if event_states.GuildSyncInProgress then return end
-	if not SKC_Main:isGL() then return end -- only fetch data if guild leader
-	event_states.GuildSyncInProgress = true;
+	if not event_states.SyncCompleted.GuildData then
+		if VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData due to incomplete sync") end
+		return;
+	end
+	if not SKC_Main:isGL() then
+		-- only fetch data if guild leader
+		if VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData due to non guild leader") end
+		return;
+	end 
+	event_states.SyncCompleted.GuildData = false;
 	SKC_DB.InGuild = IsInGuild();
 	-- Scan guild roster and add new players
 	local cnt = 0;
@@ -1774,7 +1781,7 @@ local function SyncGuildData(init)
 				SKC_DB.GuildData:Add(name,class);
 				SKC_DB.MSK:PushBack(name);
 				SKC_DB.TSK:PushBack(name);
-				if not init then SKC_Main:Print("NORMAL",name.." added to databases") end
+				if not InitGuildSync then SKC_Main:Print("NORMAL",name.." added to databases") end
 			end
 			-- check activity level and update
 			UpdatedActivity(name);
@@ -1786,10 +1793,10 @@ local function SyncGuildData(init)
 			SKC_DB.MSK:Remove(name);
 			SKC_DB.TSK:Remove(name);
 			SKC_DB.GuildData:Remove(name);
-			if not init then SKC_Main:Print("ERROR",name.." removed from databases") end
+			if not InitGuildSync then SKC_Main:Print("ERROR",name.." removed from databases") end
 		end
 	end
-	if init then
+	if InitGuildSync then
 		SKC_DB.GuildData.edit_ts_generic = 0;
 		SKC_DB.GuildData.edit_ts_raid = 0;
 		SKC_DB.MSK.edit_ts_generic = 0;
@@ -1798,18 +1805,22 @@ local function SyncGuildData(init)
 		SKC_DB.TSK.edit_ts_raid = 0;
 	end
 	UnFilteredCnt = SKC_DB.GuildData:length();
-	if init then SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")") end
-	InitSetup = false;
-	event_states.GuildSyncInProgress = false;
+	if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
+		-- init sync completed
+		SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")");
+		InitGuildSync = false;
+	end
+	event_states.SyncCompleted.GuildData = true;
 	return;
 end
 
 local function OnAddonLoad(addon_name)
 	if addon_name ~= "SKC" then return end
 	-- Initialize DBs 
+	InitGuildSync = false; -- only initialize if hard reset or new install
 	if SKC_DB == nil or HARD_DB_RESET then
 		if HARD_DB_RESET then SKC_Main:Print("IMPORTANT","HARD_DB_RESET") end
-		InitSetup = true;
+		InitGuildSync = true;
 		SKC_DB = {};
 	end
 	if SKC_DB == nil or HARD_DB_RESET then
@@ -2679,11 +2690,6 @@ local function LoginSyncCheckSend()
 		ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD",nil,"main_queue");
 		if COMM_VERBOSE then SKC_Main:Print("WARN",msg) end
 	end
-	event_states.SyncRequestSent = true;
-	event_states.SyncCompleted.MSK = true;
-	event_states.SyncCompleted.TSK = true;
-	event_states.SyncCompleted.GuildData = true;
-	event_states.SyncCompleted.LootPrio = true;
 	return;
 end
 
@@ -2701,23 +2707,25 @@ local function SaveLoot()
 		-- get item data
 		-- local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
 		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot);
-		-- Only perform SK for items if they are found in loot prio
-		if SKC_DB.LootPrio:Exists(lootName) then
-			-- Valid item
-			local lootLink = GetLootSlotLink(i_loot);
-			-- Store item
-			local loot_idx = SKC_DB.LootManager:AddLoot(lootName,lootLink,loot_option,sk_list)
-			-- Scan all possible characters to determine elligible
-			for i_char = 1,40 do
-				local char_name = GetMasterLootCandidate(i_loot,i_char);
-				if char_name ~= nil then
-					if SKC_DB.LootPrio:IsElligible(lootName,char_name) then SKC_DB.LootManager:AddCharacter(char_name,loot_idx) end
+		if lootName ~= nil then
+			-- Only perform SK for items if they are found in loot prio
+			if SKC_DB.LootPrio:Exists(lootName) then
+				-- Valid item
+				local lootLink = GetLootSlotLink(i_loot);
+				-- Store item
+				local loot_idx = SKC_DB.LootManager:AddLoot(lootName,lootLink,loot_option,sk_list)
+				-- Scan all possible characters to determine elligible
+				for i_char = 1,40 do
+					local char_name = GetMasterLootCandidate(i_loot,i_char);
+					if char_name ~= nil then
+						if SKC_DB.LootPrio:IsElligible(lootName,char_name) then SKC_DB.LootManager:AddCharacter(char_name,loot_idx) end
+					end
 				end
+			else
+				-- give directly to ML
+				SKC_DB.LootManager:SendLoot(lootName,UnitName("player"))
+				if LOOT_VERBOSE then SKC_Main:Print("WARN","Awarded "..GetLootSlotLink(i_loot).." to ML") end;
 			end
-		else
-			-- give directly to ML
-			SKC_DB.LootManager:SendLoot(lootName,UnitName("player"))
-			if LOOT_VERBOSE then SKC_Main:Print("WARN","Awarded "..GetLootSlotLink(i_loot).." to ML") end;
 		end
 	end
 
@@ -2783,8 +2791,8 @@ function SKC_Main:ResetData()
 	OnAddonLoad("SKC");
 	HARD_DB_RESET = false;
 	-- re populate guild data
-	event_states.GuildSyncInProgress = false;
-	SyncGuildData(true);
+	InitGuildSync = true;
+	SyncGuildData();
 	-- TODO, uncomment
 	-- event_states.SyncRequestSent = false;
 	-- LoginSyncCheckSend(); 
@@ -3059,6 +3067,7 @@ end
 
 function SKC_Main:DisplayLootDecisionGUI(loot_option)
 	-- Starts loot decision GUI
+	SKC_Main:ToggleUIMain(true);
 	-- Enable correct buttons
 	SKC_UIMain["Decision_border"].Pass_Btn:Enable(); -- OnClick_PASS
 	if loot_option == "SK" then
@@ -3071,8 +3080,6 @@ function SKC_Main:DisplayLootDecisionGUI(loot_option)
 	SetSKItem();
 	-- Initiate timer
 	StartLootTimer();
-	-- show
-	SKC_Main:ToggleUIMain(true);
 	return;
 end
 
@@ -3345,12 +3352,13 @@ local function EventHandler(self,event,...)
 		AddonMessageRead(...);
 	elseif event == "ADDON_LOADED" then
 		OnAddonLoad(...);
-	elseif event == "PLAYER_LOGIN" then
-		GuildRoster();
 	elseif event == "GUILD_ROSTER_UPDATE" then
-		SyncGuildData(InitSetup);
-		-- Kick off timer to send sync request
-		if not HARD_DB_RESET then C_Timer.After(2,LoginSyncCheckSend) end;
+		if not event_states.GuildRosterUpdated then
+			-- Kick off timer to perform guild update and send sync request
+			if not HARD_DB_RESET then C_Timer.After(1.5,SyncGuildData) end;
+			if not HARD_DB_RESET then C_Timer.After(2,LoginSyncCheckSend) end;
+		end
+		event_states.GuildRosterUpdated = true;
 	elseif event == "RAID_ROSTER_UPDATE" then
 		UpdateLiveList();
 	elseif event == "PARTY_LOOT_METHOD_CHANGED" then
@@ -3370,7 +3378,6 @@ end
 local events = CreateFrame("Frame");
 events:RegisterEvent("CHAT_MSG_ADDON");
 events:RegisterEvent("ADDON_LOADED");
-events:RegisterEvent("PLAYER_LOGIN");
 events:RegisterEvent("GUILD_ROSTER_UPDATE");
 events:RegisterEvent("RAID_ROSTER_UPDATE");
 events:RegisterEvent("PARTY_LOOT_METHOD_CHANGED");
