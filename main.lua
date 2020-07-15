@@ -20,7 +20,7 @@ local OVRD_CHARS = { -- characters which are pushed into GuildData
 local VERBOSE = true; -- general verbosity flag
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
 local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
-local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
+local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
@@ -738,8 +738,6 @@ function LootPrio:new(loot_prio)
 		-- initalize fresh
 		local obj = {};
 		obj.items = {};
-		-- initialize default prio
-		obj.items["DEFAULT"] = Prio:new(nil);
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
 		setmetatable(obj,LootPrio);
@@ -1335,7 +1333,7 @@ function LootPrio:IsElligible(lootName,char_name)
 	if spec_idx == nil then 
 		elligible = false;
 	else
-		elligible = self:GetPrio(lootName,spec_idx) ~= nil;
+		elligible = self:GetPrio(lootName,spec_idx) ~= PRIO_TIERS.PASS;
 	end
 	if LOOT_VERBOSE then
 		if elligible then 
@@ -1352,23 +1350,23 @@ function LootPrio:PrintPrio(lootName)
 	-- prints default if nil
 	local data;
 	if lootName == nil or self.items[lootName] == nil then
-		data = self.items.DEFAULT;
-		SKC_Main:Print("IMPORTANT","DEFAULT")
+		SKC_Main:Print("ERROR","Item name not found in prio database");
+		return;
 	else
 		data = self.items[lootName];
 		SKC_Main:Print("IMPORTANT",lootName)
 	end
 	-- print reserved states
 	if data.reserved then
-		SKC_Main:Print("IMPORTANT","Reserved: TRUE");
+		SKC_Main:Print("NORMAL","Reserved: TRUE");
 	else
-		SKC_Main:Print("IMPORTANT","Reserved: FALSE");
+		SKC_Main:Print("NORMAL","Reserved: FALSE");
 	end
 	-- print open roll
 	if data.open_roll then
-		SKC_Main:Print("IMPORTANT","Open Roll: TRUE");
+		SKC_Main:Print("NORMAL","Open Roll: TRUE");
 	else
-		SKC_Main:Print("IMPORTANT","Open Roll: FALSE");
+		SKC_Main:Print("NORMAL","Open Roll: FALSE");
 	end
 	-- create map from prio level to concatenated string of SpecClass's
 	local spec_class_map = {};
@@ -1376,15 +1374,13 @@ function LootPrio:PrintPrio(lootName)
 		spec_class_map[i] = {};
 	end
 	for spec_class_idx,plvl in pairs(data.prio) do
-		-- SKC_Main:Print("NORMAL","Prio");
-		-- SKC_Main:Print("NORMAL","Prio Tier ["..key.."]: "..value);
-		spec_class_map[plvl][#(spec_class_map[plvl]) + 1] = SPEC_CLASS[spec_class_idx];
+		if plvl ~= PRIO_TIERS.PASS then spec_class_map[plvl][#(spec_class_map[plvl]) + 1] = SPEC_CLASS[spec_class_idx] end
 	end
 	for plvl,tbl in ipairs(spec_class_map) do
 		if plvl == 6 then
-			SKC_Main:Print("IMPORTANT","OS Prio:");
+			SKC_Main:Print("NORMAL","OS Prio:");
 		else
-			SKC_Main:Print("IMPORTANT","MS Prio "..plvl..":");
+			SKC_Main:Print("NORMAL","MS Prio "..plvl..":");
 		end
 		for _,spec_class in pairs(tbl) do
 			local hex = select(4, GetSpecClassColor(spec_class));
@@ -1541,74 +1537,78 @@ function LootManager:GiveLoot(loot_name,loot_link,winner)
 			end
 		end
 	end
-	if success then
-		SKC_Main:Print("IMPORTANT","Awarded "..loot_link.." to "..winner);
-	else
+	if not success then
 		SKC_Main:Print("ERROR","Failed to award "..loot_link.." to "..winner);
 	end
 	return success;
 end
 
+function LootManager:SendOutcomeMsg(winner,winner_decision,loot_link,DE,sk_list,send_success)
+	-- constructs and sends outcome message
+	local msg = nil;
+	if winner_decision == LOOT_DECISION.SK then
+		msg = winner.." won "..loot_link.." by "..sk_list.."!";
+	elseif winner_decision == LOOT_DECISION.ROLL then
+		msg = winner.." won "..loot_link.." by ROLL!";
+	else
+		-- Everyone passed
+		msg = "Everyone passed on "..loot_link..", awarded to "..winner;
+		if DE then
+			msg = msg.." to be disenchanted."
+		else
+			msg = msg.." for the guild bank."
+		end
+	end
+	if not send_success then
+		msg = msg.." Send failed, item given to master looter."
+	end
+	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_OUTCOME,msg,"RAID",nil,"main_queue");
+	return;
+end
+
 function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 	-- award actual loot to winner, perform SK (if necessary), and send alert message
 	-- initialize
-	-- TODO: Make message actually reflective of who got loot (based on failure to send)
-	local msg = nil;
 	local loot_name = self.pending_loot[loot_idx].lootName;
 	local loot_link = self.pending_loot[loot_idx].lootLink;
 	local success = false;
+	local DE = SKC_DB.LootPrio:GetDE(self.pending_loot[loot_idx].lootName);
+	local disenchanter, banker = SKC_DB.GuildData:GetFirstGuildRoles();
+	local sk_list = self.pending_loot[loot_idx].sk_list;
 	-- check if everyone passed
 	if winner == nil then
-		msg = "Everyone passed on "..loot_link..", awarded to ";
-		-- determine guild banker or disenchanter
-		local disenchanter, banker = SKC_DB.GuildData:GetFirstGuildRoles();
-		if disenchanter == nil and banker == nil then
-			winner = UnitName("player");
-			msg = msg..winner..".";
-		else
-			-- check if item should be disenchanted
-			if SKC_DB.LootPrio:GetDE(self.pending_loot[loot_idx].lootName) then
-				if disenchanter == nil then 
-					winner = UnitName("player");
-				else 
-					winner = disenchanter;
-				end
-				msg = msg..winner.." to be disenchanted.";
-			else
-				if banker == nil then 
-					winner = UnitName("player");
-				else 
-					winner = banker;
-				end
-				msg = msg..winner.." for the guild bank.";
+		if DE then
+			if disenchanter == nil then 
+				winner = UnitName("player");
+			else 
+				winner = disenchanter;
 			end
-		end
-	else
-		msg = winner.." won "..loot_link.." by ";
-		-- perform SK (if necessary)
-		if winner_decision == LOOT_DECISION.SK then
-			msg = msg..sk_list.."!";
-			-- perform SK on winner (below current live bottom)
-			local sk_list = self.pending_loot[loot_idx].sk_list;
-			SKC_Main:Print("NORMAL",sk_list)
-			success = SKC_DB[sk_list]:PushBackLive(winner);
-			if not success then
-				SKC_Main:Print("ERROR",sk_list.." for "..winner.." failed");
-			end
-			-- reload UI
-			SKC_Main:ReloadUIMain();
 		else
-			msg = msg..LOOT_DECISION.TEXT_MAP[winner_decision].."!";
+			if banker == nil then 
+				winner = UnitName("player");
+			else 
+				winner = banker;
+			end
 		end
 	end
+	-- perform SK (if necessary)
+	if winner_decision == LOOT_DECISION.SK then
+		-- perform SK on winner (below current live bottom)
+		success = SKC_DB[sk_list]:PushBackLive(winner);
+		if not success then
+			SKC_Main:Print("ERROR",sk_list.." for "..winner.." failed");
+		end
+		-- reload UI
+		SKC_Main:ReloadUIMain();
+	end
 	-- send loot
-	local success = self:GiveLoot(loot_name,loot_link,winner);
+	success = self:GiveLoot(loot_name,loot_link,winner);
 	if not success then
 		-- looting failed, send item to ML
 		self:GiveLoot(loot_name,loot_link,UnitName("player"));
 	end
-	-- send alert message
-	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_OUTCOME,msg,"RAID",nil,"main_queue");
+	-- send outcome message
+	self:SendOutcomeMsg(winner,winner_decision,loot_link,DE,sk_list,success)
 	-- mark loot asawarded
 	self.pending_loot[loot_idx].awarded = true;
 	return;
@@ -1623,50 +1623,52 @@ function LootManager:DetermineWinner(loot_idx)
 	local winner_roll = nil; -- random number [0,1)
 	-- scan decisions and determine winner
 	for char_name,loot_decision in pairs(self.pending_loot[loot_idx].decisions) do
-		local new_winner = false;
-		local prio_tmp = self.pending_loot[loot_idx].prios[char_name];
-		local sk_pos_tmp = self.pending_loot[loot_idx].sk_pos[char_name];
-		local roll_tmp = math.random();
-		if prio_tmp < winner_prio then
-			-- higher prio, automatic winner
-			new_winner = true;
-		elseif prio_tmp == winner_prio then
-			-- prio tie
-			if loot_decision == LOOT_DECISION.SK then
-				if sk_pos_tmp < winner_sk_pos then
-					-- char_name is higher on SK list, new winner
-				end
-			elseif loot_decision == LOOT_DECISION.ROLL then
-				if roll_tmp > winner_roll then
-					-- char_name won roll (tie goes to previous winner)
+		if loot_decision ~= LOOT_DECISION.PASS then
+			local new_winner = false;
+			local prio_tmp = self.pending_loot[loot_idx].prios[char_name];
+			local sk_pos_tmp = self.pending_loot[loot_idx].sk_pos[char_name];
+			local roll_tmp = math.random();
+			if prio_tmp < winner_prio then
+				-- higher prio, automatic winner
+				new_winner = true;
+			elseif prio_tmp == winner_prio then
+				-- prio tie
+				if loot_decision == LOOT_DECISION.SK then
+					if sk_pos_tmp < winner_sk_pos then
+						-- char_name is higher on SK list, new winner
+					end
+				elseif loot_decision == LOOT_DECISION.ROLL then
+					if roll_tmp > winner_roll then
+						-- char_name won roll (tie goes to previous winner)
+					end
 				end
 			end
-		end
-		if new_winner then
-			if LOOT_VERBOSE then
-				SKC_Main:Print("IMPORTANT","Previous Winner");
-				if winner == nil then
-					SKC_Main:Print("WARN","NULL");
-				else
+			if new_winner then
+				if LOOT_VERBOSE then
+					SKC_Main:Print("IMPORTANT","Previous Winner");
+					if winner == nil then
+						SKC_Main:Print("WARN","NULL");
+					else
+						SKC_Main:Print("WARN","winner:  "..winner);
+						SKC_Main:Print("WARN","winner_decision:  "..LOOT_DECISION.TEXT_MAP[winner_decision]);
+						SKC_Main:Print("WARN","winner_prio:  "..winner_prio);
+						SKC_Main:Print("WARN","winner_sk_pos:  "..winner_sk_pos);
+						SKC_Main:Print("WARN","winner_roll:  "..winner_roll);
+					end
+				end
+				winner = char_name;
+				winner_decision = loot_decision;
+				winner_prio = prio_tmp;
+				winner_sk_pos = sk_pos_tmp;
+				winner_roll = roll_tmp;
+				if LOOT_VERBOSE then 
+					SKC_Main:Print("IMPORTANT","New Winner");
 					SKC_Main:Print("WARN","winner:  "..winner);
 					SKC_Main:Print("WARN","winner_decision:  "..LOOT_DECISION.TEXT_MAP[winner_decision]);
 					SKC_Main:Print("WARN","winner_prio:  "..winner_prio);
 					SKC_Main:Print("WARN","winner_sk_pos:  "..winner_sk_pos);
 					SKC_Main:Print("WARN","winner_roll:  "..winner_roll);
 				end
-			end
-			winner = char_name;
-			winner_decision = loot_decision;
-			winner_prio = prio_tmp;
-			winner_sk_pos = sk_pos_tmp;
-			winner_roll = roll_tmp;
-			if LOOT_VERBOSE then 
-				SKC_Main:Print("IMPORTANT","New Winner");
-				SKC_Main:Print("WARN","winner:  "..winner);
-				SKC_Main:Print("WARN","winner_decision:  "..LOOT_DECISION.TEXT_MAP[winner_decision]);
-				SKC_Main:Print("WARN","winner_prio:  "..winner_prio);
-				SKC_Main:Print("WARN","winner_sk_pos:  "..winner_sk_pos);
-				SKC_Main:Print("WARN","winner_roll:  "..winner_roll);
 			end
 		end
 	end
@@ -2101,9 +2103,9 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 				BoolToStr(prio.DE)..","..
 				BoolToStr(prio.open_roll);
 			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
-			db_msg = "DATA,"..db_name..","..item..",";
-			for _,plvl in ipairs(prio) do
-				db_msg = db_msg..","..plvl;
+			db_msg = "DATA,"..db_name..","..NilToStr(item)..",";
+			for _,plvl in ipairs(prio.prio) do
+				db_msg = db_msg..","..NilToStr(plvl);
 			end
 			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		end
@@ -2112,7 +2114,7 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		db_msg = "DATA,"..db_name;
 		for _,char_name in ipairs(SKC_DB.Bench) do
-			db_msg = db_msg..","..char_name;
+			db_msg = db_msg..","..NilToStr(char_name);
 		end
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 	end
@@ -2997,7 +2999,7 @@ local function OnClick_ImportLootPrio()
 	local valid = true;
 	while txt_rem ~= nil do
 		line, txt_rem = strsplit("\n",txt_rem,2);
-		local item, sk_list, res, de, open_roll, prios = strsplit(",",line,6);
+		local item, sk_list, res, de, open_roll, prios_txt = strsplit(",",line,6);
 		item = StrOut(item);
 		sk_list = StrOut(sk_list);
 		-- check validity
@@ -3014,19 +3016,28 @@ local function OnClick_ImportLootPrio()
 		SKC_DB.LootPrio.items[item].open_roll = BoolOut(open_roll);
 		-- read prios
 		local idx = 1;
-		while prios ~= nil do
+		while prios_txt ~= nil do
 			valid = idx <= 22;
 			if not valid then
 				SKC_Main:Print("ERROR","Too many Class/Spec combinations");
 				break;
 			end
 			-- split off next value
-			val, prios = strsplit(",",prios,2);
-			val = NumOut(val);
-			-- check prio value
-			valid = (val == nil) or ((val >= 1) and (val <= 6));
+			val, prios_txt = strsplit(",",prios_txt,2);
+			valid = false;
+			if val == "" then
+				-- Inelligible for loot --> permanent pass prio tier
+				val = PRIO_TIERS.PASS;
+				valid = true;
+			elseif val == "OS" then
+				val = PRIO_TIERS.SK.Main.OS;
+				valid = true;
+			else
+				val = NumOut(val);
+				valid = (val ~= nil and (val >= 1) and (val <= 5));
+			end 
 			if not valid then
-				SKC_Main:Print("ERROR","Invalid prio level for "..item);
+				SKC_Main:Print("ERROR","Invalid prio level for "..item.." and Class/Spec index "..idx);
 				break;
 			end
 			-- write prio value
