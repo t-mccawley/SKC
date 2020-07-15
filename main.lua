@@ -20,7 +20,7 @@ local OVRD_CHARS = { -- characters which are pushed into GuildData
 local VERBOSE = true; -- general verbosity flag
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
 local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
-local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
+local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
@@ -762,6 +762,7 @@ Loot = {
 	decisions = {}, -- map from character name to LOOT_DECISION
 	prios = {}, -- map from character name to PRIO_TIERS
 	sk_pos = {}, -- map from character name to absolute SK position on corresponding sk_list
+	awarded = false, -- true when loot has been awarded
 }; 
 Loot.__index = Loot;
 
@@ -776,6 +777,7 @@ function Loot:new(loot,item_name,item_link,loot_option,sk_list)
 		obj.decisions = {};
 		obj.prios = {};
 		obj.sk_pos = {};
+		obj.awarded = false;
 		setmetatable(obj,Loot);
 		return obj;
 	else
@@ -1400,6 +1402,7 @@ end
 -- 	decisions = {}, -- map from character name to LOOT_DECISION
 -- 	prios = {}, -- map from character name to PRIO_TIERS
 -- 	sk_pos = {}, -- map from character name to absolute SK position on corresponding sk_list
+--  awarded = false, -- true when loot has been awarded
 -- }; 
 -- Loot.__index = Loot;
 
@@ -1469,8 +1472,8 @@ end
 
 function LootManager:KickOff()
 	-- determine if there is still pending loot that needs to be decided on
-	for loot_idx,_ in ipairs(self.pending_loot) do
-		self:SendLootMsgs(loot_idx);
+	for loot_idx,loot in ipairs(self.pending_loot) do
+		if not loot.awarded then self:SendLootMsgs(loot_idx) end
 		return;
 	end
 	SKC_Main:Print("IMPORTANT","Loot distribution complete");
@@ -1548,31 +1551,66 @@ end
 
 function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 	-- award actual loot to winner, perform SK (if necessary), and send alert message
-	-- send loot
+	-- initialize
+	-- TODO: Make message actually reflective of who got loot (based on failure to send)
+	local msg = nil;
 	local loot_name = self.pending_loot[loot_idx].lootName;
 	local loot_link = self.pending_loot[loot_idx].lootLink;
-	local success = self:GiveLoot(loot_name,loot_link,winner);
-	if not success then return end
-	-- perform SK (if necessary)
-	if winner_decision == LOOT_DECISION.SK then
-		-- perform SK on winner (below current live bottom)
-		local sk_list = self.pending_loot[loot_idx].sk_list;
-		SKC_Main:Print("NORMAL",sk_list)
-		success = SKC_DB[sk_list]:PushBackLive(winner);
-		-- reload UI
-		SKC_Main:ReloadUIMain();
-	end
-	if not success then return end
-	-- send alert message
-	local msg = nil;
-	if winner_decision == LOOT_DECISION.PASS then
-		msg = "Everyone passed on "..loot_link;
+	local success = false;
+	-- check if everyone passed
+	if winner == nil then
+		msg = "Everyone passed on "..loot_link..", awarded to ";
+		-- determine guild banker or disenchanter
+		local disenchanter, banker = SKC_DB.GuildData:GetFirstGuildRoles();
+		if disenchanter == nil and banker == nil then
+			winner = UnitName("player");
+			msg = msg..winner..".";
+		else
+			-- check if item should be disenchanted
+			if SKC_DB.LootPrio:GetDE(self.pending_loot[loot_idx].lootName) then
+				if disenchanter == nil then 
+					winner = UnitName("player");
+				else 
+					winner = disenchanter;
+				end
+				msg = msg..winner.." to be disenchanted.";
+			else
+				if banker == nil then 
+					winner = UnitName("player");
+				else 
+					winner = banker;
+				end
+				msg = msg..winner.." for the guild bank.";
+			end
+		end
 	else
-		msg = winner.." won "..loot_link.." by "..LOOT_DECISION.TEXT_MAP[winner_decision].."!";
+		msg = winner.." won "..loot_link.." by ";
+		-- perform SK (if necessary)
+		if winner_decision == LOOT_DECISION.SK then
+			msg = msg..sk_list.."!";
+			-- perform SK on winner (below current live bottom)
+			local sk_list = self.pending_loot[loot_idx].sk_list;
+			SKC_Main:Print("NORMAL",sk_list)
+			success = SKC_DB[sk_list]:PushBackLive(winner);
+			if not success then
+				SKC_Main:Print("ERROR",sk_list.." for "..winner.." failed");
+			end
+			-- reload UI
+			SKC_Main:ReloadUIMain();
+		else
+			msg = msg..LOOT_DECISION.TEXT_MAP[winner_decision].."!";
+		end
 	end
+	-- send loot
+	local success = self:GiveLoot(loot_name,loot_link,winner);
+	if not success then
+		-- looting failed, send item to ML
+		self:GiveLoot(loot_name,loot_link,UnitName("player"));
+	end
+	-- send alert message
 	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_OUTCOME,msg,"RAID",nil,"main_queue");
-	-- remove item from pending loot
-	self.pending_loot[loot_idx] = nil;
+	-- mark loot asawarded
+	self.pending_loot[loot_idx].awarded = true;
 	return;
 end
 
@@ -1632,22 +1670,8 @@ function LootManager:DetermineWinner(loot_idx)
 			end
 		end
 	end
-	-- check if everyone passed
-	if winner == nil then
-		-- determine guild banker or disenchanter
-		local disenchanter, banker = SKC_DB.GuildData:GetFirstGuildRoles();
-		if disenchanter == nil and banker == nil then
-			winner = UnitName("player");
-		else
-			-- check if item should be disenchanted
-			if SKC_DB.GetDE(self.pending_loot[loot_idx].lootName) then 
-				winner = disenchanter;
-			else
-				winner = banker;
-			end
-		end
-	end
 	-- award loot to winner
+	-- note, winner is nil if everyone passed
 	self:AwardLoot(loot_idx,winner,winner_decision);
 	return;
 end
@@ -1658,15 +1682,16 @@ function LootManager:DeterminePrio(loot_idx,char_name)
 	local spec = SKC_DB.GuildData:GetSpec(char_name);
 	-- start with base prio of item for given spec, then adjust based on character attributes
 	local prio = SKC_DB.LootPrio:GetPrio(self.pending_loot[loot_idx].lootName,spec);
-	local reserved = SKC_DB.LootPrio:GetReserved()
+	local loot_name = self.pending_loot[loot_idx].lootName;
+	local reserved = SKC_DB.LootPrio:GetReserved(loot_name);
 	local spec_type = "MS";
 	if prio == PRIO_TIERS.SK.Main.OS then spec_type = "OS" end
 	-- get character main / alt status
 	local status = SKC_DB.GuildData:GetData(char_name,"Status"); -- text version (Main or Alt)
 	local loot_decision = self.pending_loot[loot_idx].decisions[char_name];
 	if loot_decision == LOOT_DECISION.SK then
-		if status == "Alt" then
-			proi = prio + PRIO_TIERS.SK.Main.OS; -- increase prio past that for any main
+		if reserved and status == "Alt" then
+			prio = prio + PRIO_TIERS.SK.Main.OS; -- increase prio past that for any main
 		end
 	elseif loot_decision == LOOT_DECISION.ROLL then
 		prio = PRIO_TIERS.ROLL[status][spec_type];
@@ -1674,6 +1699,19 @@ function LootManager:DeterminePrio(loot_idx,char_name)
 		prio = PRIO_TIERS.PASS;
 	end
 	self.pending_loot[loot_idx].prios[char_name] = prio;
+	if LOOT_VERBOSE then
+		SKC_Main:Print("IMPORTANT","Prio for "..char_name);
+		SKC_Main:Print("WARN","spec: "..SPEC_CLASS[spec]);
+		SKC_Main:Print("WARN","status: "..status);
+		if reserved then
+			SKC_Main:Print("WARN","reserved: TRUE");
+		else
+			SKC_Main:Print("WARN","reserved: FALSE");
+		end
+		SKC_Main:Print("WARN","loot_decision: "..LOOT_DECISION.TEXT_MAP[loot_decision]);
+		SKC_Main:Print("WARN","spec_type: "..spec_type);
+		SKC_Main:Print("WARN","prio: "..prio);
+	end
 	return;
 end
 
