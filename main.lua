@@ -21,6 +21,7 @@ local VERBOSE = true; -- general verbosity flag
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
 local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
 local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
+local LOG_ACTIVE_OVRD = true; -- forces logging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
@@ -550,7 +551,7 @@ local FilterStates = {
 };
 local event_states = { -- tracks if certain events have fired
 	AddonLoaded = false,
-	RaidLoggingActive = false, -- latches true when raid is entered (controls RaidLog)
+	RaidLoggingActive = LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
 	SyncRequestSent = false,
 	LoginSyncName = {
 		MSK = nil,
@@ -1345,22 +1346,37 @@ function LootPrio:IsElligible(lootName,char_name)
 	return elligible;
 end
 
-function LootPrio:PrintPrio(lootName)
-	-- prints the prio of given item
-	-- prints default if nil
+function LootPrio:PrintPrio(lootName,lootLink)
+	-- prints the prio of given item (or item link)
 	local data;
-	if lootName == nil or self.items[lootName] == nil then
+	if lootName == nil then
+		SKC_Main:Print("NORMAL","Loot Prio contains "..self:length().." items");
+		return;
+	elseif self.items[lootName] == nil then
 		SKC_Main:Print("ERROR","Item name not found in prio database");
 		return;
 	else
 		data = self.items[lootName];
-		SKC_Main:Print("IMPORTANT",lootName)
+		print(" ");
+		if lootLink == nil then 
+			SKC_Main:Print("IMPORTANT",lootName);
+		else
+			SKC_Main:Print("IMPORTANT",lootLink);
+		end
 	end
+	-- print associated sk list
+	SKC_Main:Print("NORMAL","SK List: "..data.sk_list);
 	-- print reserved states
 	if data.reserved then
 		SKC_Main:Print("NORMAL","Reserved: TRUE");
 	else
 		SKC_Main:Print("NORMAL","Reserved: FALSE");
+	end
+	-- print disenchant or guild bank default
+	if data.DE then
+		SKC_Main:Print("NORMAL","All Pass: Disenchant");
+	else
+		SKC_Main:Print("NORMAL","All Pass: Guild Bank");
 	end
 	-- print open roll
 	if data.open_roll then
@@ -1387,6 +1403,7 @@ function LootPrio:PrintPrio(lootName)
 			DEFAULT_CHAT_FRAME:AddMessage("         "..string.format("|cff%s%s|r",hex:upper(),spec_class));
 		end
 	end
+	print(" ");
 	return;
 end
 
@@ -1885,6 +1902,64 @@ local function SyncGuildData()
 	return;
 end
 
+local function ActivateSKC(verbose)
+	-- master control for wheter or not loot is managed with SKC
+	local active_prev = SKC_Active;
+	-- set activity
+	SKC_Active = SKC_DB.SKC_Enable and UnitInRaid("player") ~= nil and GetLootMethod() == "master";
+	-- add message
+	if verbose then
+		if SKC_Active and not active_prev then
+			SKC_Main:Print("IMPORTANT","Active");
+			if SKC_Main:isML() then 
+				SKC_Main:Print("NORMAL","Don't forget to add benched characters");
+			end
+		elseif not SKC_Active and active_prev then
+			SKC_Main:Print("IMPORTANT","Inactive");
+		end
+	end
+	return
+end
+
+local function AddToLiveLists(name,live_status)
+	-- adds player to live lists and records time in guild data
+	local sk_lists = {"MSK","TSK"};
+	for _,sk_list in pairs(sk_lists) do
+		local success = SKC_DB[sk_list]:SetLive(name,live_status);
+		if not success then return false end
+	end
+	-- update guild data
+	local ts = time();
+	SKC_DB.GuildData:SetLastLiveTime(name,ts);
+	return true;
+end
+
+local function UpdateLiveList()
+	-- Adds every player in raid to live list
+
+	-- Scan raid and update live list
+	-- TODO: make this scan over Guild Data so it resets live list when out of raid	
+	for raidIndex = 1,40 do
+		local name = GetRaidRosterInfo(raidIndex);
+		if name ~= nil then
+			AddToLiveLists(name,true);
+		end
+	end
+
+	-- Scan bench and adjust live
+	for _,name in ipairs(SKC_DB.Bench) do
+		AddToLiveLists(name,true);
+	end
+
+	-- Set live_bottom for all lists
+	SKC_DB.MSK:SetLiveBottom();
+	SKC_DB.TSK:SetLiveBottom();
+
+	-- Reload GUI
+	SKC_Main:ReloadUIMain();
+	return;
+end
+
 local function OnAddonLoad(addon_name)
 	if addon_name ~= "SKC" then return end
 	-- Initialize DBs 
@@ -1918,6 +1993,9 @@ local function OnAddonLoad(addon_name)
 		SKC_DB.RaidLog = {};
 		SKC_Main:Print("WARN","Initialized RaidLog");
 	end
+	if LOG_ACTIVE_OVRD then
+		ResetRaidLogging();
+	end
 	if SKC_DB.Bench == nil or HARD_DB_RESET then
 		SKC_DB.Bench = {}; -- array of names on bench
 		SKC_Main:Print("WARN","Initialized Bench");
@@ -1932,7 +2010,12 @@ local function OnAddonLoad(addon_name)
 	SKC_DB.MSK = SK_List:new(SKC_DB.MSK);
 	SKC_DB.TSK = SK_List:new(SKC_DB.TSK);
 	SKC_DB.LootManager = LootManager:new(SKC_DB.LootManager);
+	-- Addon loaded
 	event_states.AddonLoaded = true;
+	-- Update live list
+	UpdateLiveList();
+	-- Start SKC
+	ActivateSKC(true);
 	return;
 end
 
@@ -2478,68 +2561,6 @@ local function GetLootIdx(lootName)
 	return nil;
 end
 
-local function ActivateSKC(verbose)
-	-- master control for wheter or not loot is managed with SKC
-	local active_prev = SKC_Active;
-	-- set activity
-	SKC_Active = SKC_DB.SKC_Enable and UnitInRaid("player") ~= nil and GetLootMethod() == "master";
-	-- add message
-	if verbose then
-		if SKC_Active and not active_prev then
-			SKC_Main:Print("IMPORTANT","Active");
-			if SKC_Main:isML() then 
-				SKC_Main:Print("NORMAL","Don't forget to add benched characters");
-			end
-		elseif not SKC_Active and active_prev then
-			SKC_Main:Print("IMPORTANT","Inactive");
-		end
-	end
-	return
-end
-
-local function AddToLiveLists(name,live_status)
-	-- adds player to live lists and records time in guild data
-	local sk_lists = {"MSK","TSK"};
-	for _,sk_list in pairs(sk_lists) do
-		local success = SKC_DB[sk_list]:SetLive(name,live_status);
-		if not success then return false end
-	end
-	-- update guild data
-	local ts = time();
-	SKC_DB.GuildData:SetLastLiveTime(name,ts);
-	return true;
-end
-
-local function UpdateLiveList()
-	-- Adds every player in raid to live list
-	-- Start SKC
-	ActivateSKC(true);
-
-	-- Check SKC ACtive
-	if not SKC_Active then return end
-
-	-- Scan raid and update live list	
-	for raidIndex = 1,40 do
-		local name = GetRaidRosterInfo(raidIndex);
-		if name ~= nil then
-			AddToLiveLists(name,true);
-		end
-	end
-
-	-- Scan bench and adjust live
-	for _,name in ipairs(SKC_DB.Bench) do
-		AddToLiveLists(name,true);
-	end
-
-	-- Set live_bottom for all lists
-	SKC_DB.MSK:SetLiveBottom();
-	SKC_DB.TSK:SetLiveBottom();
-
-	-- Reload GUI
-	SKC_Main:ReloadUIMain();
-	return;
-end
-
 local function DeepCopy(obj, seen)
 	-- credit: https://gist.github.com/tylerneylon/81333721109155b2d244
     -- Handle non-tables and previously-seen tables.
@@ -2859,12 +2880,17 @@ function SKC_Main:Enable(enable_flag)
 end
 
 function SKC_Main:ReloadUIMain()
+	if VERBOSE then SKC_Main:Print("NORMAL","Reloading UI Main") end
 	local is_shown = false;
 	if SKC_UIMain ~= nil then is_shown = SKC_UIMain:IsShown() end
-	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
+	if SKC_UIMain == nil then
+		SKC_Main:CreateUIMain();
+		if VERBOSE then SKC_Main:Print("NORMAL","Created new UI Main") end
+		if SKC_UIMain == nil then SKC_Main:Print("ERROR","NULL UI Main") end
+	end
 	-- Refresh Data
 	PopulateData();
-	menu:SetShown(is_shown);
+	SKC_UIMain:SetShown(is_shown);
 end
 
 function SKC_Main:ResetData()

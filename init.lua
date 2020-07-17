@@ -66,32 +66,35 @@ local _, core = ...; -- Namespace
 --------------------------------------
 core.commands = {
   ["help"] = function()
+    local title_color = "1affb2";
     local help_color = "ffcc00";
     print(" ");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."Slash Commands:|r");
+    core.SKC_Main:Print("NORMAL","|cff"..title_color.."Slash Commands:|r");
     -- all members
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - shows help info");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - toggles SKC GUI");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item name>|r - displays loot prio for given item");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc log|r - export skc log (CSV) for past 90 days");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item link/name>|r - displays loot prio for given item");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc log|r - export skc log (CSV) for most recent raid");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - resets SKC data and re-sync with guild");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - displays bench");
     if core.SKC_Main:isML() then
+      core.SKC_Main:Print("NORMAL","|cff"..title_color.."Loot Master Only:|r");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - adds character to bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - clears bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - enables loot distribution with skc");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - disables loot distribution with skc");
     end
     if core.SKC_Main:isGL() then
+      core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader Only:|r");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity|r - displays the current inactivity threshold in days");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - sets inactivity threshold to # days");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init prio|r - initialze loot prio with a CSV");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc init sk <MSK/TSK>|r - initialze sk list with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio init|r - initialze loot prio with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc <MSK/TSK> init|r - initialze sk list with a CSV");
     end
 		print(" ");
 	end,
   ["prio"] = function(...)
-    local itemName = "";
+    local itemName = nil;
     for idx,arg in ipairs({...}) do
       if idx == 1 then
         itemName = arg;
@@ -99,7 +102,25 @@ core.commands = {
         itemName = itemName.." "..arg;
       end
     end
-    SKC_DB.LootPrio:PrintPrio(itemName)
+    -- check if want to init
+    if itemName == "init" then
+      -- Initializes the loot prio with a CSV pasted into a window
+      core.SKC_Main:CSVImport("Loot Priority Import"); 
+      return;
+    end
+    -- check if itemName is actually an item link
+    if itemName == nil then
+      -- print item count
+      SKC_DB.LootPrio:PrintPrio(itemName);
+    elseif string.sub(itemName,1,1) == "|" then
+      local item = Item:CreateFromItemLink(itemName)
+      item:ContinueOnItemLoad(function()
+        SKC_DB.LootPrio:PrintPrio(item:GetItemName(),itemName);
+      end)
+    else
+      -- call directly with itemName
+      SKC_DB.LootPrio:PrintPrio(itemName);
+    end
     return;
   end,
   ["log"] = function() 
@@ -140,14 +161,16 @@ core.commands = {
       core.SKC_Main:Print("ERROR","Must input a number less than 90 days")
     end
   end,
-  ["init"] = {
-    ["sk"] = function(sk_list)
+  ["MSK"] = {
+    ["init"] = function()
       -- Initializes the specified SK list with a CSV pasted into a window
-      core.SKC_Main:CSVImport("SK List Import",sk_list);
+      core.SKC_Main:CSVImport("SK List Import","MSK");
     end,
-    ["prio"] = function()
-      -- Initializes the loot prio with a CSV pasted into a window
-      core.SKC_Main:CSVImport("Loot Priority Import"); 
+  },
+  ["TSK"] = {
+    ["init"] = function()
+      -- Initializes the specified SK list with a CSV pasted into a window
+      core.SKC_Main:CSVImport("SK List Import","TSK");
     end,
   },
 };
