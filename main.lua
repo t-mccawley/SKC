@@ -3006,6 +3006,28 @@ function SKC_Main:ExportLog()
 	SKC_UICSV[name].EditBox:HighlightText();
 end
 
+function SKC_Main:ExportSK()
+	local name = "SK List Export";
+	-- instantiate frame
+	local menu = SKC_UICSV[name] or CreateUICSV(name,false);
+	menu:SetShown(true);
+	-- get sk list data
+	local msk = SKC_DB.MSK:ReturnList();
+	local tsk = SKC_DB.TSK:ReturnList();
+	if #msk ~= #tsk then
+		SKC_Main:Print("ERROR","MSK and TSK lists are different lengths. That's bad.");
+		return;
+	end
+	-- construct data
+	local data = "MSK,TSK,\n";
+	for i = 1,#msk do
+		data = data..msk[i]..","..tsk[i].."\n";
+	end
+	-- add data to export
+	SKC_UICSV[name].EditBox:SetText(data);
+	SKC_UICSV[name].EditBox:HighlightText();
+end
+
 local function OnClick_ImportLootPrio()
 	-- imports loot prio CSV to database
 	-- reset database

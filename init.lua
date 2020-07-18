@@ -74,7 +74,6 @@ core.commands = {
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - shows help info");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - toggles SKC GUI");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item link/name>|r - displays loot prio for given item");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc log|r - export skc log (CSV) for most recent raid");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - resets SKC data and re-sync with guild");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - displays bench");
     if core.SKC_Main:isML() then
@@ -83,6 +82,8 @@ core.commands = {
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - clears bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - enables loot distribution with skc");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - disables loot distribution with skc");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - export sk log (CSV) for most recent raid");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - export current sk lists (CSV)");
     end
     if core.SKC_Main:isGL() then
       core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader Only:|r");
@@ -92,7 +93,7 @@ core.commands = {
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc <MSK/TSK> init|r - initialze sk list with a CSV");
     end
 		print(" ");
-	end,
+  end,
   ["prio"] = function(...)
     local itemName = nil;
     for idx,arg in ipairs({...}) do
@@ -123,10 +124,16 @@ core.commands = {
     end
     return;
   end,
-  ["log"] = function() 
-    -- opens UI to export log
-    core.SKC_Main:ExportLog(); 
-  end,
+  ["export"] = {
+    ["log"] = function() 
+      -- opens UI to export log
+      core.SKC_Main:ExportLog(); 
+    end,
+    ["sk"] = function() 
+      -- opens UI to export log
+      core.SKC_Main:ExportSK(); 
+    end,
+  },
   ["reset"] = function() 
     -- resets and re-syncs data
     core.SKC_Main:ResetData();
