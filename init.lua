@@ -74,6 +74,7 @@ core.commands = {
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - shows help info");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - toggles SKC GUI");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item link/name>|r - displays loot prio for given item");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio|r - displays the number of items in saved loot prio");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - resets SKC data and re-sync with guild");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - displays bench");
     if core.SKC_Main:isML() then
@@ -105,12 +106,11 @@ core.commands = {
     end
     -- check if want to init
     if itemName == "init" then
+      if not core.SKC_Main:isGL() then return end
       -- Initializes the loot prio with a CSV pasted into a window
       core.SKC_Main:CSVImport("Loot Priority Import"); 
       return;
-    end
-    -- check if itemName is actually an item link
-    if itemName == nil then
+    elseif itemName == nil then
       -- print item count
       SKC_DB.LootPrio:PrintPrio(itemName);
     elseif string.sub(itemName,1,1) == "|" then
@@ -144,20 +144,25 @@ core.commands = {
       core.SKC_Main:BenchShow();
     end,
     ["add"] = function(name)
+      if not core.SKC_Main:isML() then return end
       -- Initializes the specified SK list with a CSV pasted into a window
       core.SKC_Main:BenchAdd(name);
     end,
     ["clear"] = function()
+      if not core.SKC_Main:isML() then return end
       core.SKC_Main:BenchClear()
     end,
   },
   ["enable"] = function()
+    if not core.SKC_Main:isML() then return end
     core.SKC_Main:Enable(true);
   end,
   ["disable"] = function()
+    if not core.SKC_Main:isML() then return end
     core.SKC_Main:Enable(false);
   end,
   ["activity"] = function(new_thresh)
+    if not core.SKC_Main:isGL() then return end
     new_thresh = tonumber(new_thresh);
     if new_thresh == nil then
       core.SKC_Main:Print("NORMAL","Activity threshold is "..SKC_DB.GuildData:GetActivityThreshold().." days")
@@ -170,12 +175,14 @@ core.commands = {
   end,
   ["MSK"] = {
     ["init"] = function()
+      if not core.SKC_Main:isGL() then return end
       -- Initializes the specified SK list with a CSV pasted into a window
       core.SKC_Main:CSVImport("SK List Import","MSK");
     end,
   },
   ["TSK"] = {
     ["init"] = function()
+      if not core.SKC_Main:isGL() then return end
       -- Initializes the specified SK list with a CSV pasted into a window
       core.SKC_Main:CSVImport("SK List Import","TSK");
     end,
