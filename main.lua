@@ -1938,17 +1938,16 @@ local function UpdateLiveList()
 	-- Adds every player in raid to live list
 
 	-- Scan raid and update live list
-	-- TODO: make this scan over Guild Data so it resets live list when out of raid	
-	for raidIndex = 1,40 do
-		local name = GetRaidRosterInfo(raidIndex);
-		if name ~= nil then
-			AddToLiveLists(name,true);
+	-- TODO: make this scan over Guild Data so it resets live list when out of raid
+	for char_name,_ in pairs(SKC_DB.GuildData) do
+		if UnitInRaid(char_name) ~= nil then
+			AddToLiveLists(char_name,true);
 		end
 	end
 
 	-- Scan bench and adjust live
-	for _,name in ipairs(SKC_DB.Bench) do
-		AddToLiveLists(name,true);
+	for _,char_name in ipairs(SKC_DB.Bench) do
+		AddToLiveLists(char_name,true);
 	end
 
 	-- Set live_bottom for all lists
