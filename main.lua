@@ -25,6 +25,7 @@ local LOG_ACTIVE_OVRD = true; -- forces logging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
+local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p"
 local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
 	MAIN_WIDTH = 920,
@@ -434,6 +435,7 @@ local LOOT_DECISION = {
 	OPTIONS = {
 		MAX_TIME = 10,
 		TIME_STEP = 1,
+		ML_WAIT_BUFFER = 5, -- additional time that master looter waits before triggering auto pass (accounts for transmission delays)
 	},
 };
 
@@ -636,7 +638,7 @@ function GuildData:new(guild_data)
 	else
 		-- set metatable of existing table and all sub tables
 		for key,value in pairs(guild_data.data) do
-			guild_data.data[key] = CharacterData:new(value,nil,nil);
+			guild_data.data[key] = CharacterData:new(guild_data.data[key],nil,nil);
 		end
 		setmetatable(guild_data,GuildData);
 		return guild_data;
@@ -693,7 +695,7 @@ function SK_List:new(sk_list)
 	else
 		-- set metatable of existing table and all sub tables
 		for key,value in pairs(sk_list.list) do
-			sk_list.list[key] = SK_Node:new(value,nil,nil);
+			sk_list.list[key] = SK_Node:new(sk_list.list[key],nil,nil);
 		end
 		setmetatable(sk_list,SK_List);
 		return sk_list;
@@ -746,7 +748,7 @@ function LootPrio:new(loot_prio)
 	else
 		-- set metatable of existing table
 		for key,value in pairs(loot_prio.items) do
-			loot_prio.items[key] = Prio:new(value);
+			loot_prio.items[key] = Prio:new(loot_prio.items[key]);
 		end
 		setmetatable(loot_prio,LootPrio);
 		return loot_prio;
@@ -788,8 +790,9 @@ end
 
 LootManager = {
 	loot_master = nil, -- name of the master looter
-	current_loot = nil, -- individual Loot object that is being decided on
+	current_loot = nil, -- Loot object of loot that is being decided on
 	pending_loot = {}, -- array of Loot objects
+	current_loot_timer = nil, -- timer used to track when decision time has expired
 }; 
 LootManager.__index = LootManager;
 
@@ -800,18 +803,45 @@ function LootManager:new(loot_manager)
 		obj.loot_master = nil;
 		obj.current_loot = Loot:new(nil);
 		obj.pending_loot = {};
+		obj.current_loot_timer = nil;
 		setmetatable(obj,LootManager);
 		return obj;
 	else
+		-- reset timer
+		loot_manager.current_loot_timer = nil;
 		-- set metatable of existing table
 		loot_manager.current_loot = Loot:new(loot_manager.current_loot);
 		for key,value in ipairs(loot_manager.pending_loot) do
-			loot_manager.pending_loot[key] = Loot:new(value);
+			loot_manager.pending_loot[key] = Loot:new(loot_manager.pending_loot[key]);
 		end
 		setmetatable(loot_manager,LootManager);
 		return loot_manager;
 	end
 end
+
+--------------------------------------
+-- HELPER METHODS
+--------------------------------------
+local function WriteToLog(time_txt,action,src,sk_list,character,item,prev_sk_pos,new_sk_pos)
+	-- writes new log entry (if raid logging active)
+	if not event_states.RaidLoggingActive then return end
+	local idx = #SKC_DB.RaidLog + 1;
+	SKC_DB.RaidLog[idx] = {};
+	if time_txt == nil then
+		SKC_DB.RaidLog[idx][1] = date(DATE_FORMAT);
+	else
+		SKC_DB.RaidLog[idx][1] = time_txt;
+	end
+	SKC_DB.RaidLog[idx][2] = action;
+	SKC_DB.RaidLog[idx][3] = src;
+	SKC_DB.RaidLog[idx][4] = sk_list;
+	SKC_DB.RaidLog[idx][5] = character;
+	SKC_DB.RaidLog[idx][6] = item;
+	SKC_DB.RaidLog[idx][7] = prev_sk_pos;
+	SKC_DB.RaidLog[idx][8] = new_sk_pos;
+	return;
+end
+
 --------------------------------------
 -- CLASS METHODS
 --------------------------------------
@@ -975,7 +1005,8 @@ end
 
 function SK_List:CheckIfFucked()
 	-- checks integrity of list
-	if self.bottom == nil or self.list[self.bottom].below ~= nil then
+	-- invalid if non empty list has nil bottom node or node below bottom is not nil
+	if self:length() ~=0 and (self.bottom == nil or self.list[self.bottom].below ~= nil) then
 		SKC_Main:Print("ERROR","Your database is fucked.")
 		return true;
 	end
@@ -984,6 +1015,7 @@ end
 
 function SK_List:SetLiveBottom()
 	-- scan list to find bottom live player
+	-- note, this method does not change the updated timestamp
 	if self:CheckIfFucked() then return false end
 	local current_name = self.top;
 	local live_bottom_tmp = nil;
@@ -995,9 +1027,6 @@ function SK_List:SetLiveBottom()
 	end
 	-- assign
 	self.live_bottom = live_bottom_tmp;
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
 	return true;
 end
 
@@ -1123,7 +1152,7 @@ function SK_List:InsertBelow(name,new_above_name,verbose)
 		return true;
 	end
 	if new_above_name == nil then
-		SKC_Main:Print("ERROR","nil new_above_name to SK_List:InsertBelow()");
+		SKC_Main:Print("ERROR","nil new_above_name for SK_List:InsertBelow()");
 		return false;
 	end
 	-- check that new_above_name is in list
@@ -1253,14 +1282,12 @@ function SK_List:GetBelow(name)
 end
 
 function SK_List:SetLive(name,live_status)
+	-- note, this method does not change the updated timestamp
 	if not self:Exists(name) then 
 		SKC_Main:Print("ERROR",name.." does not exist")
 		return false;
 	end
 	self.list[name].live = live_status;
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
 	return true;
 end
 
@@ -1429,20 +1456,84 @@ end
 function LootManager:Reset()
 	-- reset loot manager
 	self.pending_loot = {};
+	self.current_loot_timer = nil;
+	self.current_loot = nil;
 	return;
 end
 
-function LootManager:GetLootIdx(item_name)
+function LootManager:GetLootIdx(item_name,silent)
 	-- returns index for given item name
 	for idx,loot in ipairs(self.pending_loot) do
 		if item_name == loot.lootName then return idx end
 	end
-	SKC_Main:Print("ERROR",item_name.." not in LootManager");
+	if not silent then SKC_Main:Print("ERROR",item_name.." not in LootManager") end;
 	return nil;
+end
+
+function LootManager:SetCurrentLootDirect(item_name,item_link,loot_option,sk_list)
+	-- directly writes new Loot object for current loot
+	self.current_loot = Loot:new(nil,item_name,item_link,loot_option,sk_list);
+	return
+end
+
+function LootManager:SetCurrentLootByIdx(loot_idx)
+	-- sets current loot by index of loot already in pending_loot
+	-- only usable my loot master
+	if not SKC_Main:isML() then
+		SKC_Main:Print("ERROR","Cannot SetCurrentLootByIdx, not loot master");
+		return 
+	end
+	if self.pending_loot[loot_idx] == nil then
+		SKC_Main:Print("ERROR","Cannot SetCurrentLootByIdx, index "..loot_idx.." not found");
+		return;
+	end
+	local item_name = self.pending_loot[loot_idx].lootName;
+	local item_link = self.pending_loot[loot_idx].lootLink;
+	local loot_option = self.pending_loot[loot_idx].loot_option;
+	local sk_list = self.pending_loot[loot_idx].sk_list;
+	self:SetCurrentLootDirect(item_name,item_link,loot_option,sk_list);
+	return
+end
+
+function LootManager:GetCurrentLootName()
+	if self.current_loot == nil then
+		SKC_Main:Print("ERROR","Current loot not set");
+		return nil;
+	end
+	return self.current_loot.lootName;
+end
+
+function LootManager:GetCurrentLootLink()
+	if self.current_loot == nil then
+		SKC_Main:Print("ERROR","Current loot not set");
+		return nil;
+	end
+	return self.current_loot.lootLink;
+end
+
+function LootManager:GetCurrentLootOption()
+	if self.current_loot == nil then
+		SKC_Main:Print("ERROR","Current loot not set");
+		return nil;
+	end
+	return self.current_loot.loot_option;
+end
+
+function LootManager:GetCurrentLootSKList()
+	if self.current_loot == nil then
+		SKC_Main:Print("ERROR","Current loot not set");
+		return nil;
+	end
+	return self.current_loot.sk_list;
 end
 
 function LootManager:AddLoot(item_name,item_link)
 	-- add new loot item to pending_loot
+	-- check if item already added
+	if self:GetLootIdx(item_name,true) ~= nil then
+		if VERBOSE then SKC_Main:Print("WARN",item_link.." already added to LootManager") end
+		return nil;
+	end
 	local idx = #self.pending_loot + 1;
 	local loot_option = "SK"
 	if SKC_DB.LootPrio:GetOpenRoll(item_name) then loot_option = "ROLL" end
@@ -1457,6 +1548,7 @@ function LootManager:AddLoot(item_name,item_link)
 end
 
 function LootManager:AddCharacter(char_name,item_idx)
+	-- add given character as pending loot decision for given item index
 	-- get index of given item_name
 	if item_idx == nil then
 		item_idx = self:GetLootIdx(item_name);
@@ -1483,16 +1575,6 @@ function LootManager:SendLootMsgs(item_idx)
 	return;
 end
 
-function LootManager:KickOff()
-	-- determine if there is still pending loot that needs to be decided on
-	for loot_idx,loot in ipairs(self.pending_loot) do
-		if not loot.awarded then self:SendLootMsgs(loot_idx) end
-		return;
-	end
-	SKC_Main:Print("IMPORTANT","Loot distribution complete");
-	return;
-end
-
 local function StripRealmName(full_name)
 	local name,_ = strsplit("-",full_name,2);
 	return(name);
@@ -1504,35 +1586,52 @@ function LootManager:StartPersonalLootDecision()
 		return;
 	end
 	-- Begins personal loot decision process
-	local loot_option = self.current_loot.loot_option;
-	local sk_list = self.current_loot.sk_list;
+	local loot_option = self:GetCurrentLootOption();
+	local sk_list = self:GetCurrentLootSKList();
 	local alert_msg = "Would you like to ";
 	if loot_option == "SK" then
 		alert_msg = alert_msg..sk_list;
 	else
 		alert_msg = alert_msg..loot_option;
 	end
-	alert_msg = alert_msg.." for "..self.current_loot.lootLink.."?"
+	alert_msg = alert_msg.." for "..self:GetCurrentLootLink().."?"
 	SKC_Main:Print("IMPORTANT",alert_msg);
 	-- Trigger GUI
 	SKC_Main:DisplayLootDecisionGUI(loot_option,sk_list);
 	return;
 end
 
+function LootManager:LootDecisionPending()
+	-- returns true if there is still loot currently being decided on
+	if self.current_loot_timer == nil then
+		-- no pending loot decision
+		return false;
+	else
+		if self.current_loot_timer:IsCancelled() then
+			-- no pending loot decision
+			return false;
+		else
+			-- pending loot decision
+			SKC_Main:Print("ERROR","Still waiting on loot decision for "..self:GetCurrentLootLink());
+			return true;
+		end
+	end
+end
+
 function LootManager:ReadLootMsg(msg,sender)
-	-- reads loot message on local client side
-	-- saves item into current_loot and loot_master
+	-- reads loot message on local client side (not necessarily ML)
+	-- saves item into current loot index and loot_master
 	self.loot_master = StripRealmName(sender);
 	local item_name, item_link, loot_option, sk_list = strsplit(",",msg,4);
-	self.current_loot = Loot:new(nil,item_name,item_link,loot_option,sk_list);
+	self:SetCurrentLootDirect(item_name,item_link,loot_option,sk_list);
 	-- start GUI
 	self:StartPersonalLootDecision()
 	return;
 end
 
 function LootManager:SendLootDecision(loot_decision)
-	SKC_Main:Print("NORMAL","You selected "..LOOT_DECISION.TEXT_MAP[loot_decision].." for "..self.current_loot.lootLink);
-	local msg = self.current_loot.lootName..","..loot_decision;
+	SKC_Main:Print("NORMAL","You selected "..LOOT_DECISION.TEXT_MAP[loot_decision].." for "..self:GetCurrentLootLink());
+	local msg = self:GetCurrentLootName()..","..loot_decision;
 	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DECISION,msg,"WHISPER",self.loot_master,"main_queue");
 	return;
 end
@@ -1548,7 +1647,11 @@ function LootManager:GiveLoot(loot_name,loot_link,winner)
 			-- find character in raid
 			for i_char = 1,40 do
 				if GetMasterLootCandidate(i_loot, i_char) == winner then
-					if not LOOT_DIST_DISABLE then GiveMasterLoot(i_loot,i_char) end
+					if LOOT_DIST_DISABLE then
+						SKC_Main:Print("IMPORTANT","Faux distribution of loot successful!");
+					else 
+						GiveMasterLoot(i_loot,i_char);
+					end
 					success = true;
 				end
 			end
@@ -1614,6 +1717,18 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 		success = SKC_DB[sk_list]:PushBackLive(winner);
 		if not success then
 			SKC_Main:Print("ERROR",sk_list.." for "..winner.." failed");
+		else
+			local prev_pos = SKC_DB[sk_list]:GetPos(winner);
+			WriteToLog(
+				nil,
+				LOG_OPTIONS["Action"].Options.ALD,
+				LOG_OPTIONS["Source"].Options.SKC,
+				LOG_OPTIONS["SK List"].Options[sk_list],
+				winner,
+				loot_name,
+				prev_pos,
+				SKC_DB[sk_list]:GetPos(winner)
+			);
 		end
 		-- reload UI
 		SKC_Main:ReloadUIMain();
@@ -1628,6 +1743,8 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 	self:SendOutcomeMsg(winner,winner_decision,loot_link,DE,sk_list,success)
 	-- mark loot asawarded
 	self.pending_loot[loot_idx].awarded = true;
+	self.current_loot_timer:Cancel();
+	self.current_loot_timer = nil;
 	return;
 end
 
@@ -1734,7 +1851,52 @@ function LootManager:DeterminePrio(loot_idx,char_name)
 	return;
 end
 
+function LootManager:ForceDistribution()
+	-- forces loot distribution due to timeout
+	SKC_Main:Print("WARN","Time expired for players to decide on "..self:GetCurrentLootLink());
+	-- set all currently pending players to pass
+	for char_name, decision in pairs(self.current_loot.decisions) do
+		if decision == LOOT_DECISION.PENDING then
+			SKC_Main:Print("WARN",char_name.." never responded, automoatically passing");
+			self.current_loot.decisions[char_name] = LOOT_DECISION.PASS;
+		end
+	end
+	self:DetermineWinner(self:GetLootIdx(self:GetCurrentLootName()));
+	return;
+end
+
+local function ForceDistribution()
+	-- wrapper because i cant figure out how to call object method from After()
+	SKC_DB.LootManager:ForceDistribution();
+	return;
+end
+
+function LootManager:KickOff()
+	-- determine if there is still pending loot that needs to be decided on
+	-- MASTER LOOTER ONLY
+	if not SKC_Main:isML() then
+		SKC_Main:Print("ERROR","Cannot KickOFF, not loot master");
+		return;
+	end
+	for loot_idx,loot in ipairs(self.pending_loot) do
+		if not loot.awarded then 
+			self:SendLootMsgs(loot_idx); -- sends loot messages to all elligible players
+			-- store item as current item on ML side (does not trigger loot decision)
+			self:SetCurrentLootByIdx(loot_idx);
+			-- Start timer for when loot is automatically passed on by players that never responded
+			self.current_loot_timer = C_Timer.NewTimer(LOOT_DECISION.OPTIONS.MAX_TIME + LOOT_DECISION.OPTIONS.ML_WAIT_BUFFER, ForceDistribution);
+			return;
+		end
+	end
+	SKC_Main:Print("IMPORTANT","Loot distribution complete");
+	return;
+end
+
 function LootManager:ReadLootDecision(msg,sender)
+	-- read loot decision from loot participant
+	-- determines if all decisions received and ready to allocate loot
+	-- MASTER LOOTER ONLY
+	if not SKC_Main:isML() then return end
 	local char_name = StripRealmName(sender);
 	local loot_name, loot_decision = strsplit(",",msg,2);
 	loot_decision = tonumber(loot_decision);
@@ -1746,6 +1908,10 @@ function LootManager:ReadLootDecision(msg,sender)
 		SKC_Main:Print("WARN","loot_name:  "..loot_name);
 		SKC_Main:Print("WARN","loot_idx:  "..loot_idx);
 		SKC_Main:Print("WARN","loot_decision:  "..LOOT_DECISION.TEXT_MAP[loot_decision]);
+	end
+	if self:GetCurrentLootName() ~= loot_name then
+		SKC_Main:Print("ERROR","Received decision for item other than current_loot");
+		return;
 	end
 	self.pending_loot[loot_idx].decisions[char_name] = loot_decision;
 	-- save current position in corresponding sk list
@@ -1787,26 +1953,6 @@ end
 
 local function BoolToStr(inpt)
 	if inpt then return "1" else return "0" end
-end
-
-local function WriteToLog(time_in,action,src,sk_list,character,item,prev_sk_pos,new_sk_pos)
-	-- writes new log entry (if raid logging active)
-	if not event_states.RaidLoggingActive then return end
-	local idx = #SKC_DB.RaidLog + 1;
-	SKC_DB.RaidLog[idx] = {};
-	if time_in == nil then
-		SKC_DB.RaidLog[idx][1] = time();
-	else
-		SKC_DB.RaidLog[idx][1] = time_in;
-	end
-	SKC_DB.RaidLog[idx][2] = action;
-	SKC_DB.RaidLog[idx][3] = src;
-	SKC_DB.RaidLog[idx][4] = sk_list;
-	SKC_DB.RaidLog[idx][5] = character;
-	SKC_DB.RaidLog[idx][6] = item;
-	SKC_DB.RaidLog[idx][7] = prev_sk_pos;
-	SKC_DB.RaidLog[idx][8] = new_sk_pos;
-	return;
 end
 
 local function ResetRaidLogging()
@@ -1936,10 +2082,10 @@ end
 
 local function UpdateLiveList()
 	-- Adds every player in raid to live list
+	ActivateSKC(true);
 
 	-- Scan raid and update live list
-	-- TODO: make this scan over Guild Data so it resets live list when out of raid
-	for char_name,_ in pairs(SKC_DB.GuildData) do
+	for char_name,_ in pairs(SKC_DB.GuildData.data) do
 		if UnitInRaid(char_name) ~= nil then
 			AddToLiveLists(char_name,true);
 		end
@@ -2013,8 +2159,6 @@ local function OnAddonLoad(addon_name)
 	event_states.AddonLoaded = true;
 	-- Update live list
 	UpdateLiveList();
-	-- Start SKC
-	ActivateSKC(true);
 	return;
 end
 
@@ -2444,7 +2588,7 @@ end
 local function SetSKItem()
 	-- https://wow.gamepedia.com/ItemMixin
 	-- local itemID = 19395; -- Rejuv
-	local lootLink = SKC_DB.LootManager.current_loot.lootLink;
+	local lootLink = SKC_DB.LootManager:GetCurrentLootLink();
 	local item = Item:CreateFromItemLink(lootLink)
 	item:ContinueOnItemLoad(function()
 		-- item:GetlootLink();
@@ -2471,7 +2615,7 @@ local function TimerBarHandler()
 	if time_elapsed >= LOOT_DECISION.OPTIONS.MAX_TIME then
 		-- out of time
 		-- send loot response
-		SKC_Main:Print("WARN","Time expired. You PASS on "..SKC_DB.LootManager.current_loot.lootLink);
+		SKC_Main:Print("WARN","Time expired. You PASS on "..SKC_DB.LootManager:GetCurrentLootLink());
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.PASS);
 	end
@@ -2548,6 +2692,10 @@ local function CreateUICSV(name,import_btn)
 	-- set framel level and hide
 	SKC_UICSV[name]:SetFrameLevel(4);
 	SKC_UICSV[name]:Hide();
+
+	-- make closable with esc
+	table.insert(UISpecialFrames, name);
+
 	return SKC_UICSV[name];
 end
 
@@ -2755,7 +2903,6 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 			Send (SendLootDecision): Send loot decision to ML
 			Read (ReadLootDecision): Determine loot winner
 		--]]
-		if not SKC_Main:isML() then return end
 		-- read message, determine winner, award loot, start next loot decision
 		SKC_DB.LootManager:ReadLootDecision(msg,sender);
 	elseif prefix == CHANNELS.LOOT_OUTCOME then
@@ -2782,16 +2929,21 @@ end
 local function SaveLoot()
 	-- Scans items / characters and stores loot in LootManager
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
-	-- Update SKC Active flag
-	ActivateSKC();
 
 	-- Check that player is ML
 	if not SKC_Main:isML() then return end
+
+	-- Check if loot decision already pending
+	if SKC_DB.LootManager:LootDecisionPending() then return end
+
+	-- Update SKC Active flag
+	ActivateSKC();
 	
 	-- Reset LootManager
 	SKC_DB.LootManager:Reset();
 	
 	-- Scan all items and save each item / elligible player
+	if LOOT_VERBOSE then SKC_Main:Print("IMPORTANT","Starting Loot Distribution") end
 	local loot_cnt = 1;
 	for i_loot = 1, GetNumLootItems() do
 		-- get item data
@@ -2816,6 +2968,7 @@ local function SaveLoot()
 					end
 				end
 			else
+				if LOOT_VERBOSE then SKC_Main:Print("NORMAL","Giving directly to ML") end
 				-- give directly to ML
 				SKC_DB.LootManager:GiveLoot(lootName,GetLootSlotLink(i_loot),UnitName("player"));
 			end
@@ -3476,6 +3629,9 @@ function SKC_Main:CreateUIMain()
 
 	-- Populate Data
 	PopulateData();
+
+	-- Make frame closable with esc
+	table.insert(UISpecialFrames, "SKC_UIMain");
     
 	SKC_UIMain:Hide();
 	return SKC_UIMain;
