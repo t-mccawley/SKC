@@ -13,6 +13,7 @@ local SKC_UICSV = {}; -- Table for GUI associated with CSV import and export
 local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = false; -- override master looter permissions
 local GL_OVRD = false; -- override guild leader permissions
+local LOOT_SAFE_MODE = true; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
 local OVRD_CHARS = { -- characters which are pushed into GuildData
@@ -1648,7 +1649,7 @@ function LootManager:GiveLoot(loot_name,loot_link,winner)
 			-- find character in raid
 			for i_char = 1,40 do
 				if GetMasterLootCandidate(i_loot, i_char) == winner then
-					if LOOT_DIST_DISABLE then
+					if LOOT_DIST_DISABLE or LOOT_SAFE_MODE then
 						SKC_Main:Print("IMPORTANT","Faux distribution of loot successful!");
 					else 
 						GiveMasterLoot(i_loot,i_char);
@@ -2930,6 +2931,11 @@ end
 local function SaveLoot()
 	-- Scans items / characters and stores loot in LootManager
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
+
+	if LOOT_SAFE_MODE then 
+		SKC_Main:Print("WARN","Loot Safe Mode");
+		return;
+	end
 
 	-- Check that player is ML
 	if not SKC_Main:isML() then return end
