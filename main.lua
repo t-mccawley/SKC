@@ -3036,9 +3036,8 @@ function SKC_Main:ReloadUIMain()
 	local is_shown = false;
 	if SKC_UIMain ~= nil then is_shown = SKC_UIMain:IsShown() end
 	if SKC_UIMain == nil then
-		SKC_Main:CreateUIMain();
-		if VERBOSE then SKC_Main:Print("NORMAL","Created new UI Main") end
-		if SKC_UIMain == nil then SKC_Main:Print("ERROR","NULL UI Main") end
+		if VERBOSE then SKC_Main:Print("NORMAL","ReloadUIMain: SKC_UIMain not created yet") end
+		return;
 	end
 	-- Refresh Data
 	PopulateData();
@@ -3460,7 +3459,7 @@ function SKC_Main:CreateUIMain()
 	-- Create SK cards
 	SKC_UIMain.sk_list.NumberFrame = {};
 	SKC_UIMain.sk_list.NameFrame = {};
-	for idx = 1, SKC_DB.GuildData:length() do
+	for idx = 1, GetNumGuildMembers() do
 		-- Create number frames
 		SKC_UIMain.sk_list.NumberFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain.sk_list.SK_List_SF,"InsetFrameTemplate");
 		SKC_UIMain.sk_list.NumberFrame[idx]:SetSize(30,UI_DIMENSIONS.SK_CARD_HEIGHT);
@@ -3469,6 +3468,7 @@ function SKC_Main:CreateUIMain()
 		SKC_UIMain.sk_list.NumberFrame[idx].Text:SetFontObject("GameFontHighlightSmall")
 		SKC_UIMain.sk_list.NumberFrame[idx].Text:SetPoint("CENTER",0,0)
 		SKC_UIMain.sk_list.NumberFrame[idx]:SetScript("OnMouseDown",OnClick_NumberCard);
+		SKC_UIMain.sk_list.NumberFrame[idx]:Hide();
 		-- Create named card frames
 		SKC_UIMain.sk_list.NameFrame[idx] = CreateFrame("Frame",nil,SKC_UIMain.sk_list.SK_List_SF,"InsetFrameTemplate");
 		SKC_UIMain.sk_list.NameFrame[idx]:SetSize(UI_DIMENSIONS.SK_CARD_WIDTH,UI_DIMENSIONS.SK_CARD_HEIGHT);
@@ -3481,6 +3481,7 @@ function SKC_Main:CreateUIMain()
 		SKC_UIMain.sk_list.NameFrame[idx].bg:SetAllPoints(true);
 		-- Bind function for click event
 		SKC_UIMain.sk_list.NameFrame[idx]:SetScript("OnMouseDown",OnClick_SK_Card);
+		SKC_UIMain.sk_list.NameFrame[idx]:Hide();
 	end
 
 	-- Create details panel
