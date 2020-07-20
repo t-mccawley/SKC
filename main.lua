@@ -10,18 +10,19 @@ local SKC_UICSV = {}; -- Table for GUI associated with CSV import and export
 --------------------------------------
 -- DEV CONTROLS
 --------------------------------------
-local ML_OVRD = false; -- override master looter permissions
-local GL_OVRD = true; -- override guild leader permissions
 local HARD_DB_RESET = false; -- resets SKC_DB
+local ML_OVRD = false; -- override master looter permissions
+local GL_OVRD = false; -- override guild leader permissions
+local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
+local LOG_ACTIVE_OVRD = false; -- true to force logging
 local OVRD_CHARS = { -- characters which are pushed into GuildData
-	Mctester = true,
-	Skc = true,
+	-- Mctester = true,
+	-- Skc = true,
 };
+-- verbosity
 local VERBOSE = true; -- general verbosity flag
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
 local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
-local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
-local LOG_ACTIVE_OVRD = true; -- forces logging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
