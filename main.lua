@@ -11,8 +11,8 @@ local SKC_UICSV = {}; -- Table for GUI associated with CSV import and export
 -- DEV CONTROLS
 --------------------------------------
 local HARD_DB_RESET = false; -- resets SKC_DB
-local ML_OVRD = false; -- override master looter permissions
-local GL_OVRD = false; -- override guild leader permissions
+local ML_OVRD = nil; -- name of faux ML override master looter permissions
+local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = true; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
@@ -534,25 +534,6 @@ local tmp_sync_var = {}; -- temporary variable used to hold incoming data when s
 local UnFilteredCnt = 0; -- defines max count of sk cards to scroll over
 local SK_MessagesSent = 0;
 local SK_MessagesReceived = 0;
-local FilterStates = {
-	DPS = true,
-	Healer = true,
-	Tank = true,
-	Live = false,
-	Main = true,
-	Alt = true,
-	Active = true,
-	Inactive = false,
-	Druid = true,
-	Hunter = true,
-	Mage = true,
-	Paladin = UnitFactionGroup("player") == "Alliance",
-	Priest = true;
-	Rogue = true,
-	Shaman = UnitFactionGroup("player") == "Horde",
-	Warlock = true,
-	Warrior = true,
-};
 local event_states = { -- tracks if certain events have fired
 	AddonLoaded = false,
 	RaidLoggingActive = LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
@@ -2031,14 +2012,14 @@ local function SyncGuildData()
 			if not InitGuildSync then SKC_Main:Print("ERROR",name.." removed from databases") end
 		end
 	end
-	if InitGuildSync then
-		SKC_DB.GuildData.edit_ts_generic = 0;
-		SKC_DB.GuildData.edit_ts_raid = 0;
-		SKC_DB.MSK.edit_ts_generic = 0;
-		SKC_DB.MSK.edit_ts_raid = 0;
-		SKC_DB.TSK.edit_ts_generic = 0;
-		SKC_DB.TSK.edit_ts_raid = 0;
-	end
+	-- if InitGuildSync then
+	-- 	SKC_DB.GuildData.edit_ts_generic = 0;
+	-- 	SKC_DB.GuildData.edit_ts_raid = 0;
+	-- 	SKC_DB.MSK.edit_ts_generic = 0;
+	-- 	SKC_DB.MSK.edit_ts_raid = 0;
+	-- 	SKC_DB.TSK.edit_ts_generic = 0;
+	-- 	SKC_DB.TSK.edit_ts_raid = 0;
+	-- end
 	UnFilteredCnt = SKC_DB.GuildData:length();
 	if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
 		-- init sync completed
@@ -2151,6 +2132,28 @@ local function OnAddonLoad(addon_name)
 		SKC_DB.LootManager = nil
 		SKC_Main:Print("WARN","Initialized LootManager");
 	end
+	if SKC_DB.FilterStates == nil or HARD_DB_RESET then
+		SKC_DB.FilterStates = {
+			DPS = true,
+			Healer = true,
+			Tank = true,
+			Live = false,
+			Main = true,
+			Alt = true,
+			Active = true,
+			Inactive = false,
+			Druid = true,
+			Hunter = true,
+			Mage = true,
+			Paladin = UnitFactionGroup("player") == "Alliance",
+			Priest = true;
+			Rogue = true,
+			Shaman = UnitFactionGroup("player") == "Horde",
+			Warlock = true,
+			Warrior = true,
+		};
+		SKC_Main:Print("WARN","Initialized FilterStates");
+	end
 	-- Initialize or refresh metatables
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
 	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
@@ -2202,11 +2205,11 @@ local function UpdateSKUI()
 		local activity_tmp = SKC_DB.GuildData:GetData(name,"Activity");
 		local live_tmp = SKC_DB[sk_list]:GetLive(name);
 		-- only add cards to list which are not being filtered
-		if FilterStates[class_tmp] and 
-		   FilterStates[raid_role_tmp] and
-		   FilterStates[status_tmp] and
-		   FilterStates[activity_tmp] and
-		   (live_tmp or (not live_tmp and not FilterStates.Live)) then
+		if SKC_DB.FilterStates[class_tmp] and 
+		   SKC_DB.FilterStates[raid_role_tmp] and
+		   SKC_DB.FilterStates[status_tmp] and
+		   SKC_DB.FilterStates[activity_tmp] and
+		   (live_tmp or (not live_tmp and not SKC_DB.FilterStates.Live)) then
 			-- Add number text
 			SKC_UIMain.sk_list.NumberFrame[idx].Text:SetText(SKC_DB[sk_list]:GetPos(name));
 			SKC_UIMain.sk_list.NumberFrame[idx]:Show();
@@ -2225,7 +2228,7 @@ local function UpdateSKUI()
 end
 
 local function OnCheck_FilterFunction (self, button)
-	FilterStates[self.text:GetText()] = self:GetChecked();
+	SKC_DB.FilterStates[self.text:GetText()] = self:GetChecked();
 	UpdateSKUI();
 	return;
 end
@@ -2922,7 +2925,11 @@ local function LoginSyncCheckSend()
 	for _,db_name in ipairs(db_lsit) do
 		msg = db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
 		ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD",nil,"main_queue");
-		if COMM_VERBOSE then SKC_Main:Print("WARN",msg) end
+		if COMM_VERBOSE then 
+			SKC_Main:Print("WARN",db_name.." Edit Timestamp:");
+			SKC_Main:Print("WARN","     GENERIC: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_generic));
+			SKC_Main:Print("WARN","            RAID: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_raid));
+		end
 	end
 	event_states.SyncRequestSent = true;
 	return;
@@ -3080,12 +3087,12 @@ end
 
 function SKC_Main:isML()
 	-- Check if current player is master looter
-	return(ML_OVRD or IsMasterLooter());
+	return(UnitName("player") == ML_OVRD or IsMasterLooter());
 end
 
 function SKC_Main:isGL()
 	-- Check if current player is guild leader
-	return(GL_OVRD or IsGuildLeader());
+	return(UnitName("player") == GL_OVRD or IsGuildLeader());
 end
 
 function SKC_Main:BenchShow()
@@ -3268,7 +3275,9 @@ local function OnClick_ImportLootPrio()
 	SKC_DB.LootPrio.edit_ts_generic = ts;
 	SKC_Main:Print("NORMAL","Loot Priority Import Complete");
 	SKC_Main:Print("NORMAL",SKC_DB.LootPrio:length().." items added");
-	SKC_UICSV["Loot Priority Import"]:Hide();
+	-- push new loot prio to guild
+	SyncPushSend("LootPrio",CHANNELS.SYNC_PUSH,"GUILD",nil);
+	SKC_UICSV[name]:Hide();
 	return;
 end
 
@@ -3330,6 +3339,9 @@ local function OnClick_ImportSKList(sk_list)
 	SKC_DB[sk_list].edit_ts_generic = 0;
 	SKC_DB[sk_list].edit_ts_raid = 0;
 	SKC_Main:Print("NORMAL",sk_list.." imported");
+	-- push new loot prio to guild
+	SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
+	SKC_UICSV[name]:Hide();
 	return;
 end
 
@@ -3415,7 +3427,7 @@ function SKC_Main:CreateUIMain()
 			local col = (idx - 1) % 4; -- zero based
 			SKC_UIMain[filter_border_key][value] = CreateFrame("CheckButton", nil, SKC_UIMain[filter_border_key], "UICheckButtonTemplate");
 			SKC_UIMain[filter_border_key][value]:SetSize(25,25);
-			SKC_UIMain[filter_border_key][value]:SetChecked(FilterStates[value]);
+			SKC_UIMain[filter_border_key][value]:SetChecked(SKC_DB.FilterStates[value]);
 			SKC_UIMain[filter_border_key][value]:SetScript("OnClick",OnCheck_FilterFunction)
 			SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
 			SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
