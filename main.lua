@@ -3227,14 +3227,10 @@ local function OnClick_ImportLootPrio()
 	-- get text
 	local name = "Loot Priority Import";
 	local txt = SKC_UICSV[name].EditBox:GetText();
-	-- skip first 3 rows
-	local skip_cnt = 0;
+	-- skip first row (header)
 	local line = nil;
 	local txt_rem = txt;
-	while skip_cnt < 3 do
-		line, txt_rem = strsplit("\n",txt_rem,2);
-		skip_cnt = skip_cnt + 1;
-	end
+	line, txt_rem = strsplit("\n",txt_rem,2);
 	-- read data
 	local valid = true;
 	while txt_rem ~= nil do

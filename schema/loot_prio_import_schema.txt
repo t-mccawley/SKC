@@ -1,0 +1,1 @@
+Item,SK List,Reserved,Disenchant,Open Roll,Balance Druid,Resto Druid,Feral Tank Druid,Feral DPS Druid,Any Hunter,Any Mage,Holy Paladin,Prot Paladin,Ret Paladin,Holy Priest,Shadow Priest,Any Rogue,Daggers Rogue,Swords Rogue,Ele Shaman,Enh Shaman,Resto Shaman,Any Warlock,DPS Warrior,Prot Warrior,Two Handed Warrior,Dual Wield Warrior
