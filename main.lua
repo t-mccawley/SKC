@@ -2432,11 +2432,18 @@ local function OnClick_EditDetails(self, button)
 	return;
 end
 
-local function OnClick_SK_Card(self, button)
-	if button=='LeftButton' and self.Text:GetText() ~= nill and DD_State == 0 and not SetSK_Flag then
-		-- Populate data
-		Refresh_Details(self.Text:GetText());
-		-- Enable edit buttons
+local function EnableDetailsButtons(disable)
+	-- disable / enable buttons in details frame appropriately for player privileges
+	-- Enable edit buttons
+	if disable then
+		SKC_UIMain["Details_border"]["Spec"].Btn:Disable();
+		SKC_UIMain["Details_border"]["Guild Role"].Btn:Disable();
+		SKC_UIMain["Details_border"]["Status"].Btn:Disable();
+		SKC_UIMain["Details_border"]["Activity"].Btn:Disable();
+		SKC_UIMain["Details_border"].manual_single_sk_btn:Disable();
+		SKC_UIMain["Details_border"].manual_full_sk_btn:Disable();
+		SKC_UIMain["Details_border"].manual_set_sk_btn:Disable();
+	else
 		if SKC_Main:isGL() then
 			SKC_UIMain["Details_border"]["Spec"].Btn:Enable();
 			SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
@@ -2444,72 +2451,88 @@ local function OnClick_SK_Card(self, button)
 			SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
 		end
 		if SKC_Main:isGL() or SKC_Main:isML() then
-			SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
-			SKC_UIMain["Details_border"].FullSK_Btn:Enable();
-			SKC_UIMain["Details_border"].SetSK_Btn:Enable();
+			SKC_UIMain["Details_border"].manual_single_sk_btn:Enable();
+			SKC_UIMain["Details_border"].manual_full_sk_btn:Enable();
+			SKC_UIMain["Details_border"].manual_set_sk_btn:Enable();
 		end
 	end
+	return
+end
+
+local function OnClick_SK_Card(self, button)
+	-- populates details frame for given sk card character
+	if button=='LeftButton' and self.Text:GetText() ~= nill and DD_State == 0 and not SetSK_Flag then
+		-- Populate data
+		Refresh_Details(self.Text:GetText());
+		-- Enable edit buttons
+		EnableDetailsButtons();
+	end
+	return;
 end
 
 local function OnClick_FullSK(self)
-	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
-	-- On click event for full SK of details targeted character
-	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
-	-- Get initial position
-	local prev_pos = SKC_DB[sk_list]:GetPos(name);
-	-- Execute full SK
-	local success = SKC_DB[sk_list]:PushBack(name);
-	if success then 
-		-- log
-		WriteToLog(
-			nil,
-			LOG_OPTIONS["Action"].Options.ManSK,
-			LOG_OPTIONS["Source"].Options.THIS_PLAYER,
-			LOG_OPTIONS["SK List"].Options[sk_list],
-			name,
-			"",
-			prev_pos,
-			SKC_DB[sk_list]:GetPos(name)
-		);
-		SKC_Main:Print("IMPORTANT","Full SK on "..name);
-		-- send SK data to all players
-		SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
-		-- Refresh SK List
-		UpdateSKUI();
-	else
-		SKC_Main:Print("ERROR","Full SK on "..name.." rejected");
+	if self:IsEnabled() then
+		local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
+		-- On click event for full SK of details targeted character
+		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+		-- Get initial position
+		local prev_pos = SKC_DB[sk_list]:GetPos(name);
+		-- Execute full SK
+		local success = SKC_DB[sk_list]:PushBack(name);
+		if success then 
+			-- log
+			WriteToLog(
+				nil,
+				LOG_OPTIONS["Action"].Options.ManSK,
+				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
+				LOG_OPTIONS["SK List"].Options[sk_list],
+				name,
+				"",
+				prev_pos,
+				SKC_DB[sk_list]:GetPos(name)
+			);
+			SKC_Main:Print("IMPORTANT","Full SK on "..name);
+			-- send SK data to all players
+			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
+			-- Refresh SK List
+			UpdateSKUI();
+		else
+			SKC_Main:Print("ERROR","Full SK on "..name.." rejected");
+		end
 	end
 	return;
 end
 
 local function OnClick_SingleSK(self)
-	-- On click event for full SK of details targeted character
-	local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
-	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
-	-- Get initial position
-	local prev_pos = SKC_DB[sk_list]:GetPos(name);
-	-- Execute full SK
-	local name_below = SKC_DB[sk_list]:GetBelow(name);
-	local success = SKC_DB[sk_list]:InsertBelow(name,name_below);
-	if success then 
-		-- log
-		WriteToLog(
-			nil,
-			LOG_OPTIONS["Action"].Options.ManSK,
-			LOG_OPTIONS["Source"].Options.THIS_PLAYER,
-			LOG_OPTIONS["SK List"].Options[sk_list],
-			name,
-			"",
-			prev_pos,
-			SKC_DB[sk_list]:GetPos(name)
-		);
-		SKC_Main:Print("IMPORTANT","Single SK on "..name);
-		-- send SK data to all players
-		SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
-		-- Refresh SK List
-		UpdateSKUI();
-	else
-		SKC_Main:Print("ERROR","Single SK on "..name.." rejected");
+	if self:IsEnabled() then
+		-- On click event for full SK of details targeted character
+		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
+		local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
+		-- Get initial position
+		local prev_pos = SKC_DB[sk_list]:GetPos(name);
+		-- Execute full SK
+		local name_below = SKC_DB[sk_list]:GetBelow(name);
+		local success = SKC_DB[sk_list]:InsertBelow(name,name_below);
+		if success then 
+			-- log
+			WriteToLog(
+				nil,
+				LOG_OPTIONS["Action"].Options.ManSK,
+				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
+				LOG_OPTIONS["SK List"].Options[sk_list],
+				name,
+				"",
+				prev_pos,
+				SKC_DB[sk_list]:GetPos(name)
+			);
+			SKC_Main:Print("IMPORTANT","Single SK on "..name);
+			-- send SK data to all players
+			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
+			-- Refresh SK List
+			UpdateSKUI();
+		else
+			SKC_Main:Print("ERROR","Single SK on "..name.." rejected");
+		end
 	end
 	return;
 end
@@ -2517,7 +2540,7 @@ end
 local function OnClick_SetSK(self)
 	-- On click event to set SK position of details targeted character
 	-- Prompt user to click desired position number in list
-	if SKC_UIMain["Details_border"]["Name"].Data ~= nil then
+	if self:IsEnabled() then
 		SetSK_Flag = true;
 		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 		SKC_Main:Print("IMPORTANT","Click desired position in SK list for "..name);
@@ -3025,6 +3048,8 @@ local function OnClick_SKListCycle()
 	end
 	-- populate data
 	PopulateData();
+	-- enable / disable details buttons
+	EnableDetailsButtons(true);
 end
 --------------------------------------
 -- SHARED FUNCTIONS
@@ -3375,13 +3400,13 @@ function SKC_Main:DisplayLootDecisionGUI(loot_option,sk_list)
 	-- Starts loot decision GUI
 	SKC_Main:ToggleUIMain(true);
 	-- Enable correct buttons
-	SKC_UIMain["Decision_border"].Pass_Btn:Enable(); -- OnClick_PASS
+	SKC_UIMain["Decision_border"].loot_decision_pass_btn:Enable(); -- OnClick_PASS
 	if loot_option == "SK" then
-		SKC_UIMain["Decision_border"].SK_Btn:Enable();
+		SKC_UIMain["Decision_border"].loot_decision_sk_btn:Enable();
 	else
-		SKC_UIMain["Decision_border"].SK_Btn:Disable(); -- OnClick_SK
+		SKC_UIMain["Decision_border"].loot_decision_sk_btn:Disable(); -- OnClick_SK
 	end
-	SKC_UIMain["Decision_border"].Roll_Btn:Enable(); -- OnClick_ROLL
+	SKC_UIMain["Decision_border"].loot_decision_roll_btn:Enable(); -- OnClick_ROLL
 	-- Set item (in GUI)
 	SetSKItem();
 	-- populate correct SK list
@@ -3545,32 +3570,32 @@ function SKC_Main:CreateUIMain()
 
 	-- Add SK buttons
 	-- full SK
-	SKC_UIMain[details_border_key].FullSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[details_border_key].FullSK_Btn:SetPoint("BOTTOM",SKC_UIMain[details_border_key],"BOTTOM",0,15);
-	SKC_UIMain[details_border_key].FullSK_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
-	SKC_UIMain[details_border_key].FullSK_Btn:SetText("Full SK");
-	SKC_UIMain[details_border_key].FullSK_Btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[details_border_key].FullSK_Btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[details_border_key].FullSK_Btn:SetScript("OnMouseDown",OnClick_FullSK);
-	SKC_UIMain[details_border_key].FullSK_Btn:Disable();
+	SKC_UIMain[details_border_key].manual_full_sk_btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[details_border_key].manual_full_sk_btn:SetPoint("BOTTOM",SKC_UIMain[details_border_key],"BOTTOM",0,15);
+	SKC_UIMain[details_border_key].manual_full_sk_btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
+	SKC_UIMain[details_border_key].manual_full_sk_btn:SetText("Full SK");
+	SKC_UIMain[details_border_key].manual_full_sk_btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[details_border_key].manual_full_sk_btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[details_border_key].manual_full_sk_btn:SetScript("OnMouseDown",OnClick_FullSK);
+	SKC_UIMain[details_border_key].manual_full_sk_btn:Disable();
 	-- single SK
-	SKC_UIMain[details_border_key].SingleSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetPoint("RIGHT",SKC_UIMain[details_border_key].FullSK_Btn,"LEFT",-5,0);
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetText("Single SK");
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[details_border_key].SingleSK_Btn:SetScript("OnMouseDown",OnClick_SingleSK);
-	SKC_UIMain[details_border_key].SingleSK_Btn:Disable();
+	SKC_UIMain[details_border_key].manual_single_sk_btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[details_border_key].manual_single_sk_btn:SetPoint("RIGHT",SKC_UIMain[details_border_key].manual_full_sk_btn,"LEFT",-5,0);
+	SKC_UIMain[details_border_key].manual_single_sk_btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
+	SKC_UIMain[details_border_key].manual_single_sk_btn:SetText("Single SK");
+	SKC_UIMain[details_border_key].manual_single_sk_btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[details_border_key].manual_single_sk_btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[details_border_key].manual_single_sk_btn:SetScript("OnMouseDown",OnClick_SingleSK);
+	SKC_UIMain[details_border_key].manual_single_sk_btn:Disable();
 	-- set SK
-	SKC_UIMain[details_border_key].SetSK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[details_border_key].SetSK_Btn:SetPoint("LEFT",SKC_UIMain[details_border_key].FullSK_Btn,"RIGHT",5,0);
-	SKC_UIMain[details_border_key].SetSK_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
-	SKC_UIMain[details_border_key].SetSK_Btn:SetText("Set SK");
-	SKC_UIMain[details_border_key].SetSK_Btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[details_border_key].SetSK_Btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[details_border_key].SetSK_Btn:SetScript("OnMouseDown",OnClick_SetSK);
-	SKC_UIMain[details_border_key].SetSK_Btn:Disable();
+	SKC_UIMain[details_border_key].manual_set_sk_btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[details_border_key].manual_set_sk_btn:SetPoint("LEFT",SKC_UIMain[details_border_key].manual_full_sk_btn,"RIGHT",5,0);
+	SKC_UIMain[details_border_key].manual_set_sk_btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
+	SKC_UIMain[details_border_key].manual_set_sk_btn:SetText("Set SK");
+	SKC_UIMain[details_border_key].manual_set_sk_btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[details_border_key].manual_set_sk_btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[details_border_key].manual_set_sk_btn:SetScript("OnMouseDown",OnClick_SetSK);
+	SKC_UIMain[details_border_key].manual_set_sk_btn:Disable();
 
 
 	-- Decision region
@@ -3594,36 +3619,36 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[decision_border_key]:SetScript("OnHyperlinkClick", ChatFrame_OnHyperlinkShow)
 	-- set decision buttons
 	-- SK 
-	SKC_UIMain[decision_border_key].SK_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].SK_Btn:SetPoint("TOPRIGHT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",-60,-10);
-	SKC_UIMain[decision_border_key].SK_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
-	SKC_UIMain[decision_border_key].SK_Btn:SetText("SK");
-	SKC_UIMain[decision_border_key].SK_Btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[decision_border_key].SK_Btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[decision_border_key].SK_Btn:SetScript("OnMouseDown",OnClick_SK);
-	SKC_UIMain[decision_border_key].SK_Btn:Disable();
+	SKC_UIMain[decision_border_key].loot_decision_sk_btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetPoint("TOPRIGHT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",-60,-10);
+	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
+	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetText("SK");
+	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetScript("OnMouseDown",OnClick_SK);
+	SKC_UIMain[decision_border_key].loot_decision_sk_btn:Disable();
 	-- Roll 
-	SKC_UIMain[decision_border_key].Roll_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].Roll_Btn:SetPoint("TOP",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",0,-10);
-	SKC_UIMain[decision_border_key].Roll_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
-	SKC_UIMain[decision_border_key].Roll_Btn:SetText("Roll");
-	SKC_UIMain[decision_border_key].Roll_Btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[decision_border_key].Roll_Btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[decision_border_key].Roll_Btn:SetScript("OnMouseDown",OnClick_ROLL);
-	SKC_UIMain[decision_border_key].Roll_Btn:Disable();
+	SKC_UIMain[decision_border_key].loot_decision_roll_btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetPoint("TOP",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",0,-10);
+	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
+	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetText("Roll");
+	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetScript("OnMouseDown",OnClick_ROLL);
+	SKC_UIMain[decision_border_key].loot_decision_roll_btn:Disable();
 	-- Pass
-	SKC_UIMain[decision_border_key].Pass_Btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].Pass_Btn:SetPoint("TOPLEFT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",60,-10);
-	SKC_UIMain[decision_border_key].Pass_Btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
-	SKC_UIMain[decision_border_key].Pass_Btn:SetText("Pass");
-	SKC_UIMain[decision_border_key].Pass_Btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[decision_border_key].Pass_Btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[decision_border_key].Pass_Btn:SetScript("OnMouseDown",OnClick_PASS);
-	SKC_UIMain[decision_border_key].Pass_Btn:Disable();
+	SKC_UIMain[decision_border_key].loot_decision_pass_btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
+	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetPoint("TOPLEFT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",60,-10);
+	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
+	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetText("Pass");
+	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetNormalFontObject("GameFontNormal");
+	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetScript("OnMouseDown",OnClick_PASS);
+	SKC_UIMain[decision_border_key].loot_decision_pass_btn:Disable();
 	-- timer bar
 	SKC_UIMain[decision_border_key].TimerBorder = CreateFrame("Frame",nil,SKC_UIMain,"TranslucentFrameTemplate");
 	SKC_UIMain[decision_border_key].TimerBorder:SetSize(UI_DIMENSIONS.STATUS_BAR_BRDR_WIDTH,UI_DIMENSIONS.STATUS_BAR_BRDR_HEIGHT);
-	SKC_UIMain[decision_border_key].TimerBorder:SetPoint("TOP",SKC_UIMain[decision_border_key].Roll_Btn,"BOTTOM",0,-7);
+	SKC_UIMain[decision_border_key].TimerBorder:SetPoint("TOP",SKC_UIMain[decision_border_key].loot_decision_roll_btn,"BOTTOM",0,-7);
 	SKC_UIMain[decision_border_key].TimerBorder.Bg:SetAlpha(1.0);
 	-- status bar
 	SKC_UIMain[decision_border_key].TimerBar = CreateFrame("StatusBar",nil,SKC_UIMain);
