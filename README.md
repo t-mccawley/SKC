@@ -57,26 +57,26 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
 ## Slash Commands
 Some slash commands are protected by character privelages, see the available slash commands for each member below:
 ### All Members
-`/skc help`: Lists all available slash commands
-`/skc`: Toggles GUI
-`/skc prio <item link/name>`: Displays loot prio for given item
-`/skc prio`: Displays the number of items in saved loot prio
-`/skc reset`: Resets SKC data and re-sync with guild
-`/skc bench show`: Displays bench
+- `/skc help`: Lists all available slash commands
+- `/skc`: Toggles GUI
+- `/skc prio <item link/name>`: Displays loot prio for given item
+- `/skc prio`: Displays the number of items in saved loot prio
+- `/skc reset`: Resets SKC data and re-sync with guild
+- `/skc bench show`: Displays bench
 
 ### Guild Leader and Master Looter Only
-`/skc bench add <character name>`: Adds character to bench
-`/skc bench clear`: Clears bench
-`/skc enable`: Enables loot distribution with skc
-`/skc disable`: Disables loot distribution with skc
-`/skc export log`: Export sk log (CSV) for most recent raid
-`/skc export sk`: Export current sk lists (CSV)
+- `/skc bench add <character name>`: Adds character to bench
+- `/skc bench clear`: Clears bench
+- `/skc enable`: Enables loot distribution with skc
+- `/skc disable`: Disables loot distribution with skc
+- `/skc export log`: Export sk log (CSV) for most recent raid
+- `/skc export sk`: Export current sk lists (CSV)
     
 ### Guild Leader Only
-`/skc activity`: Displays the current inactivity threshold in days
-`/skc activity <#>`: Sets inactivity threshold to # days
-`/skc prio init`: Initialze loot prio with a CSV
-`/skc <MSK/TSK> init`: Initialze sk list with a CSV
+- `/skc activity`: Displays the current inactivity threshold in days
+- `/skc activity <#>`: Sets inactivity threshold to # days
+- `/skc prio init`: Initialze loot prio with a CSV
+- `/skc <MSK/TSK> init`: Initialze sk list with a CSV
 
 ## Appendix
 Supported Class / Specs:
