@@ -17,21 +17,21 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
     - These details are used in the automatic loot distribution process
        - TODO: Add configurable fields here
 - Loot Prioritization System
- - Loot prio is a configurable input to SKC through a CSV import interface (/skc prio init)
- - **Only items in the loot prio system will be automatically distributed by SKC**
- - Loot prio is used to give certain Class / Spec combinations priority over others regardless of their SK positions. Loot prio is only relevant for characters who decide to SK for an item (it is not used for rolling / passing).
- - Schema for loot prio CSV can be found here
- - For a given item, a loot prio can be assigned for the 22 predefined Class / Spec combinations found in the appendix
- - Loot prio can be assigned a value of 1 (highest main spec priority) to 5 (lowest main spec priority) and OS. Omitting a prio value means that Spec / Class is inelligible for the item and will not receive a loot decision GUI.
- - Additionally, can configure the following options for a given item
-  - SK List (MSK or TSK): What list the item is associated with
-  - Reserved (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters, otherwise there is no distinction betweel Mains and Alts.
-  - Disenchant (TRUE or FALSE): In the event that everyone passes on this item, TRUE will cause SKC to give the item to the Disenchanter, otherwise given to Guild Banker
-  - Open Roll (TRUE or FALSE): TRUE enables the "Roll" loot decision option to be selected for the given item, otherwise it is disabled.
+    - Loot prio is a configurable input to SKC through a CSV import interface (/skc prio init)
+    - **Only items in the loot prio system will be automatically distributed by SKC**
+    - Loot prio is used to give certain Class / Spec combinations priority over others regardless of their SK positions. Loot prio is only relevant for characters who decide to SK for an item (it is not used for rolling / passing).
+    - Schema for loot prio CSV can be found here
+    - For a given item, a loot prio can be assigned for the 22 predefined Class / Spec combinations found in the appendix
+    - Loot prio can be assigned a value of 1 (highest main spec priority) to 5 (lowest main spec priority) and OS. Omitting a prio value means that Spec / Class is inelligible for the item and will not receive a loot decision GUI.
+    - Additionally, can configure the following options for a given item
+        - SK List (MSK or TSK): What list the item is associated with
+        - Reserved (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters, otherwise there is no distinction betweel Mains and Alts.
+        - Disenchant (TRUE or FALSE): In the event that everyone passes on this item, TRUE will cause SKC to give the item to the Disenchanter, otherwise given to Guild Banker
+        - Open Roll (TRUE or FALSE): TRUE enables the "Roll" loot decision option to be selected for the given item, otherwise it is disabled.
 - Automatic loot distribution
- - Sequence of automatic loot distribution:
-  - Master looter of a raid (with SKC installed) opens the master looter GUI for an item
-  - SKC uses the Loot Prio to determine which characters are elligible for the given loot
+    - Sequence of automatic loot distribution:
+        - Master looter of a raid (with SKC installed) opens the master looter GUI for an item
+        - SKC uses the Loot Prio to determine which characters are elligible for the given loot
 
 ## Slash Commands
 
