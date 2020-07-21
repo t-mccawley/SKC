@@ -71,27 +71,27 @@ core.commands = {
     print(" ");
     core.SKC_Main:Print("NORMAL","|cff"..title_color.."Slash Commands:|r");
     -- all members
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - shows help info");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - toggles SKC GUI");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item link/name>|r - displays loot prio for given item");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio|r - displays the number of items in saved loot prio");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - resets SKC data and re-sync with guild");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - displays bench");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - Lists all available slash commands");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - Toggles GUI");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item link/name>|r - Displays loot prio for given item");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio|r - Displays the number of items in saved loot prio");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets SKC data and re-sync with guild");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - Displays bench");
     if core.SKC_Main:isML() then
-      core.SKC_Main:Print("NORMAL","|cff"..title_color.."Loot Master Only:|r");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - adds character to bench");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - clears bench");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - enables loot distribution with skc");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - disables loot distribution with skc");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - export sk log (CSV) for most recent raid");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - export current sk lists (CSV)");
+      core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader and Master Looter Only:|r");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - Adds character to bench");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - Clears bench");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - Enables loot distribution with skc");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - Disables loot distribution with skc");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export sk log (CSV) for most recent raid");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export current sk lists (CSV)");
     end
     if core.SKC_Main:isGL() then
       core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader Only:|r");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity|r - displays the current inactivity threshold in days");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - sets inactivity threshold to # days");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio init|r - initialze loot prio with a CSV");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc <MSK/TSK> init|r - initialze sk list with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity|r - Displays the current inactivity threshold in days");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - Sets inactivity threshold to # days");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio init|r - Initialze loot prio with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc <MSK/TSK> init|r - Initialze sk list with a CSV");
     end
 		print(" ");
   end,
