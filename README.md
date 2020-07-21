@@ -85,22 +85,12 @@ Supported Class / Specs:
 |  Druid  |   Balance, Restoration, Feral Tank, Feral DPS   |
 |  Hunter |     Any     |
 |   Mage  |     Any     |
-| Paladin |     Holy    |
-| Paladin |  Protection |
-| Paladin | Retribution |
-|  Priest |     Holy    |
-|  Priest |    Shadow   |
-|  Rogue  |     Any     |
-|  Rogue  |   Daggers   |
-|  Rogue  |    Swords   |
-|  Shaman |  Elemental  |
-|  Shaman | Enhancement |
-|  Shaman | Restoration |
+| Paladin |     Holy, Protection, Retribution    |
+|  Priest |     Holy, Shadow    |
+|  Rogue  |     Any, Daggers, Swords     |
+|  Shaman |  Elemental, Enhancement, Restoration  |
 | Warlock |     Any     |
-| Warrior |     DPS     |
-| Warrior |  Protection |
-| Warrior |  Two Handed |
-| Warrior |  Dual Wield |
+| Warrior |     DPS, Protection, Two Handed, Dual Wield     |
 
 Loot Prio Tiers (Prio 1 is highest priority)
 | Prio | Loot Decision | Spec Prio |
