@@ -12,6 +12,7 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
   - Loot prio is a configurable input to SKC through a CSV import interface (/skc prio init)
   - Schema for loot prio CSV can be found here
   - For a given item, a loot prio can be assigned for the 22 predefined Class / Spec combinations below:
+
 |  Class  |     Spec    |
 |:-------:|:-----------:|
 |  Druid  |   Balance   |
@@ -36,6 +37,7 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
 | Warrior |  Protection |
 | Warrior |  Two Handed |
 | Warrior |  Dual Wield |
+
 - Automatic loot distribution
   - When the master looter GUI is opened in a raid, 
 
