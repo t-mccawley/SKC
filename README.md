@@ -82,10 +82,7 @@ Some slash commands are protected by character privelages, see the available sla
 Supported Class / Specs:
 |  Class  |     Spec    |
 |:-------:|:-----------:|
-|  Druid  |   Balance   |
-|  Druid  | Restoration |
-|  Druid  |  Feral Tank |
-|  Druid  |  Feral DPS  |
+|  Druid  |   Balance, Restoration, Feral Tank, Feral DPS   |
 |  Hunter |     Any     |
 |   Mage  |     Any     |
 | Paladin |     Holy    |
