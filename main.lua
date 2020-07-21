@@ -2437,10 +2437,12 @@ local function OnClick_SK_Card(self, button)
 		-- Populate data
 		Refresh_Details(self.Text:GetText());
 		-- Enable edit buttons
-		SKC_UIMain["Details_border"]["Spec"].Btn:Enable();
-		SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
-		SKC_UIMain["Details_border"]["Status"].Btn:Enable();
-		SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
+		if SKC_Main:isGL() then
+			SKC_UIMain["Details_border"]["Spec"].Btn:Enable();
+			SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
+			SKC_UIMain["Details_border"]["Status"].Btn:Enable();
+			SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
+		end
 		if SKC_Main:isGL() or SKC_Main:isML() then
 			SKC_UIMain["Details_border"].SingleSK_Btn:Enable();
 			SKC_UIMain["Details_border"].FullSK_Btn:Enable();
