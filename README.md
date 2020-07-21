@@ -14,13 +14,21 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
     - Click MSK / TSK title in GUI to cycle between them
 - Guild Roster Management
     - SKC provides an in game GUI for the Guild Leader to manage details about the guild members
-    - These details are used in the automatic loot distribution process
-       - TODO: Add configurable fields here
+    - Some of these details are used in the automatic loot distribution process.
+    - The character specific details are:
+       - Name: Character name
+       - Class: Character class
+       - Spec: Character main raiding spec (available options found in Appendix) **Editable by Guild Leader**
+       - Raid Role (DPS, Healer, Tank): Automatically determined by Spec. Used for filtering of SK list
+       - Guild Role (None, Disenchanter, Banker): In the event that everyone passes on a parituclar item, a person with the approriate role would instead be awarded the loot. **Editable by Guild Leader**
+       - Status (Main or Alt): Main characters receive prio over Alts if the given item is marked as Reserved **Editable by Guild Leader**
+       - Activity (Active or Inactive): Indicates if the character has been to a raid within a given amount of days. The activity threshold is configurable by the guild leader (see more in slash commands seciton) **Editable by Guild Leader**
+       - Last Raid (days): Number of days since character was last added to a live list (either by being in a raid or added to bench)
 - Loot Prioritization System
     - Loot prio is a configurable input to SKC through a CSV import interface (/skc prio init)
     - **Only items in the loot prio system will be automatically distributed by SKC**
     - Loot prio is used to give certain Class / Spec combinations priority over others regardless of their SK positions. Loot prio is only relevant for characters who decide to SK for an item (it is not used for rolling / passing).
-    - Schema for loot prio CSV can be found here
+    - Schema for loot prio CSV can be found here (TODO)
     - For a given item, a loot prio can be assigned for the 22 predefined Class / Spec combinations found in the appendix
     - Loot prio can be assigned a value of 1 (highest main spec priority) to 5 (lowest main spec priority) and OS. Omitting a prio value means that Spec / Class is inelligible for the item and will not receive a loot decision GUI.
     - Additionally, can configure the following options for a given item
