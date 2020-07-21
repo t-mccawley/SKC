@@ -75,8 +75,8 @@ Some slash commands are protected by character privelages, see the available sla
 ### Guild Leader Only
 - `/skc activity`: Displays the current inactivity threshold in days
 - `/skc activity <#>`: Sets inactivity threshold to # days
-- `/skc prio init`: Initialze loot prio with a CSV
-- `/skc <MSK/TSK> init`: Initialze sk list with a CSV
+- `/skc prio init`: Initialze loot prio with a CSV ([link](schema/loot_prio_import_schema.txt) to schema)
+- `/skc <MSK/TSK> init`: Initialze sk list with a CSV (vertical list of names)
 
 ## Appendix
 Supported Class / Specs:
