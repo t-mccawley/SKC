@@ -5,9 +5,9 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
 
 ## Features
 ### Single GUI interface
-    - Open the main GUI with `/skc`
+- Open the main GUI with `/skc`
 ### Automatic Synchronization
-    - SKC automatically synchronizes data in game within guild to ensure that every member has the most up to date SK list, guild data, and loot prio.
+- SKC automatically synchronizes data in game within guild to ensure that every member has the most up to date SK list, guild data, and loot prio.
 ### Two Separate SK Lists 
 - Main SK (MSK): Intended as the primary SK list. More generally can be used for rare items or those that offer a significant upgrade.
 - Tier SK (TSK): Intended for tier set items or those usable by only a speicifc class / role. More generally can be used for common items or those that offer a relatively small upgrade.
