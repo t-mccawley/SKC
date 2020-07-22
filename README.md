@@ -75,35 +75,22 @@ Some slash commands are protected by character privelages, see the available sla
 ### Guild Leader Only
 - `/skc activity`: Displays the current inactivity threshold in days
 - `/skc activity <#>`: Sets inactivity threshold to # days
-- `/skc prio init`: Initialze loot prio with a CSV
-- `/skc <MSK/TSK> init`: Initialze sk list with a CSV
+- `/skc prio init`: Initialze loot prio with a CSV ([link](schema/loot_prio_import_schema.txt) to schema)
+- `/skc <MSK/TSK> init`: Initialze sk list with a CSV (vertical list of names)
 
 ## Appendix
 Supported Class / Specs:
 |  Class  |     Spec    |
 |:-------:|:-----------:|
-|  Druid  |   Balance   |
-|  Druid  | Restoration |
-|  Druid  |  Feral Tank |
-|  Druid  |  Feral DPS  |
+|  Druid  |   Balance, Restoration, Feral Tank, Feral DPS   |
 |  Hunter |     Any     |
 |   Mage  |     Any     |
-| Paladin |     Holy    |
-| Paladin |  Protection |
-| Paladin | Retribution |
-|  Priest |     Holy    |
-|  Priest |    Shadow   |
-|  Rogue  |     Any     |
-|  Rogue  |   Daggers   |
-|  Rogue  |    Swords   |
-|  Shaman |  Elemental  |
-|  Shaman | Enhancement |
-|  Shaman | Restoration |
+| Paladin |     Holy, Protection, Retribution    |
+|  Priest |     Holy, Shadow    |
+|  Rogue  |     Any, Daggers, Swords     |
+|  Shaman |  Elemental, Enhancement, Restoration  |
 | Warlock |     Any     |
-| Warrior |     DPS     |
-| Warrior |  Protection |
-| Warrior |  Two Handed |
-| Warrior |  Dual Wield |
+| Warrior |     DPS, Protection, Two Handed, Dual Wield     |
 
 Loot Prio Tiers (Prio 1 is highest priority)
 | Prio | Loot Decision | Spec Prio |
