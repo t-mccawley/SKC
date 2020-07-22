@@ -67,8 +67,8 @@ Some slash commands are protected by character privelages, see the available sla
 ### Guild Leader and Master Looter Only
 - `/skc bench add <character name>`: Adds character to bench
 - `/skc bench clear`: Clears bench
-- `/skc enable`: Enables loot distribution with skc
-- `/skc disable`: Disables loot distribution with skc
+- `/skc enable`: Enables loot distribution with SKC
+- `/skc disable`: Disables loot distribution with SKC
 - `/skc export log`: Export sk log (CSV) for most recent raid
 - `/skc export sk`: Export current sk lists (CSV)
     

@@ -1,66 +1,4 @@
--- Tutorial: https://www.youtube.com/watch?v=nfaE7NQhMlc&list=PL3wt7cLYn4N-3D3PTTUZBM2t1exFmoA2G
--- FUNCTION
---[[
-local myFunc = function() 
-	local x;
-	x = 3;
-  return x;
-end
---]]
--- CLASS
---[[
-local MyClass = {
-  -- index:
-  1,2,3,4,
-  -- hash table:
-  size = 5,
-}
---]]
--- FOR LOOP (NUMERIC)
---[[
-
-for i = startValue, endValue, stepValue do
-  -- code to iterate
-end
-
---]]
--- FOR LOOP (GENERIC)
--- will iterate index part first then hash table portion
--- Will not necessarily print hash table in order
---[[
-
-for key, value in pairs(tbl) do
-  -- code to iterate
-end
-
---]]
--- to print out just the index part, use ipairs
--- WHILE LOOP
---[[
-
-while (true) do
-end
-
---]]
--- DO LOOP
---[[
-
-repeat
-until (condition)
-
---]]
--- No switch statements, no continue statements (there is a break)
--- LAYERS
--- Layers placed in order to display graphics
--- Frame = Canvas, Layer = paint on top
--- BACKGROUND
--- BORDER
--- ARTWORK
--- OVERLAY
--- HIGHLIGHT
-------------------------------------------------------------------------------------------------
 local _, core = ...; -- Namespace
-
 --------------------------------------
 -- Custom Slash Command
 --------------------------------------
@@ -81,8 +19,8 @@ core.commands = {
       core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader and Master Looter Only:|r");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - Adds character to bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - Clears bench");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - Enables loot distribution with skc");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - Disables loot distribution with skc");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - Enables loot distribution with SKC");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - Disables loot distribution with SKC");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export sk log (CSV) for most recent raid");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export current sk lists (CSV)");
     end
