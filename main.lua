@@ -316,6 +316,190 @@ local CLASSES = { -- wow classes
 	},
 };
 
+local TIER_ARMOR_SETS = { -- map from armor set name to ordered list of individual item names (used as a shortcut for prio doc import)
+	["Cenarion Raiment"] = {
+		"Cenarion Belt",
+		"Cenarion Boots",
+		"Cenarion Bracers",
+		"Cenarion Vestments",
+		"Cenarion Gloves",
+		"Cenarion Helm",
+		"Cenarion Leggings",
+		"Cenarion Spaulders",
+	},
+	["Stormrage Raiment"] = {
+		"Stormrage Belt",
+		"Stormrage Boots",
+		"Stormrage Bracers",
+		"Stormrage Chestguard",
+		"Stormrage Cover",
+		"Stormrage Handguards",
+		"Stormrage Legguards",
+		"Stormrage Pauldrons",
+	},
+	["Giantstalker Armor"] = {
+		"Giantstalker's Belt",
+		"Giantstalker's Boots",
+		"Giantstalker's Bracers",
+		"Giantstalker's Breastplate",
+		"Giantstalker's Epaulets",
+		"Giantstalker's Gloves",
+		"Giantstalker's Helmet",
+		"Giantstalker's Leggings",
+	},
+	["Dragonstalker Armor"] = {
+		"Dragonstalker's Belt",
+		"Dragonstalker's Bracers",
+		"Dragonstalker's Breastplate",
+		"Dragonstalker's Gauntlets",
+		"Dragonstalker's Greaves",
+		"Dragonstalker's Helm",
+		"Dragonstalker's Legguards",
+		"Dragonstalker's Spaulders",
+	},
+	["Arcanist Regalia"] = {
+		"Arcanist Belt",
+		"Arcanist Bindings",
+		"Arcanist Crown",
+		"Arcanist Boots",
+		"Arcanist Gloves",
+		"Arcanist Leggings",
+		"Arcanist Mantle",
+		"Arcanist Robes",
+	},
+	["Netherwind Regalia"] = {
+		"Netherwind Belt",
+		"Netherwind Bindings",
+		"Netherwind Boots",
+		"Netherwind Crown",
+		"Netherwind Mantle",
+		"Netherwind Gloves",
+		"Netherwind Pants",
+		"Netherwind Robes",
+	},
+	["Lawbringer Armor"] = {
+		"Lawbringer Belt",
+		"Lawbringer Boots",
+		"Lawbringer Bracers",
+		"Lawbringer Chestguard",
+		"Lawbringer Gauntlets",
+		"Lawbringer Helm",
+		"Lawbringer Legplates",
+		"Lawbringer Spaulders",	
+	},
+	["Judgement Armor"] = {
+		"Judgement Belt",
+		"Judgement Bindings",
+		"Judgement Breastplate",
+		"Judgement Crown",
+		"Judgement Gauntlets",
+		"Judgement Legplates",
+		"Judgement Sabatons",
+		"Judgement Spaulders",
+	},
+	["Vestments of Prophecy"] = {
+		"Boots of Prophecy",
+		"Circlet of Prophecy",
+		"Girdle of Prophecy",
+		"Gloves of Prophecy",
+		"Pants of Prophecy",
+		"Mantle of Prophecy",
+		"Robes of Prophecy",
+		"Vambraces of Prophecy",
+	},
+	["Vestments of Transcendence"] = {
+		"Belt of Transcendence",
+		"Bindings of Transcendence",
+		"Boots of Transcendence",
+		"Halo of Transcendence",
+		"Handguards of Transcendence",
+		"Leggings of Transcendence",
+		"Pauldrons of Transcendence",
+		"Robes of Transcendence",
+	},
+	["Nightslayer Armor"] = {
+		"Nightslayer Belt",
+		"Nightslayer Boots",
+		"Nightslayer Bracelets",
+		"Nightslayer Chestpiece",
+		"Nightslayer Cover",
+		"Nightslayer Gloves",
+		"Nightslayer Pants",
+		"Nightslayer Shoulder Pads",
+	},
+	["Bloodfang Armor"] = {
+		"Bloodfang Belt",
+		"Bloodfang Boots",
+		"Bloodfang Bracers",
+		"Bloodfang Chestpiece",
+		"Bloodfang Gloves",
+		"Bloodfang Hood",
+		"Bloodfang Pants",
+		"Bloodfang Spaulders",
+	},
+	["The Earthfury"] = {
+		"Earthfury Belt",
+		"Earthfury Boots",
+		"Earthfury Bracers",
+		"Earthfury Vestments",
+		"Earthfury Epaulets",
+		"Earthfury Gauntlets",
+		"Earthfury Helmet",
+		"Earthfury Legguards",
+	},
+	["The Ten Storms"] = {
+		"Belt of Ten Storms",
+		"Bracers of Ten Storms",
+		"Breastplate of Ten Storms",
+		"Epaulets of Ten Storms",
+		"Gauntlets of Ten Storms",
+		"Greaves of Ten Storms",
+		"Helmet of Ten Storms",
+		"Legplates of Ten Storms",
+	},
+	["Felheart Raiment"] = {
+		"Felheart Belt",
+		"Felheart Bracers",
+		"Felheart Gloves",
+		"Felheart Pants",
+		"Felheart Robes",
+		"Felheart Shoulder Pads",
+		"Felheart Horns",
+		"Felheart Slippers",
+	},
+	["Nemesis Raiment"] = {
+		"Nemesis Belt",
+		"Nemesis Boots",
+		"Nemesis Bracers",
+		"Nemesis Gloves",
+		"Nemesis Leggings",
+		"Nemesis Robes",
+		"Nemesis Skullcap",
+		"Nemesis Spaulders",	
+	},
+	["Battlegear of Might"] = {
+		"Belt of Might",
+		"Bracers of Might",
+		"Breastplate of Might",
+		"Gauntlets of Might",
+		"Helm of Might",
+		"Legplates of Might",
+		"Pauldrons of Might",
+		"Sabatons of Might",
+	},
+	["Battlegear of Wrath"] = {
+		"Bracelets of Wrath",
+		"Breastplate of Wrath",
+		"Gauntlets of Wrath",
+		"Helm of Wrath",
+		"Legplates of Wrath",
+		"Pauldrons of Wrath",
+		"Sabatons of Wrath",
+		"Waistband of Wrath",
+	},
+
+};
+
 local SPEC_CLASS = { -- used to quickly get spec name from value
 	"DruidBalance",
 	"DruidResto",
@@ -339,7 +523,7 @@ local SPEC_CLASS = { -- used to quickly get spec name from value
 	"WarriorProt",
 	"WarriorTwoHanded",
 	"WarriorDualWield",
-}
+};
 
 local CHARACTER_DATA = { -- fields used to define character
 	Name = {
@@ -806,6 +990,20 @@ end
 --------------------------------------
 -- HELPER METHODS
 --------------------------------------
+local function DeepCopy(obj, seen)
+	-- credit: https://gist.github.com/tylerneylon/81333721109155b2d244
+    -- Handle non-tables and previously-seen tables.
+    if type(obj) ~= 'table' then return obj end
+    if seen and seen[obj] then return seen[obj] end
+  
+    -- New table; mark it as seen and copy recursively.
+    local s = seen or {}
+    local res = {}
+    s[obj] = res
+    for k, v in pairs(obj) do res[DeepCopy(k, s)] = DeepCopy(v, s) end
+    return setmetatable(res, getmetatable(obj))
+end
+
 local function WriteToLog(time_txt,action,src,sk_list,character,item,prev_sk_pos,new_sk_pos)
 	-- writes new log entry (if raid logging active)
 	if not event_states.RaidLoggingActive then return end
@@ -825,7 +1023,6 @@ local function WriteToLog(time_txt,action,src,sk_list,character,item,prev_sk_pos
 	SKC_DB.RaidLog[idx][8] = new_sk_pos;
 	return;
 end
-
 --------------------------------------
 -- CLASS METHODS
 --------------------------------------
@@ -2765,20 +2962,6 @@ local function GetLootIdx(lootName)
 	return nil;
 end
 
-local function DeepCopy(obj, seen)
-	-- credit: https://gist.github.com/tylerneylon/81333721109155b2d244
-    -- Handle non-tables and previously-seen tables.
-    if type(obj) ~= 'table' then return obj end
-    if seen and seen[obj] then return seen[obj] end
-  
-    -- New table; mark it as seen and copy recursively.
-    local s = seen or {}
-    local res = {}
-    s[obj] = res
-    for k, v in pairs(obj) do res[DeepCopy(k, s)] = DeepCopy(v, s) end
-    return setmetatable(res, getmetatable(obj))
-end
-
 local function SyncPushRead(msg)
 	-- Write data to tmp_sync_var first, then given datbase
 	local part, db_name, msg_rem = strsplit(",",msg,3);
@@ -3261,15 +3444,33 @@ local function OnClick_ImportLootPrio()
 	line, txt_rem = strsplit("\n",txt_rem,2);
 	-- read data
 	local valid = true;
+	local line_count = 2; -- account for header
 	while txt_rem ~= nil do
 		line, txt_rem = strsplit("\n",txt_rem,2);
 		local item, sk_list, res, de, open_roll, prios_txt = strsplit(",",line,6);
+		-- clean input data
 		item = StrOut(item);
 		sk_list = StrOut(sk_list);
-		-- check validity
-		valid = sk_list == "MSK" or sk_list == "TSK";
-		if not valid then
-			SKC_Main:Print("ERROR","Invalid SK List for "..item);
+		-- check input data validity
+		if item == nil then
+			valid = false;
+			SKC_Main:Print("ERROR","Invalid Item (line: "..line_count..")");
+			break;
+		elseif not (sk_list == "MSK" or sk_list == "TSK") then
+			valid = false;
+			SKC_Main:Print("ERROR","Invalid SK List for "..item.." (line: "..line_count..")");
+			break;
+		elseif not (res == "TRUE" or res == "FALSE") then
+			valid = false;
+			SKC_Main:Print("ERROR","Invalid Reserved for "..item.." (line: "..line_count..")");
+			break;
+		elseif not (de == "TRUE" or de == "FALSE") then
+			valid = false;
+			SKC_Main:Print("ERROR","Invalid Disenchant for "..item.." (line: "..line_count..")");
+			break;
+		elseif not (open_roll == "TRUE" or open_roll == "FALSE") then
+			valid = false;
+			SKC_Main:Print("ERROR","Invalid Open Roll for "..item.." (line: "..line_count..")");
 			break;
 		end
 		-- write meta data for item
@@ -3279,9 +3480,10 @@ local function OnClick_ImportLootPrio()
 		SKC_DB.LootPrio.items[item].DE = BoolOut(de);
 		SKC_DB.LootPrio.items[item].open_roll = BoolOut(open_roll);
 		-- read prios
-		local idx = 1;
+		local spec_class_cnt = 0;
 		while prios_txt ~= nil do
-			valid = idx <= 22;
+			spec_class_cnt = spec_class_cnt + 1;
+			valid = spec_class_cnt <= 22;
 			if not valid then
 				SKC_Main:Print("ERROR","Too many Class/Spec combinations");
 				break;
@@ -3301,20 +3503,31 @@ local function OnClick_ImportLootPrio()
 				valid = (val ~= nil and (val >= 1) and (val <= 5));
 			end 
 			if not valid then
-				SKC_Main:Print("ERROR","Invalid prio level for "..item.." and Class/Spec index "..idx);
+				SKC_Main:Print("ERROR","Invalid prio level for "..item.." and Class/Spec index "..spec_class_cnt);
 				break;
 			end
 			-- write prio value
-			SKC_DB.LootPrio.items[item].prio[idx] = val;
-			idx = idx + 1;
+			SKC_DB.LootPrio.items[item].prio[spec_class_cnt] = val;
+			-- increment spec class counter
 		end
-		-- check that all expected columns were scanned
-		if (idx ~= 23) then
+		-- check that all expected columns were scanned (1 past actual count)
+		if (spec_class_cnt ~= 22) then
 			valid = false;
-			SKC_Main:Print("ERROR","Not enough Class/Spec combinations. Got "..idx);
+			SKC_Main:Print("ERROR","Wrong number of Class/Spec combinations. Expected 22. Got "..spec_class_cnt);
 			break;
 		end
 		if not valid then break end
+		-- Check if item added was actually a tier armor set
+		if TIER_ARMOR_SETS[item] ~= nil then
+			local armor_set = item;
+			-- scan through armor set and individually add each item
+			for set_item_idx,set_item in ipairs(TIER_ARMOR_SETS[armor_set]) do
+				SKC_DB.LootPrio.items[set_item] = DeepCopy(SKC_DB.LootPrio.items[armor_set]);
+			end
+			-- remove armor set itself from database
+			SKC_DB.LootPrio.items[armor_set] = nil;
+		end
+		line_count = line_count + 1;
 	end
 	if not valid then
 		SKC_DB.LootPrio = LootPrio:new(nil);
@@ -3328,6 +3541,7 @@ local function OnClick_ImportLootPrio()
 	SKC_Main:Print("NORMAL",SKC_DB.LootPrio:length().." items added");
 	-- push new loot prio to guild
 	SyncPushSend("LootPrio",CHANNELS.SYNC_PUSH,"GUILD",nil);
+	-- close import GUI
 	SKC_UICSV[name]:Hide();
 	return;
 end
