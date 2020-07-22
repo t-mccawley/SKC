@@ -13,11 +13,11 @@ local SKC_UICSV = {}; -- Table for GUI associated with CSV import and export
 local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = nil; -- name of faux ML override master looter permissions
 local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
-local LOOT_SAFE_MODE = true; -- true if saving loot is immediately rejected
+local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
 local OVRD_CHARS = { -- characters which are pushed into GuildData
-	-- Mctester = true,
+	Duarte = true,
 	-- Skc = true,
 };
 -- verbosity
