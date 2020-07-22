@@ -438,6 +438,7 @@ local LOOT_DECISION = {
 		MAX_TIME = 10,
 		TIME_STEP = 1,
 		ML_WAIT_BUFFER = 5, -- additional time that master looter waits before triggering auto pass (accounts for transmission delays)
+		KICKOFF_DELAY = 3, -- delay after finishing one loot distribution before next begins
 	},
 };
 
@@ -1646,6 +1647,18 @@ function LootManager:GiveLoot(loot_name,loot_link,winner)
 	return success;
 end
 
+local function KickOffWrapper()
+	-- wrapper function for kick off because i cant figure out how to call class method with After()
+	SKC_DB.LootManager:KickOff();
+	return;
+end
+
+local function KickOffWithDelay()
+	-- calls kick off function after configurable amount of delay
+	C_Timer.After(LOOT_DECISION.OPTIONS.KICKOFF_DELAY,KickOffWrapper);
+	return;
+end
+
 function LootManager:SendOutcomeMsg(winner,winner_decision,loot_link,DE,sk_list,send_success)
 	-- constructs and sends outcome message
 	local msg = nil;
@@ -1665,7 +1678,10 @@ function LootManager:SendOutcomeMsg(winner,winner_decision,loot_link,DE,sk_list,
 	if not send_success then
 		msg = msg.." Send failed, item given to master looter."
 	end
-	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_OUTCOME,msg,"RAID",nil,"main_queue");
+	-- send outcome message and when message has been sent, kick off next loot (with delay)
+	-- if there are already SK messages in the queue, this will be (correctly) further delayed due to transmission bottleneck
+	-- next item won't be initiated until SK lists on clients have been updated
+	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_OUTCOME,msg,"RAID",nil,"main_queue",KickOffWithDelay);
 	return;
 end
 
@@ -1702,7 +1718,7 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 			SKC_Main:Print("ERROR",sk_list.." for "..winner.." failed");
 		else
 			local prev_pos = SKC_DB[sk_list]:GetPos(winner);
-			WriteToLog(
+			WriteToLog( 
 				nil,
 				LOG_OPTIONS["Action"].Options.ALD,
 				LOG_OPTIONS["Source"].Options.SKC,
@@ -1712,6 +1728,8 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 				prev_pos,
 				SKC_DB[sk_list]:GetPos(winner)
 			);
+			-- push new sk list to guild
+			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		end
 		-- reload UI
 		SKC_Main:ReloadUIMain();
@@ -1722,12 +1740,12 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 		-- looting failed, send item to ML
 		self:GiveLoot(loot_name,loot_link,UnitName("player"));
 	end
-	-- send outcome message
-	self:SendOutcomeMsg(winner,winner_decision,loot_link,DE,sk_list,success)
 	-- mark loot asawarded
 	self.pending_loot[loot_idx].awarded = true;
 	self.current_loot_timer:Cancel();
 	self.current_loot_timer = nil;
+	-- send outcome message
+	self:SendOutcomeMsg(winner,winner_decision,loot_link,DE,sk_list,success)
 	return;
 end
 
@@ -1848,7 +1866,7 @@ function LootManager:ForceDistribution()
 	return;
 end
 
-local function ForceDistribution()
+local function ForceDistributionWrapper()
 	-- wrapper because i cant figure out how to call object method from After()
 	SKC_DB.LootManager:ForceDistribution();
 	return;
@@ -1858,16 +1876,17 @@ function LootManager:KickOff()
 	-- determine if there is still pending loot that needs to be decided on
 	-- MASTER LOOTER ONLY
 	if not SKC_Main:isML() then
-		SKC_Main:Print("ERROR","Cannot KickOFF, not loot master");
+		SKC_Main:Print("ERROR","Cannot KickOff, not loot master");
 		return;
 	end
 	for loot_idx,loot in ipairs(self.pending_loot) do
 		if not loot.awarded then 
-			self:SendLootMsgs(loot_idx); -- sends loot messages to all elligible players
 			-- store item as current item on ML side (does not trigger loot decision)
 			self:SetCurrentLootByIdx(loot_idx);
+			-- sends loot messages to all elligible players
+			self:SendLootMsgs(loot_idx); 
 			-- Start timer for when loot is automatically passed on by players that never responded
-			self.current_loot_timer = C_Timer.NewTimer(LOOT_DECISION.OPTIONS.MAX_TIME + LOOT_DECISION.OPTIONS.ML_WAIT_BUFFER, ForceDistribution);
+			self.current_loot_timer = C_Timer.NewTimer(LOOT_DECISION.OPTIONS.MAX_TIME + LOOT_DECISION.OPTIONS.ML_WAIT_BUFFER, ForceDistributionWrapper);
 			return;
 		end
 	end
@@ -1911,8 +1930,6 @@ function LootManager:ReadLootDecision(msg,sender)
 	end
 	-- Determine winner and award loot
 	self:DetermineWinner(loot_idx);
-	-- Check if any remaning loot to distribute
-	self:KickOff();
 	return;
 end
 --------------------------------------
@@ -2262,6 +2279,7 @@ local function Refresh_Details(name)
 end
 
 local function PopulateData(name)
+	-- Populates GUI with details of seleced player (reset if name == nil) and repopulates SK list
 	-- Refresh details
 	Refresh_Details(name);
 	-- Update SK cards
@@ -2269,7 +2287,7 @@ local function PopulateData(name)
 	return;
 end
 
-local function SyncPushSend(db_name,addon_channel,game_channel,name)
+local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_callback_fn)
 	-- send target database to name
 	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushSend for "..db_name.." through "..game_channel) end
 	if name ~= nil then
@@ -2350,7 +2368,7 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name)
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 	end
 	local db_msg = "END,"..db_name..", ,"; --awkward spacing to make csv parsing work
-	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
+	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue",end_msg_callback_fn);
 	return;
 end
 
@@ -3073,6 +3091,7 @@ function SKC_Main:Enable(enable_flag)
 end
 
 function SKC_Main:ReloadUIMain()
+	-- if UI Main has already been created, repopulates with data and sets to previous shown state
 	if VERBOSE then SKC_Main:Print("NORMAL","Reloading UI Main") end
 	local is_shown = false;
 	if SKC_UIMain ~= nil then is_shown = SKC_UIMain:IsShown() end
