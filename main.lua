@@ -1546,7 +1546,10 @@ end
 function LootManager:SendLootMsgs(item_idx)
 	-- send loot message to all elligible characters
 	-- construct message
-	local loot_msg = self.pending_loot[item_idx].lootName..","..self.pending_loot[item_idx].lootLink..","..self.pending_loot[item_idx].loot_option..","..self.pending_loot[item_idx].sk_list;
+	local loot_msg = self.pending_loot[item_idx].lootName..","..
+		self.pending_loot[item_idx].lootLink..","..
+		self.pending_loot[item_idx].loot_option..","..
+		self.pending_loot[item_idx].sk_list;
 	-- scan elligible players and send message
 	for char_name,_ in pairs(self.pending_loot[item_idx].decisions) do
 		-- check that player is online
@@ -1659,26 +1662,43 @@ local function KickOffWithDelay()
 	return;
 end
 
-function LootManager:SendOutcomeMsg(winner,winner_decision,loot_link,DE,sk_list,send_success)
+function LootManager:SendOutcomeMsg(winner,winner_decision,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
 	-- constructs and sends outcome message
+	local winner_log_str = winner;
 	local msg = nil;
 	if winner_decision == LOOT_DECISION.SK then
 		msg = winner.." won "..loot_link.." by "..sk_list.."!";
+		winner_log_str = winner_log_str.." (SK)"
 	elseif winner_decision == LOOT_DECISION.ROLL then
 		msg = winner.." won "..loot_link.." by ROLL!";
+		winner_log_str = winner_log_str.." (ROLL)"
 	else
 		-- Everyone passed
 		msg = "Everyone passed on "..loot_link..", awarded to "..winner;
 		if DE then
 			msg = msg.." to be disenchanted."
+			winner_log_str = winner_log_str.." (DE)"
 		else
 			msg = msg.." for the guild bank."
+			winner_log_str = winner_log_str.." (GB)"
 		end
 	end
 	if not send_success then
 		msg = msg.." Send failed, item given to master looter."
 	end
-	-- send outcome message and when message has been sent, kick off next loot (with delay)
+	-- Write outcome to log
+	WriteToLog( 
+		nil,
+		LOG_OPTIONS["Action"].Options.ALD,
+		LOG_OPTIONS["Source"].Options.SKC,
+		LOG_OPTIONS["SK List"].Options[sk_list],
+		winner_log_str,
+		loot_name,
+		prev_sk_pos,
+		SKC_DB[sk_list]:GetPos(winner)
+	);
+	-- Send Outcome Message
+	-- when message has been sent, kick off next loot (with delay)
 	-- if there are already SK messages in the queue, this will be (correctly) further delayed due to transmission bottleneck
 	-- next item won't be initiated until SK lists on clients have been updated
 	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_OUTCOME,msg,"RAID",nil,"main_queue",KickOffWithDelay);
@@ -1690,7 +1710,6 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 	-- initialize
 	local loot_name = self.pending_loot[loot_idx].lootName;
 	local loot_link = self.pending_loot[loot_idx].lootLink;
-	local success = false;
 	local DE = SKC_DB.LootPrio:GetDE(self.pending_loot[loot_idx].lootName);
 	local disenchanter, banker = SKC_DB.GuildData:GetFirstGuildRoles();
 	local sk_list = self.pending_loot[loot_idx].sk_list;
@@ -1710,24 +1729,14 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 			end
 		end
 	end
-	-- perform SK (if necessary)
+	-- perform SK (if necessary) and record SK position before SK
+	local prev_sk_pos = SKC_DB[sk_list]:GetPos(winner);
 	if winner_decision == LOOT_DECISION.SK then
 		-- perform SK on winner (below current live bottom)
-		success = SKC_DB[sk_list]:PushBackLive(winner);
-		if not success then
+		local sk_success = SKC_DB[sk_list]:PushBackLive(winner);
+		if not sk_success then
 			SKC_Main:Print("ERROR",sk_list.." for "..winner.." failed");
 		else
-			local prev_pos = SKC_DB[sk_list]:GetPos(winner);
-			WriteToLog( 
-				nil,
-				LOG_OPTIONS["Action"].Options.ALD,
-				LOG_OPTIONS["Source"].Options.SKC,
-				LOG_OPTIONS["SK List"].Options[sk_list],
-				winner,
-				loot_name,
-				prev_pos,
-				SKC_DB[sk_list]:GetPos(winner)
-			);
 			-- push new sk list to guild
 			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		end
@@ -1735,8 +1744,8 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 		SKC_Main:ReloadUIMain();
 	end
 	-- send loot
-	success = self:GiveLoot(loot_name,loot_link,winner);
-	if not success then
+	local send_success = self:GiveLoot(loot_name,loot_link,winner);
+	if not send_success then
 		-- looting failed, send item to ML
 		self:GiveLoot(loot_name,loot_link,UnitName("player"));
 	end
@@ -1744,8 +1753,8 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 	self.pending_loot[loot_idx].awarded = true;
 	self.current_loot_timer:Cancel();
 	self.current_loot_timer = nil;
-	-- send outcome message
-	self:SendOutcomeMsg(winner,winner_decision,loot_link,DE,sk_list,success)
+	-- send outcome message (and write to log)
+	self:SendOutcomeMsg(winner,winner_decision,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
 	return;
 end
 
