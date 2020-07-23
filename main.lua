@@ -1114,7 +1114,7 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_call
 				BoolToStr(prio.DE)..","..
 				BoolToStr(prio.open_roll);
 			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
-			db_msg = "DATA,"..db_name..","..NilToStr(item)..",";
+			db_msg = "DATA,"..db_name..","..NilToStr(item);
 			for idx,plvl in ipairs(prio.prio) do
 				db_msg = db_msg..","..NilToStr(plvl);
 			end
@@ -3039,16 +3039,11 @@ local function SyncPushRead(msg)
 			tmp_sync_var.items[item].DE = BoolOut(de);
 			tmp_sync_var.items[item].open_roll = BoolOut(open_roll);
 		elseif part == "DATA" then
-			SKC_Main:Print("NORMAL","DATA")
-			SKC_Main:Print("NORMAL","msg_rem (initial): "..msg_rem)
 			local item, msg_rem = strsplit(",",msg_rem,2);
-			SKC_Main:Print("NORMAL","msg_rem (split item): "..msg_rem)
 			item = StrOut(item);
 			local plvl = nil;
-			-- TODO Think about off by one error
 			for idx,spec_class in ipairs(SPEC_CLASS) do
 				plvl, msg_rem = strsplit(",",msg_rem,2);
-				SKC_Main:Print("NORMAL","msg_rem (split for ["..idx.."]): "..msg_rem)
 				tmp_sync_var.items[item].prio[idx] = NumOut(plvl);
 			end
 		end
