@@ -22,9 +22,11 @@ local LOG_ACTIVE_OVRD = false; -- true to force logging
 local OVRD_CHARS = { -- characters which are pushed into GuildData
 	-- Duarte = true,
 	-- Skc = true,
+	Freznic = true,
 };
 -- verbosity
-local VERBOSE = true; -- general verbosity flag
+local GUI_VERBOSE = false; -- relating to GUI objects
+local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
 local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
 --------------------------------------
@@ -929,7 +931,7 @@ end
 Loot = {
 	lootName = nil, -- item name
 	lootLink = nil, -- item link
-	loot_option = "SK", -- option that players have to get this item SK or ROLL (text)
+	open_roll = false, -- if true, enables roll option
 	sk_list = "MSK", -- name of associated sk list (MSK TSK)
 	decisions = {}, -- map from character name to LOOT_DECISION
 	prios = {}, -- map from character name to PRIO_TIERS
@@ -938,13 +940,13 @@ Loot = {
 }; 
 Loot.__index = Loot;
 
-function Loot:new(loot,item_name,item_link,loot_option,sk_list)
+function Loot:new(loot,item_name,item_link,open_roll,sk_list)
 	if loot == nil then
 		-- initalize fresh
 		local obj = {};
 		obj.lootName = item_name;
 		obj.lootLink = item_link;
-		obj.loot_option = loot_option or "SK";
+		obj.open_roll = open_roll or false;
 		obj.sk_list = sk_list or "MSK";
 		obj.decisions = {};
 		obj.prios = {};
@@ -1610,14 +1612,6 @@ function LootPrio:Exists(lootName)
 	return self.items[lootName] ~= nil;
 end
 
--- Prio = {
--- 	sk_list = nil, -- associated sk_list
--- 	reserved = false, -- true if main prio over alts
--- 	DE = false, -- true if item should be disenchanted before going to guild banker
--- 	open_roll = false, -- open roll for this tiem
--- 	prio = {}, -- map of SpecClass to prio level (P1,P2,P3,P4,P5)
--- };
-
 function LootPrio:GetSKList(lootName)
 	if lootName == nil then return nil end
 	if not self:Exists(lootName) then return nil end
@@ -1728,25 +1722,6 @@ function LootPrio:PrintPrio(lootName,lootLink)
 	return;
 end
 
--- Loot = {
--- 	lootName = nil, -- item name
--- 	lootLink = nil, -- item link
--- 	loot_option = "SK", -- option that players have to get this item SK or ROLL (text)
--- 	sk_list = "MSK", -- name of associated sk list (MSK TSK)
--- 	decisions = {}, -- map from character name to LOOT_DECISION
--- 	prios = {}, -- map from character name to PRIO_TIERS
--- 	sk_pos = {}, -- map from character name to absolute SK position on corresponding sk_list
---  awarded = false, -- true when loot has been awarded
--- }; 
--- Loot.__index = Loot;
-
--- LootManager = {
---  loot_master = nil,
---  current_loot = nil,
--- 	pending_loot = {}, -- array of Loot objects
--- }; 
--- LootManager.__index = LootManager;
-
 function LootManager:Reset()
 	-- reset loot manager
 	self.pending_loot = {};
@@ -1764,9 +1739,9 @@ function LootManager:GetLootIdx(item_name,silent)
 	return nil;
 end
 
-function LootManager:SetCurrentLootDirect(item_name,item_link,loot_option,sk_list)
+function LootManager:SetCurrentLootDirect(item_name,item_link,open_roll,sk_list)
 	-- directly writes new Loot object for current loot
-	self.current_loot = Loot:new(nil,item_name,item_link,loot_option,sk_list);
+	self.current_loot = Loot:new(nil,item_name,item_link,open_roll,sk_list);
 	return
 end
 
@@ -1783,9 +1758,9 @@ function LootManager:SetCurrentLootByIdx(loot_idx)
 	end
 	local item_name = self.pending_loot[loot_idx].lootName;
 	local item_link = self.pending_loot[loot_idx].lootLink;
-	local loot_option = self.pending_loot[loot_idx].loot_option;
+	local open_roll = self.pending_loot[loot_idx].open_roll;
 	local sk_list = self.pending_loot[loot_idx].sk_list;
-	self:SetCurrentLootDirect(item_name,item_link,loot_option,sk_list);
+	self:SetCurrentLootDirect(item_name,item_link,open_roll,sk_list);
 	return
 end
 
@@ -1805,12 +1780,12 @@ function LootManager:GetCurrentLootLink()
 	return self.current_loot.lootLink;
 end
 
-function LootManager:GetCurrentLootOption()
+function LootManager:GetCurrentOpenRoll()
 	if self.current_loot == nil then
 		SKC_Main:Print("ERROR","Current loot not set");
 		return nil;
 	end
-	return self.current_loot.loot_option;
+	return self.current_loot.open_roll;
 end
 
 function LootManager:GetCurrentLootSKList()
@@ -1825,18 +1800,17 @@ function LootManager:AddLoot(item_name,item_link)
 	-- add new loot item to pending_loot
 	-- check if item already added
 	if self:GetLootIdx(item_name,true) ~= nil then
-		if VERBOSE then SKC_Main:Print("WARN",item_link.." already added to LootManager") end
+		if LOOT_VERBOSE then SKC_Main:Print("WARN",item_link.." already added to LootManager") end
 		return nil;
 	end
 	local idx = #self.pending_loot + 1;
-	local loot_option = "SK"
-	if SKC_DB.LootPrio:GetOpenRoll(item_name) then loot_option = "ROLL" end
+	local open_roll = SKC_DB.LootPrio:GetOpenRoll(item_name);
 	local sk_list = SKC_DB.LootPrio:GetSKList(item_name);
-	self.pending_loot[idx] = Loot:new(nil,item_name,item_link,loot_option,sk_list);
+	self.pending_loot[idx] = Loot:new(nil,item_name,item_link,open_roll,sk_list);
 	if LOOT_VERBOSE then 
 		SKC_Main:Print("WARN","Added "..item_link);
-		SKC_Main:Print("WARN","Loot Option:  "..loot_option);
-		SKC_Main:Print("WARN","SK List:  "..sk_list);
+		if open_roll then SKC_Main:Print("WARN","Open Roll: TRUE") else SKC_Main:Print("WARN","Open Roll: FALSE") end
+		SKC_Main:Print("WARN","SK List: "..sk_list);
 	end
 	return idx;
 end
@@ -1858,7 +1832,7 @@ function LootManager:SendLootMsgs(item_idx)
 	-- construct message
 	local loot_msg = self.pending_loot[item_idx].lootName..","..
 		self.pending_loot[item_idx].lootLink..","..
-		self.pending_loot[item_idx].loot_option..","..
+		BoolToStr(self.pending_loot[item_idx].open_roll)..","..
 		self.pending_loot[item_idx].sk_list;
 	-- scan elligible players and send message
 	for char_name,_ in pairs(self.pending_loot[item_idx].decisions) do
@@ -1878,18 +1852,12 @@ function LootManager:StartPersonalLootDecision()
 		return;
 	end
 	-- Begins personal loot decision process
-	local loot_option = self:GetCurrentLootOption();
 	local sk_list = self:GetCurrentLootSKList();
-	local alert_msg = "Would you like to ";
-	if loot_option == "SK" then
-		alert_msg = alert_msg..sk_list;
-	else
-		alert_msg = alert_msg..loot_option;
-	end
-	alert_msg = alert_msg.." for "..self:GetCurrentLootLink().."?"
+	local open_roll = self:GetCurrentOpenRoll();
+	local alert_msg = "Would you like to "..sk_list.." for "..self:GetCurrentLootLink().."?";
 	SKC_Main:Print("IMPORTANT",alert_msg);
 	-- Trigger GUI
-	SKC_Main:DisplayLootDecisionGUI(loot_option,sk_list);
+	SKC_Main:DisplayLootDecisionGUI(open_roll,sk_list);
 	return;
 end
 
@@ -1914,8 +1882,9 @@ function LootManager:ReadLootMsg(msg,sender)
 	-- reads loot message on local client side (not necessarily ML)
 	-- saves item into current loot index and loot_master
 	self.loot_master = StripRealmName(sender);
-	local item_name, item_link, loot_option, sk_list = strsplit(",",msg,4);
-	self:SetCurrentLootDirect(item_name,item_link,loot_option,sk_list);
+	local item_name, item_link, open_roll, sk_list = strsplit(",",msg,4);
+	open_roll = BoolOut(open_roll);
+	self:SetCurrentLootDirect(item_name,item_link,open_roll,sk_list);
 	-- start GUI
 	self:StartPersonalLootDecision()
 	return;
@@ -2071,14 +2040,27 @@ function LootManager:DetermineWinner(loot_idx)
 	local winner_sk_pos = nil;
 	local winner_roll = nil; -- random number [0,1)
 	-- scan decisions and determine winner
+	if LOOT_VERBOSE then
+		DEFAULT_CHAT_FRAME:AddMessage(" ");
+		SKC_Main:Print("IMPORTANT","DETERMINE WINNER");
+		DEFAULT_CHAT_FRAME:AddMessage(" ");
+	end
 	for char_name,loot_decision in pairs(self.pending_loot[loot_idx].decisions) do
+		if LOOT_VERBOSE then
+			SKC_Main:Print("IMPORTANT","Character: "..char_name);
+			SKC_Main:Print("IMPORTANT","Loot Decision: "..LOOT_DECISION.TEXT_MAP[loot_decision]);
+		end
 		if loot_decision ~= LOOT_DECISION.PASS then
 			local new_winner = false;
 			local prio_tmp = self.pending_loot[loot_idx].prios[char_name];
 			local sk_pos_tmp = self.pending_loot[loot_idx].sk_pos[char_name];
-			local roll_tmp = math.random();
-			SKC_Main:Print("NORMAL","prio_tmp: "..prio_tmp)
-			SKC_Main:Print("NORMAL","winner_prio: "..winner_prio)
+			local roll_tmp = math.floor(math.random()*100);
+			if LOOT_VERBOSE then
+				SKC_Main:Print("WARN","Prio: "..prio_tmp);
+				SKC_Main:Print("WARN","SK Position: "..sk_pos_tmp);
+				SKC_Main:Print("WARN","Roll: "..roll_tmp);
+				DEFAULT_CHAT_FRAME:AddMessage(" ");
+			end
 			if prio_tmp < winner_prio then
 				-- higher prio, automatic winner
 				new_winner = true;
@@ -2087,38 +2069,46 @@ function LootManager:DetermineWinner(loot_idx)
 				if loot_decision == LOOT_DECISION.SK then
 					if sk_pos_tmp < winner_sk_pos then
 						-- char_name is higher on SK list, new winner
+						new_winner = true;
 					end
 				elseif loot_decision == LOOT_DECISION.ROLL then
 					if roll_tmp > winner_roll then
 						-- char_name won roll (tie goes to previous winner)
+						new_winner = true;
 					end
 				end
 			end
 			if new_winner then
 				if LOOT_VERBOSE then
-					SKC_Main:Print("IMPORTANT","Previous Winner");
-					if winner == nil then
-						SKC_Main:Print("WARN","NULL");
-					else
-						SKC_Main:Print("WARN","winner:  "..winner);
-						SKC_Main:Print("WARN","winner_decision:  "..LOOT_DECISION.TEXT_MAP[winner_decision]);
-						SKC_Main:Print("WARN","winner_prio:  "..winner_prio);
-						SKC_Main:Print("WARN","winner_sk_pos:  "..winner_sk_pos);
-						SKC_Main:Print("WARN","winner_roll:  "..winner_roll);
-					end
+					-- save previous winner
+					local prev_winner = winner;
+					local prev_winner_decision = winner_decision;
+					local prev_winner_prio = winner_prio;
+					local prev_winner_sk_pos = winner_sk_pos;
+					local prev_winner_roll = winner_roll;
 				end
+				-- assign new winner
 				winner = char_name;
 				winner_decision = loot_decision;
 				winner_prio = prio_tmp;
 				winner_sk_pos = sk_pos_tmp;
 				winner_roll = roll_tmp;
-				if LOOT_VERBOSE then 
+				if LOOT_VERBOSE then
 					SKC_Main:Print("IMPORTANT","New Winner");
-					SKC_Main:Print("WARN","winner:  "..winner);
-					SKC_Main:Print("WARN","winner_decision:  "..LOOT_DECISION.TEXT_MAP[winner_decision]);
-					SKC_Main:Print("WARN","winner_prio:  "..winner_prio);
-					SKC_Main:Print("WARN","winner_sk_pos:  "..winner_sk_pos);
-					SKC_Main:Print("WARN","winner_roll:  "..winner_roll);
+					if prev_winner == nil then
+						SKC_Main:Print("WARN","Name:  "..winner);
+						SKC_Main:Print("WARN","Decision:  "..LOOT_DECISION.TEXT_MAP[winner_decision]);
+						SKC_Main:Print("WARN","Prio:  "..winner_prio);
+						SKC_Main:Print("WARN","SK Position:  "..winner_sk_pos);
+						SKC_Main:Print("WARN","Roll:  "..winner_roll);
+					else
+						SKC_Main:Print("WARN","Name:  "..prev_winner.." --> "..winner);
+						SKC_Main:Print("WARN","Decision:  "..LOOT_DECISION.TEXT_MAP[prev_winner_decision].." --> "..LOOT_DECISION.TEXT_MAP[winner_decision]);
+						SKC_Main:Print("WARN","Prio:  "..prev_winner_prio.." --> "..winner_prio);
+						SKC_Main:Print("WARN","SK Position:  "..prev_winner_sk_pos.." --> "..winner_sk_pos);
+						SKC_Main:Print("WARN","Roll:  "..prev_winner_roll.." --> "..winner_roll);
+					end
+					DEFAULT_CHAT_FRAME:AddMessage(" ");
 				end
 			end
 		end
@@ -2226,10 +2216,10 @@ function LootManager:ReadLootDecision(msg,sender)
 	-- save decision
 	if LOOT_VERBOSE then 
 		SKC_Main:Print("IMPORTANT","Reading Loot Decision");
-		SKC_Main:Print("WARN","char_name:  "..char_name);
-		SKC_Main:Print("WARN","loot_name:  "..loot_name);
-		SKC_Main:Print("WARN","loot_idx:  "..loot_idx);
-		SKC_Main:Print("WARN","loot_decision:  "..LOOT_DECISION.TEXT_MAP[loot_decision]);
+		SKC_Main:Print("WARN","char_name: "..char_name);
+		SKC_Main:Print("WARN","loot_name: "..loot_name);
+		SKC_Main:Print("WARN","loot_idx: "..loot_idx);
+		SKC_Main:Print("WARN","loot_decision: "..LOOT_DECISION.TEXT_MAP[loot_decision]);
 	end
 	if self:GetCurrentLootName() ~= loot_name then
 		SKC_Main:Print("ERROR","Received decision for item other than current_loot");
@@ -2244,7 +2234,7 @@ function LootManager:ReadLootDecision(msg,sender)
 	-- Determine if all decisions collected
 	for char_name_tmp,ld_tmp in pairs(self.pending_loot[loot_idx].decisions) do
 		if ld_tmp == LOOT_DECISION.PENDING then 
-			SKC_Main:Print("WARN","Waiting on:  "..char_name_tmp);
+			SKC_Main:Print("WARN","Waiting on: "..char_name_tmp);
 			return;
 		end
 	end
@@ -2284,21 +2274,21 @@ end
 local function SyncGuildData()
 	-- synchronize GuildData with guild roster
 	if not event_states.SyncCompleted.GuildData then
-		if VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, incomplete sync") end
+		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, incomplete sync") end
 		return;
 	end
 	if not IsInGuild() then
-		if VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, not in guild") end
+		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, not in guild") end
 		return;
 	end
 	if not SKC_Main:isGL() then
 		-- only fetch data if guild leader
-		if VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, not guild leader") end
+		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, not guild leader") end
 		return;
 	end
 	if GetNumGuildMembers() <= 1 then
 		-- only fetch data if guild leader
-		if VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, no guild members") end
+		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, no guild members") end
 		return;
 	end
 	event_states.SyncCompleted.GuildData = false;
@@ -2344,7 +2334,7 @@ local function SyncGuildData()
 		InitGuildSync = false;
 	end
 	event_states.SyncCompleted.GuildData = true;
-	if VERBOSE then SKC_Main:Print("NORMAL","SyncGuildData success!") end
+	if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL","SyncGuildData success!") end
 	return;
 end
 
@@ -3216,7 +3206,7 @@ local function SaveLoot()
 				-- Valid item
 				local lootLink = GetLootSlotLink(i_loot);
 				-- Store item
-				local loot_idx = SKC_DB.LootManager:AddLoot(lootName,lootLink,loot_option,sk_list);
+				local loot_idx = SKC_DB.LootManager:AddLoot(lootName,lootLink);
 				-- Alert raid of new item
 				local msg = "["..loot_cnt.."] "..lootLink;
 				SendChatMessage(msg,"RAID_WARNING");
@@ -3296,11 +3286,11 @@ end
 
 function SKC_Main:ReloadUIMain()
 	-- if UI Main has already been created, repopulates with data and sets to previous shown state
-	if VERBOSE then SKC_Main:Print("NORMAL","Reloading UI Main") end
+	if GUI_VERBOSE then SKC_Main:Print("NORMAL","Reloading UI Main") end
 	local is_shown = false;
 	if SKC_UIMain ~= nil then is_shown = SKC_UIMain:IsShown() end
 	if SKC_UIMain == nil then
-		if VERBOSE then SKC_Main:Print("NORMAL","ReloadUIMain: SKC_UIMain not created yet") end
+		if GUI_VERBOSE then SKC_Main:Print("NORMAL","ReloadUIMain: SKC_UIMain not created yet") end
 		return;
 	end
 	-- Refresh Data
@@ -3646,17 +3636,17 @@ function SKC_Main:CSVImport(name,sk_list)
 	return;
 end
 
-function SKC_Main:DisplayLootDecisionGUI(loot_option,sk_list)
+function SKC_Main:DisplayLootDecisionGUI(open_roll,sk_list)
 	-- Starts loot decision GUI
 	SKC_Main:ToggleUIMain(true);
 	-- Enable correct buttons
 	SKC_UIMain["Decision_border"].loot_decision_pass_btn:Enable(); -- OnClick_PASS
-	if loot_option == "SK" then
-		SKC_UIMain["Decision_border"].loot_decision_sk_btn:Enable();
+	SKC_UIMain["Decision_border"].loot_decision_sk_btn:Enable(); -- OnClick_SK
+	if open_roll then
+		SKC_UIMain["Decision_border"].loot_decision_roll_btn:Enable(); -- OnClick_ROLL
 	else
-		SKC_UIMain["Decision_border"].loot_decision_sk_btn:Disable(); -- OnClick_SK
+		SKC_UIMain["Decision_border"].loot_decision_roll_btn:Disable();
 	end
-	SKC_UIMain["Decision_border"].loot_decision_roll_btn:Enable(); -- OnClick_ROLL
 	-- Set item (in GUI)
 	SetSKItem();
 	-- populate correct SK list
