@@ -1,3 +1,6 @@
+-- TODO: close SK GUI when automatically passed on
+-- Queue of items displayed on side of screen to remind players what is upcoming
+
 --------------------------------------
 -- NAMESPACES
 --------------------------------------
@@ -17,7 +20,7 @@ local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
 local OVRD_CHARS = { -- characters which are pushed into GuildData
-	Duarte = true,
+	-- Duarte = true,
 	-- Skc = true,
 };
 -- verbosity
@@ -2053,7 +2056,7 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 	end
 	-- mark loot asawarded
 	self.pending_loot[loot_idx].awarded = true;
-	self.current_loot_timer:Cancel();
+	if self.current_loot_timer ~= nil then self.current_loot_timer:Cancel() end
 	self.current_loot_timer = nil;
 	-- send outcome message (and write to log)
 	self:SendOutcomeMsg(winner,winner_decision,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
@@ -2074,6 +2077,8 @@ function LootManager:DetermineWinner(loot_idx)
 			local prio_tmp = self.pending_loot[loot_idx].prios[char_name];
 			local sk_pos_tmp = self.pending_loot[loot_idx].sk_pos[char_name];
 			local roll_tmp = math.random();
+			SKC_Main:Print("NORMAL","prio_tmp: "..prio_tmp)
+			SKC_Main:Print("NORMAL","winner_prio: "..winner_prio)
 			if prio_tmp < winner_prio then
 				-- higher prio, automatic winner
 				new_winner = true;
@@ -2142,7 +2147,11 @@ function LootManager:DeterminePrio(loot_idx,char_name)
 			prio = prio + PRIO_TIERS.SK.Main.OS; -- increase prio past that for any main
 		end
 	elseif loot_decision == LOOT_DECISION.ROLL then
-		prio = PRIO_TIERS.ROLL[status][spec_type];
+		if reserved then
+			prio = PRIO_TIERS.ROLL[status][spec_type];
+		else
+			prio = PRIO_TIERS.ROLL["Main"][spec_type];
+		end
 	elseif loot_decision == LOOT_DECISION.PASS then
 		prio = PRIO_TIERS.PASS;
 	end
