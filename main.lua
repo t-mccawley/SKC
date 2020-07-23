@@ -2833,7 +2833,7 @@ local function OnMouseDown_ShowItemTooltip(self, button)
 	--]]
 	local decision_border_key = "Decision_border";
 	local frame = SKC_UIMain[decision_border_key];
-	local lootLink = SKC_UIMain[decision_border_key].lootLink:GetText();
+	local lootLink = SKC_DB.LootManager:GetCurrentLootLink();
 	local itemString = string.match(lootLink,"item[%-?%d:]+");
 	local itemLabel = string.match(lootLink,"|h.+|h");
 	SetItemRef(itemString, itemLabel, button, frame);
@@ -2889,6 +2889,7 @@ local function OnClick_PASS(self,button)
 	if self:IsEnabled() then
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.PASS);
+		SKC_UIMain:Hide();
 	end
 	return;
 end
@@ -2897,6 +2898,7 @@ local function OnClick_SK(self,button)
 	if self:IsEnabled() then
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.SK);
+		SKC_UIMain:Hide();
 	end
 	return;
 end
@@ -2905,6 +2907,7 @@ local function OnClick_ROLL(self,button)
 	if self:IsEnabled() then
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.ROLL);
+		SKC_UIMain:Hide();
 	end
 	return;
 end
