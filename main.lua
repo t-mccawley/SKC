@@ -39,16 +39,16 @@ local RAID_VERBOSE = true; -- relating to raid activity
 local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p"
 local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
-	MAIN_WIDTH = 920,
+	MAIN_WIDTH = 810,
 	MAIN_HEIGHT = 455,
 	MAIN_BORDER_Y_TOP = -60,
-	MAIN_BORDER_PADDING = 25,
+	MAIN_BORDER_PADDING = 15,
 	SK_TAB_TITLE_CARD_WIDTH = 80,
 	SK_TAB_TITLE_CARD_HEIGHT = 40,
 	LOOT_GUI_TITLE_CARD_WIDTH = 80,
 	LOOT_GUI_TITLE_CARD_HEIGHT = 40,
-	SK_FILTER_WIDTH = 330,
-	SK_FILTER_HEIGHT = 130,
+	SK_FILTER_WIDTH = 255,
+	SK_FILTER_HEIGHT = 205,
 	DECISION_WIDTH = 250,
 	DECISION_HEIGHT = 160,
 	SK_DETAILS_WIDTH = 270,
@@ -3718,6 +3718,7 @@ function SKC_Main:CreateLootGUI()
 	SKC_LootGUI:SetSize(UI_DIMENSIONS.DECISION_WIDTH,UI_DIMENSIONS.DECISION_HEIGHT);
 	SKC_LootGUI:SetPoint("TOP",UIParent,"CENTER",0,-130);
 	SKC_LootGUI:SetAlpha(0.8);
+	SKC_LootGUI:SetFrameLevel(6);
 
 	-- Make it movable
 	SKC_LootGUI:SetMovable(true);
@@ -3742,14 +3743,14 @@ function SKC_Main:CreateLootGUI()
 	SKC_LootGUI.ItemTexture:SetSize(UI_DIMENSIONS.ITEM_WIDTH,UI_DIMENSIONS.ITEM_HEIGHT);
 	SKC_LootGUI.ItemTexture:SetPoint("TOP",SKC_LootGUI,"TOP",0,item_texture_y_offst)
 	SKC_LootGUI.ItemClickBox = CreateFrame("Frame", nil, SKC_UIMain);
-	SKC_LootGUI.ItemClickBox:SetFrameLevel(2)
+	SKC_LootGUI.ItemClickBox:SetFrameLevel(7)
 	SKC_LootGUI.ItemClickBox:SetSize(UI_DIMENSIONS.ITEM_WIDTH,UI_DIMENSIONS.ITEM_HEIGHT);
 	SKC_LootGUI.ItemClickBox:SetPoint("CENTER",SKC_LootGUI.ItemTexture,"CENTER");
 	SKC_LootGUI.ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
 	-- set decision buttons
 	-- SK
 	local loot_btn_x_offst = 40;
-	local loot_btn_y_offst = -6;
+	local loot_btn_y_offst = -7;
 	SKC_LootGUI.loot_decision_sk_btn = CreateFrame("Button", nil, SKC_LootGUI, "GameMenuButtonTemplate");
 	SKC_LootGUI.loot_decision_sk_btn:SetPoint("TOPRIGHT",SKC_LootGUI.ItemTexture,"BOTTOM",-loot_btn_x_offst,loot_btn_y_offst);
 	SKC_LootGUI.loot_decision_sk_btn:SetSize(UI_DIMENSIONS.LOOT_BTN_WIDTH, UI_DIMENSIONS.LOOT_BTN_HEIGHT);
@@ -3777,7 +3778,7 @@ function SKC_Main:CreateLootGUI()
 	SKC_LootGUI.loot_decision_pass_btn:SetScript("OnMouseDown",OnClick_PASS);
 	SKC_LootGUI.loot_decision_pass_btn:Disable();
 	-- timer bar
-	local timer_bar_y_offst = -4;
+	local timer_bar_y_offst = -3;
 	SKC_LootGUI.TimerBorder = CreateFrame("Frame",nil,SKC_LootGUI,"TranslucentFrameTemplate");
 	SKC_LootGUI.TimerBorder:SetSize(UI_DIMENSIONS.STATUS_BAR_BRDR_WIDTH,UI_DIMENSIONS.STATUS_BAR_BRDR_HEIGHT);
 	SKC_LootGUI.TimerBorder:SetPoint("TOP",SKC_LootGUI.loot_decision_roll_btn,"BOTTOM",0,timer_bar_y_offst);
@@ -3802,7 +3803,6 @@ function SKC_Main:CreateLootGUI()
 	SKC_LootGUI.TimerBar.Text:SetFontObject("GameFontHighlightSmall")
 	SKC_LootGUI.TimerBar.Text:SetPoint("CENTER",SKC_LootGUI.TimerBar,"CENTER")
 	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_TIME)
-	-- SKC_UICSV[name]:SetFrameLevel(4);
 	-- values
 	SKC_LootGUI.TimerBar:SetMinMaxValues(0,LOOT_DECISION.OPTIONS.MAX_TIME);
 	SKC_LootGUI.TimerBar:SetValue(0);
@@ -3831,6 +3831,7 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain:SetScript("OnDragStart", SKC_UIMain.StartMoving)
 	SKC_UIMain:SetScript("OnDragStop", SKC_UIMain.StopMovingOrSizing)
 	SKC_UIMain:SetAlpha(0.8);
+	SKC_UIMain:SetFrameLevel(0);
 	
 	-- Add title
     SKC_UIMain.Title:ClearAllPoints();
@@ -3844,11 +3845,12 @@ function SKC_Main:CreateUIMain()
 	-- create details fields
 	local faction_class;
 	if UnitFactionGroup("player") == "Horde" then faction_class="Shaman" else faction_class="Paladin" end
-	local filter_roles = {"DPS","Healer","Tank","Live","Main","Alt","Inactive","Active","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
+	local filter_roles = {"DPS","Healer","Tank","Live","SKIP","SKIP","Main","Alt","SKIP","Inactive","Active","SKIP","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
+	local num_cols = 3;
 	for idx,value in ipairs(filter_roles) do
 		if value ~= "SKIP" then
-			local row = math.floor((idx - 1) / 4); -- zero based
-			local col = (idx - 1) % 4; -- zero based
+			local row = math.floor((idx - 1) / num_cols); -- zero based
+			local col = (idx - 1) % num_cols; -- zero based
 			SKC_UIMain[filter_border_key][value] = CreateFrame("CheckButton", nil, SKC_UIMain[filter_border_key], "UICheckButtonTemplate");
 			SKC_UIMain[filter_border_key][value]:SetSize(25,25);
 			SKC_UIMain[filter_border_key][value]:SetChecked(SKC_DB.FilterStates[value]);
@@ -3856,7 +3858,7 @@ function SKC_Main:CreateUIMain()
 			SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
 			SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
 			SKC_UIMain[filter_border_key][value].text:SetText(value);
-			if idx > 8 then
+			if idx > 12 then
 				-- assign class colors
 				SKC_UIMain[filter_border_key][value].text:SetTextColor(CLASSES[value].color.r,CLASSES[value].color.g,CLASSES[value].color.b,1.0);
 			end
