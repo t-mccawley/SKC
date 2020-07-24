@@ -1,4 +1,6 @@
--- TODO: close SK GUI when automatically passed on
+-- TODO: 
+-- close SK GUI when automatically passed on
+-- when importing loot prio check if item already added and return error if so
 -- Queue of items displayed on side of screen to remind players what is upcoming
 
 --------------------------------------
@@ -8,8 +10,9 @@ local _, core = ...; -- returns name of addon and namespace (core)
 core.SKC_Main = {}; -- adds SKC_Main table to addon namespace
 
 local SKC_Main = core.SKC_Main; -- assignment by reference in lua, ugh
-local SKC_UIMain; -- Table for main GUI
+local SKC_UIMain; -- Main GUI
 local SKC_UICSV = {}; -- Table for GUI associated with CSV import and export
+local SKC_LootGUI; -- Loot GUI
 --------------------------------------
 -- DEV CONTROLS
 --------------------------------------
@@ -42,10 +45,12 @@ local UI_DIMENSIONS = { -- ui dimensions
 	MAIN_BORDER_PADDING = 25,
 	SK_TAB_TITLE_CARD_WIDTH = 80,
 	SK_TAB_TITLE_CARD_HEIGHT = 40,
+	LOOT_GUI_TITLE_CARD_WIDTH = 80,
+	LOOT_GUI_TITLE_CARD_HEIGHT = 40,
 	SK_FILTER_WIDTH = 330,
 	SK_FILTER_HEIGHT = 130,
-	DECISION_WIDTH = 330,
-	DECISION_HEIGHT = 200,
+	DECISION_WIDTH = 250,
+	DECISION_HEIGHT = 160,
 	SK_DETAILS_WIDTH = 270,
 	SK_DETAILS_HEIGHT = 355,
 	ITEM_WIDTH = 40,
@@ -58,7 +63,9 @@ local UI_DIMENSIONS = { -- ui dimensions
 	SK_CARD_HEIGHT = 20,
 	BTN_WIDTH = 75,
 	BTN_HEIGHT = 40,
-	STATUS_BAR_BRDR_WIDTH = 290,
+	LOOT_BTN_WIDTH = 60,
+	LOOT_BTN_HEIGHT = 35,
+	STATUS_BAR_BRDR_WIDTH = 210,
 	STATUS_BAR_BRDR_HEIGHT = 40,
 	STATUS_BAR_WIDTH_OFFST = 24,
 	STATUS_BAR_HEIGHT_OFFST = 24,
@@ -625,7 +632,7 @@ local LOOT_DECISION = {
 		"ROLL",
 	},
 	OPTIONS = {
-		MAX_TIME = 10,
+		MAX_TIME = 100,
 		TIME_STEP = 1,
 		ML_WAIT_BUFFER = 5, -- additional time that master looter waits before triggering auto pass (accounts for transmission delays)
 		KICKOFF_DELAY = 3, -- delay after finishing one loot distribution before next begins
@@ -1809,10 +1816,14 @@ function LootManager:AddLoot(item_name,item_link)
 	local open_roll = SKC_DB.LootPrio:GetOpenRoll(item_name);
 	local sk_list = SKC_DB.LootPrio:GetSKList(item_name);
 	self.pending_loot[idx] = Loot:new(nil,item_name,item_link,open_roll,sk_list);
-	if LOOT_VERBOSE then 
-		SKC_Main:Print("WARN","Added "..item_link);
-		if open_roll then SKC_Main:Print("WARN","Open Roll: TRUE") else SKC_Main:Print("WARN","Open Roll: FALSE") end
-		SKC_Main:Print("WARN","SK List: "..sk_list);
+	if LOOT_VERBOSE then
+		DEFAULT_CHAT_FRAME:AddMessage(" ");
+		SKC_Main:Print("NORMAL","Added "..item_link);
+		SKC_Main:Print("NORMAL","Item Name: "..item_name);
+		if open_roll then SKC_Main:Print("NORMAL","Open Roll: TRUE") else SKC_Main:Print("NORMAL","Open Roll: FALSE") end
+		SKC_Main:Print("NORMAL","SK List: "..sk_list);
+		SKC_Main:Print("NORMAL","Loot Index: "..idx);
+		DEFAULT_CHAT_FRAME:AddMessage(" ");
 	end
 	return idx;
 end
@@ -1899,33 +1910,6 @@ function LootManager:SendLootDecision(loot_decision)
 	return;
 end
 
-function LootManager:GiveLoot(loot_name,loot_link,winner)
-	-- sends loot to winner
-	local success = false;
-	-- find item
-	for i_loot = 1, GetNumLootItems() do
-		-- get item data
-		local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(i_loot);
-		if lootName == loot_name then
-			-- find character in raid
-			for i_char = 1,40 do
-				if GetMasterLootCandidate(i_loot, i_char) == winner then
-					if LOOT_DIST_DISABLE or LOOT_SAFE_MODE then
-						SKC_Main:Print("IMPORTANT","Faux distribution of loot successful!");
-					else 
-						GiveMasterLoot(i_loot,i_char);
-					end
-					success = true;
-				end
-			end
-		end
-	end
-	if not success then
-		SKC_Main:Print("ERROR","Failed to award "..loot_link.." to "..winner);
-	end
-	return success;
-end
-
 local function KickOffWrapper()
 	-- wrapper function for kick off because i cant figure out how to call class method with After()
 	SKC_DB.LootManager:KickOff();
@@ -1981,6 +1965,60 @@ function LootManager:SendOutcomeMsg(winner,winner_decision,loot_name,loot_link,D
 	return;
 end
 
+function LootManager:MarkLootAwarded(loot_name)
+	-- mark loot awarded
+	-- get loot index
+	local loot_idx = self:GetLootIdx(loot_name,true);
+	if loot_idx == nil then
+		-- loot already not in pending loot
+		return;
+	end
+	self.pending_loot[loot_idx].awarded = true;
+	if self.current_loot_timer ~= nil then self.current_loot_timer:Cancel() end
+	self.current_loot_timer = nil;
+	return;
+end
+
+function LootManager:GiveLoot(loot_name,loot_link,winner)
+	-- sends loot to winner
+	local success = false;
+	-- find item
+	for i_loot = 1, GetNumLootItems() do
+		-- get item data
+		local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(i_loot);
+		if lootName == loot_name then
+			-- find character in raid
+			for i_char = 1,40 do
+				if GetMasterLootCandidate(i_loot, i_char) == winner then
+					if LOOT_DIST_DISABLE or LOOT_SAFE_MODE then
+						SKC_Main:Print("IMPORTANT","Faux distribution of loot successful!");
+					else 
+						GiveMasterLoot(i_loot,i_char);
+					end
+					success = true;
+				end
+			end
+		end
+	end
+	if not success then
+		SKC_Main:Print("ERROR","Failed to award "..loot_link.." to "..winner);
+	else
+		-- mark loot awarded
+		LootManager:MarkLootAwarded(loot_name);
+	end
+	return success;
+end
+
+function LootManager:GiveLootToML(loot_name,loot_link)
+	self:MarkLootAwarded(loot_name); -- mark loot awarded regardless of success to avoid getting stuck on loot
+	if not SKC_Main:isML() then 
+		SKC_Main:Print("ERROR","Current player is not Master Looter.");
+		return;
+	end
+	self:GiveLoot(loot_name,loot_link,UnitName("player"));
+	return;
+end
+
 function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 	-- award actual loot to winner, perform SK (if necessary), and send alert message
 	-- initialize
@@ -2019,16 +2057,12 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision)
 		-- reload UI
 		SKC_Main:ReloadUIMain();
 	end
-	-- send loot
+	-- send loot and mark as awarded
 	local send_success = self:GiveLoot(loot_name,loot_link,winner);
 	if not send_success then
 		-- looting failed, send item to ML
-		self:GiveLoot(loot_name,loot_link,UnitName("player"));
+		self:GiveLootToML(loot_name,loot_link);
 	end
-	-- mark loot asawarded
-	self.pending_loot[loot_idx].awarded = true;
-	if self.current_loot_timer ~= nil then self.current_loot_timer:Cancel() end
-	self.current_loot_timer = nil;
 	-- send outcome message (and write to log)
 	self:SendOutcomeMsg(winner,winner_decision,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
 	return;
@@ -2836,12 +2870,10 @@ local function OnMouseDown_ShowItemTooltip(self, button)
 		itemLabel ex:
 			[Fractured Canine]
 	--]]
-	local decision_border_key = "Decision_border";
-	local frame = SKC_UIMain[decision_border_key];
 	local lootLink = SKC_DB.LootManager:GetCurrentLootLink();
 	local itemString = string.match(lootLink,"item[%-?%d:]+");
 	local itemLabel = string.match(lootLink,"|h.+|h");
-	SetItemRef(itemString, itemLabel, button, frame);
+	SetItemRef(itemString, itemLabel, button, SKC_LootGUI);
 end
 
 local function SetSKItem()
@@ -2853,23 +2885,23 @@ local function SetSKItem()
 		-- item:GetlootLink();
 		local name, link, quality, iLevel, reqLevel, class, subclass, maxStack, equipSlot, texture, vendorPrice = GetItemInfo(lootLink);
 		-- Set texture icon and link
-		local decision_border_key = "Decision_border";
-		SKC_UIMain[decision_border_key].ItemTexture:SetTexture(texture);
-		SKC_UIMain[decision_border_key].lootLink:SetText(lootLink);
+		SKC_LootGUI.ItemTexture:SetTexture(texture);
+		SKC_LootGUI.Title.Text:SetText(lootLink);
+		SKC_LootGUI.Title:SetWidth(SKC_LootGUI.Title.Text:GetStringWidth()+35);   
 	end)
 end
 
 local function InitTimerBarValue()
-	SKC_UIMain["Decision_border"].TimerBar:SetValue(0);
-	SKC_UIMain["Decision_border"].TimerText:SetText(LOOT_DECISION.OPTIONS.MAX_TIME);
+	SKC_LootGUI.TimerBar:SetValue(0);
+	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_TIME);
 end
 
 local function TimerBarHandler()
-	local time_elapsed = SKC_UIMain["Decision_border"].TimerBar:GetValue() + LOOT_DECISION.OPTIONS.TIME_STEP;
+	local time_elapsed = SKC_LootGUI.TimerBar:GetValue() + LOOT_DECISION.OPTIONS.TIME_STEP;
 
 	-- updated timer bar
-	SKC_UIMain["Decision_border"].TimerBar:SetValue(time_elapsed);
-	SKC_UIMain["Decision_border"].TimerText:SetText(LOOT_DECISION.OPTIONS.MAX_TIME - time_elapsed);
+	SKC_LootGUI.TimerBar:SetValue(time_elapsed);
+	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_TIME - time_elapsed);
 
 	if time_elapsed >= LOOT_DECISION.OPTIONS.MAX_TIME then
 		-- out of time
@@ -2877,6 +2909,7 @@ local function TimerBarHandler()
 		SKC_Main:Print("WARN","Time expired. You PASS on "..SKC_DB.LootManager:GetCurrentLootLink());
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.PASS);
+		SKC_LootGUI:Hide();
 	end
 
 	return;
@@ -2894,7 +2927,7 @@ local function OnClick_PASS(self,button)
 	if self:IsEnabled() then
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.PASS);
-		SKC_UIMain:Hide();
+		SKC_LootGUI:Hide();
 	end
 	return;
 end
@@ -2903,7 +2936,7 @@ local function OnClick_SK(self,button)
 	if self:IsEnabled() then
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.SK);
-		SKC_UIMain:Hide();
+		SKC_LootGUI:Hide();
 	end
 	return;
 end
@@ -2912,7 +2945,7 @@ local function OnClick_ROLL(self,button)
 	if self:IsEnabled() then
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.ROLL);
-		SKC_UIMain:Hide();
+		SKC_LootGUI:Hide();
 	end
 	return;
 end
@@ -3169,9 +3202,9 @@ local function LoginSyncCheckSend()
 		msg = db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
 		ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD",nil,"main_queue");
 		if COMM_VERBOSE then 
-			SKC_Main:Print("WARN",db_name.." Edit Timestamp:");
-			SKC_Main:Print("WARN","     GENERIC: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_generic));
-			SKC_Main:Print("WARN","            RAID: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_raid));
+			SKC_Main:Print("NORMAL",db_name.." Edit Timestamp:");
+			SKC_Main:Print("NORMAL","     GENERIC: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_generic));
+			SKC_Main:Print("NORMAL","            RAID: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_raid));
 		end
 	end
 	event_states.SyncRequestSent = true;
@@ -3184,6 +3217,11 @@ local function SaveLoot()
 
 	if LOOT_SAFE_MODE then 
 		SKC_Main:Print("WARN","Loot Safe Mode");
+		return;
+	end
+
+	if not SKC_Active then
+		SKC_Main:Print("WARN","SKC not active. Skipping loot distribution.");
 		return;
 	end
 
@@ -3208,7 +3246,7 @@ local function SaveLoot()
 		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot);
 		if lootName ~= nil then
 			-- Only perform SK for items if they are found in loot prio
-			if SKC_Active and SKC_DB.LootPrio:Exists(lootName) then
+			if SKC_DB.LootPrio:Exists(lootName) then
 				-- Valid item
 				local lootLink = GetLootSlotLink(i_loot);
 				-- Store item
@@ -3218,16 +3256,26 @@ local function SaveLoot()
 				SendChatMessage(msg,"RAID_WARNING");
 				loot_cnt = loot_cnt + 1;
 				-- Scan all possible characters to determine elligible
+				local any_elligible = false;
 				for i_char = 1,40 do
 					local char_name = GetMasterLootCandidate(i_loot,i_char);
 					if char_name ~= nil then
-						if SKC_DB.LootPrio:IsElligible(lootName,char_name) then SKC_DB.LootManager:AddCharacter(char_name,loot_idx) end
+						if SKC_DB.LootPrio:IsElligible(lootName,char_name) then 
+							SKC_DB.LootManager:AddCharacter(char_name,loot_idx);
+							any_elligible = true;
+						end
 					end
 				end
+				-- check that at least one character was elligible
+				if not any_elligible then
+					if LOOT_VERBOSE then SKC_Main:Print("WARN","No elligible characters in raid. Giving directly to ML.") end
+					-- give directly to ML
+					SKC_DB.LootManager:GiveLootToML(lootName,lootLink);
+				end
 			else
-				if LOOT_VERBOSE then SKC_Main:Print("NORMAL","Giving directly to ML") end
+				if LOOT_VERBOSE then SKC_Main:Print("WARN","Item not in Loot Prio. Giving directly to ML.") end
 				-- give directly to ML
-				SKC_DB.LootManager:GiveLoot(lootName,GetLootSlotLink(i_loot),UnitName("player"));
+				SKC_DB.LootManager:GiveLootToML(lootName,GetLootSlotLink(i_loot));
 			end
 		end
 	end
@@ -3643,24 +3691,127 @@ function SKC_Main:CSVImport(name,sk_list)
 end
 
 function SKC_Main:DisplayLootDecisionGUI(open_roll,sk_list)
-	-- Starts loot decision GUI
-	SKC_Main:ToggleUIMain(true);
+	-- ensure SKC_LootGUI is created
+	if SKC_LootGUI == nil then SKC_Main:CreateLootGUI() end
 	-- Enable correct buttons
-	SKC_UIMain["Decision_border"].loot_decision_pass_btn:Enable(); -- OnClick_PASS
-	SKC_UIMain["Decision_border"].loot_decision_sk_btn:Enable(); -- OnClick_SK
+	SKC_LootGUI.loot_decision_pass_btn:Enable(); -- OnClick_PASS
+	SKC_LootGUI.loot_decision_sk_btn:Enable(); -- OnClick_SK
+	SKC_LootGUI.loot_decision_sk_btn:SetText(sk_list);
 	if open_roll then
-		SKC_UIMain["Decision_border"].loot_decision_roll_btn:Enable(); -- OnClick_ROLL
+		SKC_LootGUI.loot_decision_roll_btn:Enable(); -- OnClick_ROLL
 	else
-		SKC_UIMain["Decision_border"].loot_decision_roll_btn:Disable();
+		SKC_LootGUI.loot_decision_roll_btn:Disable();
 	end
 	-- Set item (in GUI)
 	SetSKItem();
-	-- populate correct SK list
-	SKC_UIMain["sk_list_border"].Title.Text:SetText(sk_list);
-	-- Reload UI
-	SKC_Main:ReloadUIMain();
 	-- Initiate timer
 	StartLootTimer();
+	-- show
+	SKC_LootGUI:Show();
+	return;
+end
+
+function SKC_Main:CreateLootGUI()
+	-- Creates the GUI object for making a loot decision
+	-- Create Frame
+	SKC_LootGUI = CreateFrame("Frame",border_key,UIParent,"TranslucentFrameTemplate");
+	SKC_LootGUI:SetSize(UI_DIMENSIONS.DECISION_WIDTH,UI_DIMENSIONS.DECISION_HEIGHT);
+	SKC_LootGUI:SetPoint("TOP",UIParent,"CENTER",0,-130);
+	SKC_LootGUI:SetAlpha(0.8);
+
+	-- Make it movable
+	SKC_LootGUI:SetMovable(true);
+	SKC_LootGUI:EnableMouse(true);
+	SKC_LootGUI:RegisterForDrag("LeftButton");
+	SKC_LootGUI:SetScript("OnDragStart", SKC_LootGUI.StartMoving);
+	SKC_LootGUI:SetScript("OnDragStop", SKC_LootGUI.StopMovingOrSizing);
+
+	-- Create Title
+	SKC_LootGUI.Title = CreateFrame("Frame",title_key,SKC_LootGUI,"TranslucentFrameTemplate");
+	SKC_LootGUI.Title:SetSize(UI_DIMENSIONS.LOOT_GUI_TITLE_CARD_WIDTH,UI_DIMENSIONS.LOOT_GUI_TITLE_CARD_HEIGHT);
+	SKC_LootGUI.Title:SetPoint("BOTTOM",SKC_LootGUI,"TOP",0,-20);
+	SKC_LootGUI.Title.Text = SKC_LootGUI.Title:CreateFontString(nil,"ARTWORK");
+	SKC_LootGUI.Title.Text:SetFontObject("GameFontNormal");
+	SKC_LootGUI.Title.Text:SetPoint("CENTER",0,0);
+	SKC_LootGUI.Title:SetHyperlinksEnabled(true)
+	SKC_LootGUI.Title:SetScript("OnHyperlinkClick", ChatFrame_OnHyperlinkShow)
+
+	-- set texture / hidden frame for button click
+	local item_texture_y_offst = -23;
+	SKC_LootGUI.ItemTexture = SKC_LootGUI:CreateTexture(nil, "ARTWORK");
+	SKC_LootGUI.ItemTexture:SetSize(UI_DIMENSIONS.ITEM_WIDTH,UI_DIMENSIONS.ITEM_HEIGHT);
+	SKC_LootGUI.ItemTexture:SetPoint("TOP",SKC_LootGUI,"TOP",0,item_texture_y_offst)
+	SKC_LootGUI.ItemClickBox = CreateFrame("Frame", nil, SKC_UIMain);
+	SKC_LootGUI.ItemClickBox:SetFrameLevel(2)
+	SKC_LootGUI.ItemClickBox:SetSize(UI_DIMENSIONS.ITEM_WIDTH,UI_DIMENSIONS.ITEM_HEIGHT);
+	SKC_LootGUI.ItemClickBox:SetPoint("CENTER",SKC_LootGUI.ItemTexture,"CENTER");
+	SKC_LootGUI.ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
+	-- set decision buttons
+	-- SK
+	local loot_btn_x_offst = 40;
+	local loot_btn_y_offst = -6;
+	SKC_LootGUI.loot_decision_sk_btn = CreateFrame("Button", nil, SKC_LootGUI, "GameMenuButtonTemplate");
+	SKC_LootGUI.loot_decision_sk_btn:SetPoint("TOPRIGHT",SKC_LootGUI.ItemTexture,"BOTTOM",-loot_btn_x_offst,loot_btn_y_offst);
+	SKC_LootGUI.loot_decision_sk_btn:SetSize(UI_DIMENSIONS.LOOT_BTN_WIDTH, UI_DIMENSIONS.LOOT_BTN_HEIGHT);
+	SKC_LootGUI.loot_decision_sk_btn:SetText("SK");
+	SKC_LootGUI.loot_decision_sk_btn:SetNormalFontObject("GameFontNormal");
+	SKC_LootGUI.loot_decision_sk_btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_LootGUI.loot_decision_sk_btn:SetScript("OnMouseDown",OnClick_SK);
+	SKC_LootGUI.loot_decision_sk_btn:Disable();
+	-- Roll 
+	SKC_LootGUI.loot_decision_roll_btn = CreateFrame("Button", nil, SKC_LootGUI, "GameMenuButtonTemplate");
+	SKC_LootGUI.loot_decision_roll_btn:SetPoint("TOP",SKC_LootGUI.ItemTexture,"BOTTOM",0,loot_btn_y_offst);
+	SKC_LootGUI.loot_decision_roll_btn:SetSize(UI_DIMENSIONS.LOOT_BTN_WIDTH, UI_DIMENSIONS.LOOT_BTN_HEIGHT);
+	SKC_LootGUI.loot_decision_roll_btn:SetText("Roll");
+	SKC_LootGUI.loot_decision_roll_btn:SetNormalFontObject("GameFontNormal");
+	SKC_LootGUI.loot_decision_roll_btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_LootGUI.loot_decision_roll_btn:SetScript("OnMouseDown",OnClick_ROLL);
+	SKC_LootGUI.loot_decision_roll_btn:Disable();
+	-- Pass
+	SKC_LootGUI.loot_decision_pass_btn = CreateFrame("Button", nil, SKC_LootGUI, "GameMenuButtonTemplate");
+	SKC_LootGUI.loot_decision_pass_btn:SetPoint("TOPLEFT",SKC_LootGUI.ItemTexture,"BOTTOM",loot_btn_x_offst,loot_btn_y_offst);
+	SKC_LootGUI.loot_decision_pass_btn:SetSize(UI_DIMENSIONS.LOOT_BTN_WIDTH, UI_DIMENSIONS.LOOT_BTN_HEIGHT);
+	SKC_LootGUI.loot_decision_pass_btn:SetText("Pass");
+	SKC_LootGUI.loot_decision_pass_btn:SetNormalFontObject("GameFontNormal");
+	SKC_LootGUI.loot_decision_pass_btn:SetHighlightFontObject("GameFontHighlight");
+	SKC_LootGUI.loot_decision_pass_btn:SetScript("OnMouseDown",OnClick_PASS);
+	SKC_LootGUI.loot_decision_pass_btn:Disable();
+	-- timer bar
+	local timer_bar_y_offst = -4;
+	SKC_LootGUI.TimerBorder = CreateFrame("Frame",nil,SKC_LootGUI,"TranslucentFrameTemplate");
+	SKC_LootGUI.TimerBorder:SetSize(UI_DIMENSIONS.STATUS_BAR_BRDR_WIDTH,UI_DIMENSIONS.STATUS_BAR_BRDR_HEIGHT);
+	SKC_LootGUI.TimerBorder:SetPoint("TOP",SKC_LootGUI.loot_decision_roll_btn,"BOTTOM",0,timer_bar_y_offst);
+	SKC_LootGUI.TimerBorder.Bg:SetAlpha(1.0);
+	-- status bar
+	SKC_LootGUI.TimerBar = CreateFrame("StatusBar",nil,SKC_LootGUI);
+	SKC_LootGUI.TimerBar:SetSize(UI_DIMENSIONS.STATUS_BAR_BRDR_WIDTH - UI_DIMENSIONS.STATUS_BAR_WIDTH_OFFST,UI_DIMENSIONS.STATUS_BAR_BRDR_HEIGHT - UI_DIMENSIONS.STATUS_BAR_HEIGHT_OFFST);
+	SKC_LootGUI.TimerBar:SetPoint("CENTER",SKC_LootGUI.TimerBorder,"CENTER",0,-1);
+	-- background texture
+	SKC_LootGUI.TimerBar.bg = SKC_LootGUI.TimerBar:CreateTexture(nil,"BACKGROUND",nil,-7);
+	SKC_LootGUI.TimerBar.bg:SetAllPoints(SKC_LootGUI.TimerBar);
+	SKC_LootGUI.TimerBar.bg:SetColorTexture(unpack(THEME.STATUS_BAR_COLOR));
+	SKC_LootGUI.TimerBar.bg:SetAlpha(0.8);
+	-- bar texture
+	SKC_LootGUI.TimerBar.Bar = SKC_LootGUI.TimerBar:CreateTexture(nil,"BACKGROUND",nil,-6);
+	SKC_LootGUI.TimerBar.Bar:SetColorTexture(0,0,0);
+	SKC_LootGUI.TimerBar.Bar:SetAlpha(1.0);
+	-- set status texture
+	SKC_LootGUI.TimerBar:SetStatusBarTexture(SKC_LootGUI.TimerBar.Bar);
+	-- add text
+	SKC_LootGUI.TimerBar.Text = SKC_LootGUI.TimerBar:CreateFontString(nil,"ARTWORK",nil,7)
+	SKC_LootGUI.TimerBar.Text:SetFontObject("GameFontHighlightSmall")
+	SKC_LootGUI.TimerBar.Text:SetPoint("CENTER",SKC_LootGUI.TimerBar,"CENTER")
+	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_TIME)
+	-- SKC_UICSV[name]:SetFrameLevel(4);
+	-- values
+	SKC_LootGUI.TimerBar:SetMinMaxValues(0,LOOT_DECISION.OPTIONS.MAX_TIME);
+	SKC_LootGUI.TimerBar:SetValue(0);
+
+	-- Make frame closable with esc
+	table.insert(UISpecialFrames, "SKC_LootGUI");
+
+	-- hide
+	SKC_LootGUI:Hide();
 	return;
 end
 
@@ -3843,82 +3994,8 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[details_border_key].manual_set_sk_btn:SetScript("OnMouseDown",OnClick_SetSK);
 	SKC_UIMain[details_border_key].manual_set_sk_btn:Disable();
 
-
-	-- Decision region
-	local decision_border_key = CreateUIBorder("Decision",UI_DIMENSIONS.DECISION_WIDTH,UI_DIMENSIONS.DECISION_HEIGHT)
-	-- set position
-	SKC_UIMain[decision_border_key]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 0, -UI_DIMENSIONS.SK_FILTER_HEIGHT - UI_DIMENSIONS.MAIN_BORDER_PADDING);
-
-	-- set texture / hidden frame for button click
-	SKC_UIMain[decision_border_key].ItemTexture = SKC_UIMain[decision_border_key]:CreateTexture(nil, "ARTWORK");
-	SKC_UIMain[decision_border_key].ItemTexture:SetSize(UI_DIMENSIONS.ITEM_WIDTH,UI_DIMENSIONS.ITEM_HEIGHT);
-	SKC_UIMain[decision_border_key].ItemTexture:SetPoint("TOP",SKC_UIMain[decision_border_key],"TOP",0,-45)
-	SKC_UIMain[decision_border_key].ItemClickBox = CreateFrame("Frame", nil, SKC_UIMain);
-	SKC_UIMain[decision_border_key].ItemClickBox:SetSize(UI_DIMENSIONS.ITEM_WIDTH,UI_DIMENSIONS.ITEM_HEIGHT);
-	SKC_UIMain[decision_border_key].ItemClickBox:SetPoint("CENTER",SKC_UIMain[decision_border_key].ItemTexture,"CENTER");
-	SKC_UIMain[decision_border_key].ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
-	-- set name / link
-	SKC_UIMain[decision_border_key].lootLink = SKC_UIMain[decision_border_key]:CreateFontString(nil,"ARTWORK");
-	SKC_UIMain[decision_border_key].lootLink:SetFontObject("GameFontNormal");
-	SKC_UIMain[decision_border_key].lootLink:SetPoint("TOP",SKC_UIMain[decision_border_key],"TOP",0,-25);
-	SKC_UIMain[decision_border_key]:SetHyperlinksEnabled(true)
-	SKC_UIMain[decision_border_key]:SetScript("OnHyperlinkClick", ChatFrame_OnHyperlinkShow)
-	-- set decision buttons
-	-- SK 
-	SKC_UIMain[decision_border_key].loot_decision_sk_btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetPoint("TOPRIGHT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",-60,-10);
-	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
-	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetText("SK");
-	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[decision_border_key].loot_decision_sk_btn:SetScript("OnMouseDown",OnClick_SK);
-	SKC_UIMain[decision_border_key].loot_decision_sk_btn:Disable();
-	-- Roll 
-	SKC_UIMain[decision_border_key].loot_decision_roll_btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetPoint("TOP",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",0,-10);
-	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
-	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetText("Roll");
-	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[decision_border_key].loot_decision_roll_btn:SetScript("OnMouseDown",OnClick_ROLL);
-	SKC_UIMain[decision_border_key].loot_decision_roll_btn:Disable();
-	-- Pass
-	SKC_UIMain[decision_border_key].loot_decision_pass_btn = CreateFrame("Button", nil, SKC_UIMain, "GameMenuButtonTemplate");
-	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetPoint("TOPLEFT",SKC_UIMain[decision_border_key].ItemTexture,"BOTTOM",60,-10);
-	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetSize(UI_DIMENSIONS.BTN_WIDTH, UI_DIMENSIONS.BTN_HEIGHT);
-	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetText("Pass");
-	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetNormalFontObject("GameFontNormal");
-	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetHighlightFontObject("GameFontHighlight");
-	SKC_UIMain[decision_border_key].loot_decision_pass_btn:SetScript("OnMouseDown",OnClick_PASS);
-	SKC_UIMain[decision_border_key].loot_decision_pass_btn:Disable();
-	-- timer bar
-	SKC_UIMain[decision_border_key].TimerBorder = CreateFrame("Frame",nil,SKC_UIMain,"TranslucentFrameTemplate");
-	SKC_UIMain[decision_border_key].TimerBorder:SetSize(UI_DIMENSIONS.STATUS_BAR_BRDR_WIDTH,UI_DIMENSIONS.STATUS_BAR_BRDR_HEIGHT);
-	SKC_UIMain[decision_border_key].TimerBorder:SetPoint("TOP",SKC_UIMain[decision_border_key].loot_decision_roll_btn,"BOTTOM",0,-7);
-	SKC_UIMain[decision_border_key].TimerBorder.Bg:SetAlpha(1.0);
-	-- status bar
-	SKC_UIMain[decision_border_key].TimerBar = CreateFrame("StatusBar",nil,SKC_UIMain);
-	SKC_UIMain[decision_border_key].TimerBar:SetSize(UI_DIMENSIONS.STATUS_BAR_BRDR_WIDTH - UI_DIMENSIONS.STATUS_BAR_WIDTH_OFFST,UI_DIMENSIONS.STATUS_BAR_BRDR_HEIGHT - UI_DIMENSIONS.STATUS_BAR_HEIGHT_OFFST);
-	SKC_UIMain[decision_border_key].TimerBar:SetPoint("CENTER",SKC_UIMain[decision_border_key].TimerBorder,"CENTER",0,-1);
-	-- background texture
-	SKC_UIMain[decision_border_key].TimerBar.bg = SKC_UIMain[decision_border_key].TimerBar:CreateTexture(nil,"BACKGROUND",nil,-7);
-	SKC_UIMain[decision_border_key].TimerBar.bg:SetAllPoints(SKC_UIMain[decision_border_key].TimerBar);
-	SKC_UIMain[decision_border_key].TimerBar.bg:SetColorTexture(unpack(THEME.STATUS_BAR_COLOR));
-	SKC_UIMain[decision_border_key].TimerBar.bg:SetAlpha(0.8);
-	-- bar texture
-	SKC_UIMain[decision_border_key].TimerBar.Bar = SKC_UIMain[decision_border_key].TimerBar:CreateTexture(nil,"BACKGROUND",nil,-6);
-	SKC_UIMain[decision_border_key].TimerBar.Bar:SetColorTexture(0,0,0);
-	SKC_UIMain[decision_border_key].TimerBar.Bar:SetAlpha(1.0);
-	-- set status texture
-	SKC_UIMain[decision_border_key].TimerBar:SetStatusBarTexture(SKC_UIMain[decision_border_key].TimerBar.Bar);
-	-- add text
-	SKC_UIMain[decision_border_key].TimerText = SKC_UIMain[decision_border_key]:CreateFontString(nil,"ARTWORK")
-	SKC_UIMain[decision_border_key].TimerText:SetFontObject("GameFontHighlightSmall")
-	SKC_UIMain[decision_border_key].TimerText:SetPoint("CENTER",SKC_UIMain[decision_border_key].TimerBar,"CENTER")
-	SKC_UIMain[decision_border_key].TimerText:SetText(LOOT_DECISION.OPTIONS.MAX_TIME)
-	-- values
-	SKC_UIMain[decision_border_key].TimerBar:SetMinMaxValues(0,LOOT_DECISION.OPTIONS.MAX_TIME);
-	SKC_UIMain[decision_border_key].TimerBar:SetValue(0);
+	-- create blank loot GUI
+	SKC_Main:CreateLootGUI();
 
 	-- Populate Data
 	PopulateData();
