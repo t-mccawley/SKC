@@ -2376,9 +2376,7 @@ local function UpdateLiveList()
 
 	-- Scan raid and update live list
 	for char_name,_ in pairs(SKC_DB.GuildData.data) do
-		if UnitInRaid(char_name) ~= nil then
-			AddToLiveLists(char_name,true);
-		end
+		AddToLiveLists(char_name,UnitInRaid(char_name) ~= nil);
 	end
 
 	-- Scan bench and adjust live
