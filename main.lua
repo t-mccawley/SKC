@@ -29,6 +29,7 @@ local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
 local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
+local RAID_VERBOSE = true; -- relating to raid activity
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
@@ -1257,6 +1258,7 @@ function GuildData:GetSpecClass(name)
 end
 
 function GuildData:SetLastLiveTime(name,ts)
+	-- sets the last time the given player was on a live list
 	self.data[name].last_live_time = ts;
 	return;
 end
@@ -2362,16 +2364,22 @@ local function AddToLiveLists(name,live_status)
 	local sk_lists = {"MSK","TSK"};
 	for _,sk_list in pairs(sk_lists) do
 		local success = SKC_DB[sk_list]:SetLive(name,live_status);
-		if not success then return false end
+		if not success then
+			if RAID_VERBOSE then SKC_Main:Print("ERROR","Failed to add "..name.." to live list") end
+			return 
+		end
 	end
 	-- update guild data
 	local ts = time();
 	SKC_DB.GuildData:SetLastLiveTime(name,ts);
-	return true;
+	return;
 end
 
 local function UpdateLiveList()
 	-- Adds every player in raid to live list
+	if RAID_VERBOSE then SKC_Main:Print("IMPORTANT","Updating live list") end
+
+	-- Activate SKC
 	ActivateSKC(true);
 
 	-- Scan raid and update live list
@@ -3934,9 +3942,7 @@ local function EventHandler(self,event,...)
 		-- Kick off timer to perform guild update and send sync request
 		C_Timer.After(1.0,SyncGuildData);
 		C_Timer.After(1.1,LoginSyncCheckSend);
-	elseif event == "RAID_ROSTER_UPDATE" then
-		UpdateLiveList();
-	elseif event == "PARTY_LOOT_METHOD_CHANGED" then
+	elseif event == "GROUP_ROSTER_UPDATE" or event == "PARTY_LOOT_METHOD_CHANGED" then
 		UpdateLiveList();
 	elseif event == "OPEN_MASTER_LOOT_LIST" then
 		SaveLoot();
@@ -3954,7 +3960,7 @@ local events = CreateFrame("Frame");
 events:RegisterEvent("CHAT_MSG_ADDON");
 events:RegisterEvent("ADDON_LOADED");
 events:RegisterEvent("GUILD_ROSTER_UPDATE");
-events:RegisterEvent("RAID_ROSTER_UPDATE");
+events:RegisterEvent("GROUP_ROSTER_UPDATE");
 events:RegisterEvent("PARTY_LOOT_METHOD_CHANGED");
 events:RegisterEvent("OPEN_MASTER_LOOT_LIST");
 events:RegisterEvent("RAID_INSTANCE_WELCOME");
