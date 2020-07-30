@@ -13,16 +13,17 @@ core.commands = {
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - Toggles GUI");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item link/name>|r - Displays loot prio for given item");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio|r - Displays the number of items in saved loot prio");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets SKC data and re-sync with guild");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - Displays bench");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export sk log (CSV) for most recent raid");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export current sk lists (CSV)");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets SKC data and re-sync with guild");
     if core.SKC_Main:isML() then
       core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader and Master Looter Only:|r");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - Adds character to bench");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench remove <character name>|r - Removes character from bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - Clears bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - Enables loot distribution with SKC");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - Disables loot distribution with SKC");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export sk log (CSV) for most recent raid");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export current sk lists (CSV)");
     end
     if core.SKC_Main:isGL() then
       core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader Only:|r");
@@ -30,6 +31,14 @@ core.commands = {
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - Sets inactivity threshold to # days");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio init|r - Initialze loot prio with a CSV");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc <MSK/TSK> init|r - Initialze sk list with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid show|r - Display list of raids for which SKC is active");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid add <raid acro>|r - Adds raid to Active Raids list");      
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid remove <raid acro>|r - Removes raid from Active Raids list");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid clear|r - Clears Active Raids list");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer show|r - Display list of guild members who can enable SKC");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer add <name>|r - Adds name to Loot Officers list");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer remove <name>|r - Removes name from Loot Officers list");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer clear|r - Clears Loot Officers list");
     end
 		print(" ");
   end,
@@ -78,17 +87,55 @@ core.commands = {
   end,
   ["bench"] = {
     ["show"] = function()
-      -- Prints the current bench
-      core.SKC_Main:BenchShow();
+      core.SKC_Main:SimpleListShow("Bench");
     end,
-    ["add"] = function(name)
+    ["add"] = function(element)
       if not core.SKC_Main:isML() then return end
-      -- Initializes the specified SK list with a CSV pasted into a window
-      core.SKC_Main:BenchAdd(name);
+      core.SKC_Main:SimpleListAdd("Bench",element);
+    end,
+    ["remove"] = function(element)
+      if not core.SKC_Main:isML() then return end
+      core.SKC_Main:SimpleListRemove("Bench",element);
     end,
     ["clear"] = function()
       if not core.SKC_Main:isML() then return end
-      core.SKC_Main:BenchClear()
+      core.SKC_Main:SimpleListClear("Bench");
+    end,
+  },
+  ["raid"] = {
+    ["show"] = function()
+      if not core.SKC_Main:isGL() then return end
+      core.SKC_Main:SimpleListShow("ActiveRaids");
+    end,
+    ["add"] = function(element)
+      if not core.SKC_Main:isGL() then return end
+      core.SKC_Main:SimpleListAdd("ActiveRaids",element);
+    end,
+    ["remove"] = function(element)
+      if not core.SKC_Main:isGL() then return end
+      core.SKC_Main:SimpleListRemove("ActiveRaids",element);
+    end,
+    ["clear"] = function()
+      if not core.SKC_Main:isGL() then return end
+      core.SKC_Main:SimpleListClear("ActiveRaids");
+    end,
+  },
+  ["officer"] = {
+    ["show"] = function()
+      if not core.SKC_Main:isGL() then return end
+      core.SKC_Main:SimpleListShow("LootOfficers");
+    end,
+    ["add"] = function(element)
+      if not core.SKC_Main:isGL() then return end
+      core.SKC_Main:SimpleListAdd("LootOfficers",element);
+    end,
+    ["remove"] = function(element)
+      if not core.SKC_Main:isGL() then return end
+      core.SKC_Main:SimpleListRemove("LootOfficers",element);
+    end,
+    ["clear"] = function()
+      if not core.SKC_Main:isGL() then return end
+      core.SKC_Main:SimpleListClear("LootOfficers");
     end,
   },
   ["enable"] = function()

@@ -1,6 +1,5 @@
 -- TODO:
 -- investigate bug regarding multiple loot timers?
--- when importing loot prio check if item already added and return error if so
 -- Queue of items displayed on side of screen to remind players what is upcoming
 -- bug with fresh reset where get double sync
 
@@ -23,17 +22,20 @@ local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permission
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = true; -- true to force logging
-local OVRD_CHARS = { -- characters which are pushed into GuildData
+local CHARS_OVRD = { -- characters which are pushed into GuildData
 	-- Duarte = true,
 	-- Skc = true,
 	Freznic = true,
 };
+local ACTIVE_RAID_OVRD = true; -- true if SKC can be used outside of active raids
+local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer 
 -- verbosity
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
 local COMM_VERBOSE = false; -- prints messages relating to addon communication
-local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
+local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
+local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
@@ -633,7 +635,7 @@ local LOOT_DECISION = {
 		"ROLL",
 	},
 	OPTIONS = {
-		MAX_TIME = 25,
+		MAX_TIME = 20, -- TODO. make this 20
 		TIME_STEP = 1,
 		ML_WAIT_BUFFER = 5, -- additional time that master looter waits before triggering auto pass (accounts for transmission delays)
 		KICKOFF_DELAY = 3, -- delay after finishing one loot distribution before next begins
@@ -720,6 +722,16 @@ local LOG_OPTIONS = {
 	},
 };
 
+local RAID_NAME_MAP = {
+	ONY = "Onyxia's Lair",
+	MC = "Molten Core",
+	BWL = "Blackwing Lair",
+	ZG = "Zul'Gurub",
+	AQ20 = "Ruins of Ahn'Qiraj",
+	AQ40 = "Temple of Ahn'Qiraj",
+	NAXX = "Naxxramas",
+};
+
 --------------------------------------
 -- REGISTER CHANNELS
 --------------------------------------
@@ -758,6 +770,8 @@ local event_states = { -- tracks if certain events have fired
 		GuildData = true,
 		LootPrio = true,
 		Bench = true,
+		ActiveRaids = true,
+		LootOfficers = true,
 	},
 };
 local loot_manager = { -- collection of temporary variables used by ML to manage loot
@@ -774,6 +788,29 @@ local InitGuildSync = false; -- used to control for first time setup
 --------------------------------------
 -- CLASS DEFINITIONS / CONSTRUCTORS
 --------------------------------------
+SimpleMap = {
+	data = {}, --a hash table that maps elements to true boolean
+	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
+	edit_ts_generic = nil, -- timestamp of most recent edit
+};
+SimpleMap.__index = SimpleMap;
+
+function SimpleMap:new(simple_map)
+	if simple_map == nil then
+		-- initalize fresh
+		local obj = {};
+		obj.data = {};
+		obj.edit_ts_raid = 0;
+		obj.edit_ts_generic = 0;
+		setmetatable(obj,SimpleMap);
+		return obj;
+	else
+		-- set metatable of existing table and all sub tables
+		setmetatable(simple_map,SimpleMap);
+		return simple_map;
+	end
+end
+
 CharacterData = {
 	Name = nil, -- character name
 	Class = nil, -- character class
@@ -1071,8 +1108,19 @@ local function WriteToLog(time_txt,action,src,sk_list,decision,character,item,pr
 	return;
 end
 
+local function PrintSyncMsgStart(db_name)
+	if COMM_VERBOSE then SKC_Main:Print("WARN","Synchronizing "..db_name.."...") end
+	return;
+end
+
+local function PrintSyncMsgEnd(db_name)
+	if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Synchronization for "..db_name.." complete!") end
+	return;
+end
+
 local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_callback_fn)
 	-- send target database to name
+	PrintSyncMsgStart(db_name);
 	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushSend for "..db_name.." through "..game_channel) end
 	if name ~= nil then
 		name = StripRealmName(name);
@@ -1141,22 +1189,99 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_call
 			end
 			ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		end
-	elseif db_name == "Bench" then
-		db_msg = "INIT,"..db_name;
+	elseif db_name == "Bench" or db_name == "ActiveRaids" or db_name == "LootOfficers" then
+		db_msg = "INIT,"..
+			db_name..","..
+			NilToStr(SKC_DB[db_name].edit_ts_generic)..","..
+			NilToStr(SKC_DB[db_name].edit_ts_raid);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		db_msg = "DATA,"..db_name;
-		for _,char_name in ipairs(SKC_DB.Bench) do
-			db_msg = db_msg..","..NilToStr(char_name);
+		for val,_ in pairs(SKC_DB[db_name].data) do
+			db_msg = db_msg..","..NilToStr(val);
 		end
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 	end
 	local db_msg = "END,"..db_name..", ,"; --awkward spacing to make csv parsing work
-	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue",end_msg_callback_fn);
+	-- construct callback message
+	local func = function()
+		if end_msg_callback_fn then end_msg_callback_fn() end
+		PrintSyncMsgEnd(db_name);
+	end
+	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue",func);
 	return;
 end
 --------------------------------------
 -- CLASS METHODS
 --------------------------------------
+function SimpleMap:length()
+	local count = 0;
+	for _ in pairs(self.data) do count = count + 1 end
+	return count;
+end
+
+function SimpleMap:Show()
+	-- shows data
+	local empty = true;
+	for val,_ in pairs(self.data) do
+		SKC_Main:Print("NORMAL",val);
+		empty = false;
+	end
+	if empty then SKC_Main:Print("WARN","Empty") end
+	return;
+end
+
+function SimpleMap:Add(element)
+	-- adds element to data
+	if (element == nil) then
+		SKC_Main:Print("ERROR","Input cannot be nil");
+		return false;
+	end
+	if self.data[element] then
+		SKC_Main:Print("WARN",element.." already in list");
+		return false;
+	end
+	if (self:length() == 19) then
+		-- 19 names x 13 characters (12 + comma) = 247 < 250 character limit for msg
+		SKC_Main:Print("ERROR","List can only contain 19 elements");
+		return false;
+	end
+	-- add to list
+	self.data[element] = true;
+	-- update edit ts
+	local ts = time();
+	if SKC_Active then self.edit_ts_raid = ts end
+	self.edit_ts_generic = ts;
+	return true;
+end
+
+function SimpleMap:Remove(element)
+	-- remove element from data
+	if (element == nil) then
+		SKC_Main:Print("ERROR","Input cannot be nil");
+		return false;
+	end
+	if self.data[element] == nil then
+		SKC_Main:Print("ERROR","Input not found in list");
+		return false;
+	end
+	-- remove from list
+	self.data[element] = nil;
+	-- update edit ts
+	local ts = time();
+	if SKC_Active then self.edit_ts_raid = ts end
+	self.edit_ts_generic = ts;
+	return true;
+end
+
+function SimpleMap:Clear()
+	-- clears a simple list
+	self.data = {};
+	-- update edit ts
+	local ts = time();
+	if SKC_Active then self.edit_ts_raid = ts end
+	self.edit_ts_generic = ts;
+	return true;
+end
 
 function GuildData:length()
 	local count = 0;
@@ -1319,9 +1444,18 @@ end
 function SK_List:CheckIfFucked()
 	-- checks integrity of list
 	-- invalid if non empty list has nil bottom node or node below bottom is not nil
-	if self:length() ~=0 and (self.bottom == nil or self.list[self.bottom].below ~= nil) then
-		SKC_Main:Print("ERROR","Your database is fucked.")
-		return true;
+	if self:length() ~=0 then
+		if self.bottom == nil then
+			SKC_Main:Print("ERROR","Your sk list is fucked. Nil bottom.");
+			return true;
+		elseif self.list[self.bottom] == nil then
+			SKC_Main:Print("ERROR","Your sk list is fucked. Bottom node not in list.");
+			return true;
+		elseif self.list[self.bottom].below ~= nil then
+			SKC_Main:Print("ERROR","Your sk list is fucked. Below bottom is not nil.");
+			return true;
+		end
+		return false;
 	end
 	return false;
 end
@@ -1533,11 +1667,6 @@ function SK_List:PushBack(name)
 	return  self:InsertBelow(name,self.bottom);
 end
 
--- function SK_List:PushBackLive(name)
--- 	-- Pushes name to back (bottom of live) of list (creates if does not exist)
--- 	return self:InsertBelow(name,self.live_bottom);
--- end
-
 function SK_List:SetSK(name,new_above_name)
 	-- Removes player from list and sets them to specific location
 	-- returns error if names not already i list
@@ -1551,7 +1680,7 @@ end
 
 function SK_List:Remove(name)
 	-- removes character from sk list
-	-- sk first
+	-- first push to back
 	self:PushBack(name);
 	-- get new bottom
 	local bot = self.list[name].above;
@@ -1566,45 +1695,74 @@ end
 
 function SK_List:LiveSK(winner)
 	-- Performs SK on live list on winner
+	if LIVE_MERGE_VERBOSE then SKC_Main:Print("IMPORTANT","Live List Merge") end
+
 	local success = false;
+	if LIVE_MERGE_VERBOSE then SKC_Main:Print("IMPORTANT","Checking SK List") end
 	if self:CheckIfFucked() then return false end
-	-- WIP
 
 	-- create temporary live list
 	local live_list = SK_List:new(nil);
+	if LIVE_MERGE_VERBOSE then SKC_Main:Print("IMPORTANT","Temporary Live List Created") end
+
+	if LIVE_MERGE_VERBOSE then SKC_Main:Print("IMPORTANT","Checking Live List") end
+	if live_list:CheckIfFucked() then return false end
 
 	-- push all live characters into live list
-	-- Scan list in order
+	-- scan list in order
+	-- record live positions
+	local live_pos = {};
 	local current_name = self.top;
 	while (current_name ~= nil) do
 		if self.list[current_name].live then
 			live_list:PushBack(current_name);
+			live_pos[#live_pos + 1] = self:GetPos(current_name);
 		end
 		current_name = self.list[current_name].below;
+	end
+	if LIVE_MERGE_VERBOSE then
+		SKC_Main:Print("IMPORTANT","Temporary Live List (Pre SK)")
+		live_list:PrintList();
 	end
 
 	-- Perform SK on live list
 	success = live_list:PushBack(winner);
+	if LIVE_MERGE_VERBOSE then
+		SKC_Main:Print("IMPORTANT","Temporary Live List (Post SK)")
+		live_list:PrintList();
+	end
 
 	if not success then return false end
 
 	-- merge lists
-	local current_actual = self.top;
+	-- scan live list in order and push back into original list
 	local current_live = live_list.top;
-	while current_actual ~= nil or current_live ~= nil do
-		if self.list[current_actual].live then
-			-- given slot is in live list
-			-- insert live character below current actual
-			self:InsertBelow(current_live,current_actual);
-			-- remove current actual
-			self:Remove(current_actual);
-			-- increment
-			current_live = live_list[current_live].below;
-		end 
-		current_actual = self.list[current_actual].below;
+	local live_idx = 1;
+	while current_live ~= nil do
+		local live_pos_tmp = live_pos[live_idx];
+		if LIVE_MERGE_VERBOSE then
+			print(" ");
+			SKC_Main:Print("NORMAL","Live Character: "..current_live);
+			SKC_Main:Print("NORMAL","Current Pos: "..self:GetPos(current_live));
+			SKC_Main:Print("NORMAL","Planned Pos: "..live_pos_tmp);
+		end
+		-- set new position in original list
+		success = self:SetByPos(current_live,live_pos_tmp);
+		if not success then
+			SKC_Main:Print("ERROR","Failed to set "..current_live.." position to "..live_pos_tmp);
+			return false;
+		else
+			if LIVE_MERGE_VERBOSE then 
+				SKC_Main:Print("NORMAL",current_live.." set to position "..self:GetPos(current_live));
+				print(" ");
+			end
+		end
+		-- increment
+		current_live = live_list.list[current_live].below;
+		live_idx = live_idx + 1;
 	end
 
-	success = current_live == nil;
+	success = live_idx == (#live_pos + 1) and current_live == nil;
 	if not success then
 		SKC_Main:Print("ERROR","Entire live list was not merged")
 		return false;
@@ -2159,7 +2317,7 @@ function LootManager:DetermineWinner()
 			local new_winner = false;
 			local prio_tmp = self.current_loot.prios[char_name];
 			local sk_pos_tmp = SKC_DB[sk_list]:GetPos(char_name);
-			local roll_tmp = math.floor(math.random()*100);
+			local roll_tmp = math.ceil(math.random()*100);
 			if LOOT_VERBOSE then
 				SKC_Main:Print("WARN","Prio: "..prio_tmp);
 				SKC_Main:Print("WARN","SK Position: "..sk_pos_tmp);
@@ -2414,7 +2572,7 @@ local function SyncGuildData()
 	for idx = 1, GetNumGuildMembers() do
 		local full_name, _, _, level, class = GetGuildRosterInfo(idx);
 		local name = StripRealmName(full_name);
-		if level == 60 or OVRD_CHARS[name] then
+		if level == 60 or CHARS_OVRD[name] then
 			guild_roster[name] = true;
 			if not SKC_DB.GuildData:Exists(name) then
 				-- new player, add to DB and SK lists
@@ -2436,14 +2594,7 @@ local function SyncGuildData()
 			if not InitGuildSync then SKC_Main:Print("ERROR",name.." removed from databases") end
 		end
 	end
-	-- if InitGuildSync then
-	-- 	SKC_DB.GuildData.edit_ts_generic = 0;
-	-- 	SKC_DB.GuildData.edit_ts_raid = 0;
-	-- 	SKC_DB.MSK.edit_ts_generic = 0;
-	-- 	SKC_DB.MSK.edit_ts_raid = 0;
-	-- 	SKC_DB.TSK.edit_ts_generic = 0;
-	-- 	SKC_DB.TSK.edit_ts_raid = 0;
-	-- end
+
 	UnFilteredCnt = SKC_DB.GuildData:length();
 	if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
 		-- init sync completed
@@ -2457,9 +2608,38 @@ end
 
 local function ActivateSKC(verbose)
 	-- master control for wheter or not loot is managed with SKC
+	-- check if raid distribution type is master looter
+	local master_looter_check = GetLootMethod() == "master";
+	if master_looter_check and RAID_VERBOSE then
+		SKC_Main:Print("NORMAL","Master Looter Check Passed");
+	end
+	-- check if current raid is active
+	local raid_check = ACTIVE_RAID_OVRD;
+	local raid_name = GetInstanceInfo();
+	for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
+		if raid_name == RAID_NAME_MAP[active_raid_acro] then
+			raid_check = true;
+			break;
+		end
+	end
+	if raid_check and RAID_VERBOSE then
+		SKC_Main:Print("NORMAL","Raid Check Passed");
+	end
+	-- check if Loot Officer is in raid
+	local loot_officer_check = LOOT_OFFICER_OVRD;
+	for raidIndex = 1,40 do
+		local char_name = GetRaidRosterInfo(raidIndex);
+		if SKC_DB.LootOfficers.data[char_name] then
+			loot_officer_check = true;
+			break;
+		end
+	end
+	if loot_officer_check and RAID_VERBOSE then
+		SKC_Main:Print("NORMAL","Loot Officer Check Passed");
+	end
+	-- determine if SKC is active
 	local active_prev = SKC_Active;
-	-- set activity
-	SKC_Active = SKC_DB.SKC_Enable and UnitInRaid("player") ~= nil and GetLootMethod() == "master";
+	SKC_Active = SKC_DB.SKC_Enable and master_looter_check and raid_check and loot_officer_check;
 	-- add message
 	if verbose then
 		if SKC_Active and not active_prev then
@@ -2471,7 +2651,7 @@ local function ActivateSKC(verbose)
 			SKC_Main:Print("IMPORTANT","Inactive");
 		end
 	end
-	return
+	return;
 end
 
 local function AddToLiveLists(name,live_status)
@@ -2503,7 +2683,7 @@ local function UpdateLiveList()
 	end
 
 	-- Scan bench and adjust live
-	for _,char_name in ipairs(SKC_DB.Bench) do
+	for char_name,_ in pairs(SKC_DB.Bench.data) do
 		AddToLiveLists(char_name,true);
 	end
 
@@ -2520,6 +2700,25 @@ local function OnAddonLoad(addon_name)
 		if HARD_DB_RESET then SKC_Main:Print("IMPORTANT","HARD_DB_RESET") end
 		InitGuildSync = true;
 		SKC_DB = {};
+	end
+	if SKC_DB.Bench == nil or HARD_DB_RESET then
+		SKC_DB.Bench = SimpleMap:new(nil);
+		SKC_Main:Print("WARN","Initialized Bench");
+	end
+	if SKC_DB.ActiveRaids == nil or HARD_DB_RESET then
+		SKC_DB.ActiveRaids = SimpleMap:new(nil);
+		-- add defaults
+		for raid_acro_tmp,_ in pairs(RAID_NAME_MAP) do
+			SKC_DB.ActiveRaids:Add(raid_acro_tmp);
+		end
+		-- reset edit_ts
+		SKC_DB.ActiveRaids.edit_ts_generic = 0;
+		SKC_DB.ActiveRaids.raid_ts_generic = 0;
+		SKC_Main:Print("WARN","Initialized ActiveRaids");
+	end
+	if SKC_DB.LootOfficers == nil or HARD_DB_RESET then
+		SKC_DB.LootOfficers = SimpleMap:new(nil);
+		SKC_Main:Print("WARN","Initialized LootOfficers");
 	end
 	if SKC_DB == nil or HARD_DB_RESET then
 		SKC_DB.SKC_Enable = nil;
@@ -2547,10 +2746,6 @@ local function OnAddonLoad(addon_name)
 	end
 	if LOG_ACTIVE_OVRD then
 		ResetRaidLogging();
-	end
-	if SKC_DB.Bench == nil or HARD_DB_RESET then
-		SKC_DB.Bench = {}; -- array of names on bench
-		SKC_Main:Print("WARN","Initialized Bench");
 	end
 	if SKC_DB.LootManager == nil or HARD_DB_RESET then
 		SKC_DB.LootManager = nil
@@ -2584,6 +2779,9 @@ local function OnAddonLoad(addon_name)
 	SKC_DB.MSK = SK_List:new(SKC_DB.MSK);
 	SKC_DB.TSK = SK_List:new(SKC_DB.TSK);
 	SKC_DB.LootManager = LootManager:new(SKC_DB.LootManager);
+	SKC_DB.Bench = SimpleMap:new(SKC_DB.Bench);
+	SKC_DB.ActiveRaids = SimpleMap:new(SKC_DB.ActiveRaids);
+	SKC_DB.LootOfficers = SimpleMap:new(SKC_DB.LootOfficers);
 	-- Addon loaded
 	event_states.AddonLoaded = true;
 	-- Update live list
@@ -2812,6 +3010,7 @@ end
 
 local function OnClick_FullSK(self)
 	if self:IsEnabled() then
+		SetSK_Flag = false;
 		local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 		-- On click event for full SK of details targeted character
 		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
@@ -2848,6 +3047,7 @@ end
 
 local function OnClick_SingleSK(self)
 	if self:IsEnabled() then
+		SetSK_Flag = false;
 		-- On click event for full SK of details targeted character
 		local name = SKC_UIMain["Details_border"]["Name"].Data:GetText();
 		local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
@@ -3094,7 +3294,7 @@ local function SyncPushRead(msg)
 	-- Write data to tmp_sync_var first, then given datbase
 	local part, db_name, msg_rem = strsplit(",",msg,3);
 	if part == "INIT" then
-		if COMM_VERBOSE then SKC_Main:Print("WARN","Synchronizing "..db_name.."...") end
+		PrintSyncMsgStart(db_name);
 		event_states.SyncCompleted[db_name] = false;
 	elseif part ~= "INIT" and event_states.SyncCompleted[db_name] then
 		-- getting data mid sync, ignore these
@@ -3174,20 +3374,25 @@ local function SyncPushRead(msg)
 				tmp_sync_var.items[item].prio[idx] = NumOut(plvl);
 			end
 		end
-	elseif db_name == "Bench" then
+	elseif db_name == "Bench" or db_name == "ActiveRaids" or db_name == "LootOfficers" then
 		if part == "INIT" then
-			tmp_sync_var = {};
+			local ts_generic, ts_raid = strsplit(",",msg_rem,2);
+			ts_generic = NumOut(ts_generic);
+			ts_raid = NumOut(ts_raid);
+			tmp_sync_var = SimpleMap:new(nil);
+			tmp_sync_var.edit_ts_generic = ts_generic;
+			tmp_sync_var.edit_ts_raid = ts_raid;
 		elseif part == "DATA" then
 			while msg_rem ~= nil do
-				char_name, msg_rem = strsplit(",",msg_rem,2);
-				tmp_sync_var[#tmp_sync_var + 1] = char_name;
+				val, msg_rem = strsplit(",",msg_rem,2);
+				tmp_sync_var.data[val] = true;
 			end
 		elseif part == "END" then
-			UpdateLiveList();
+			if db_name == "Bench" then UpdateLiveList() end
 		end
 	end
 	if part == "END" then
-		if COMM_VERBOSE then SKC_Main:Print("WARN","Synchronization for "..db_name.." complete") end
+		PrintSyncMsgEnd(db_name);
 		event_states.SyncCompleted[db_name] = true;
 		SKC_Main:ReloadUIMain();
 	end
@@ -3286,7 +3491,7 @@ local function LoginSyncCheckSend()
 	if event_states.SyncRequestSent then return end -- sync check already performed
 	if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","LoginSyncCheckSend()") end
 	-- Send timestamps of each database to each online member of GuildData (will sync with first response)
-	local db_lsit = {"GuildData","LootPrio","MSK","TSK"}
+	local db_lsit = {"GuildData","LootPrio","MSK","TSK","Bench","ActiveRaids","LootOfficers"}
 	local msg = nil;
 	for _,db_name in ipairs(db_lsit) do
 		msg = db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
@@ -3304,25 +3509,24 @@ end
 local function SaveLoot()
 	-- Scans items / characters and stores loot in LootManager
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
+	-- Check that player is ML
+	if not SKC_Main:isML() then return end
 
 	if LOOT_SAFE_MODE then 
 		SKC_Main:Print("WARN","Loot Safe Mode");
 		return;
 	end
 
+	-- Update SKC Active flag
+	ActivateSKC(false);
+
 	if not SKC_Active then
 		SKC_Main:Print("WARN","SKC not active. Skipping loot distribution.");
 		return;
 	end
 
-	-- Check that player is ML
-	if not SKC_Main:isML() then return end
-
 	-- Check if loot decision already pending
 	if SKC_DB.LootManager:LootDecisionPending() then return end
-
-	-- Update SKC Active flag
-	ActivateSKC();
 	
 	-- Reset LootManager
 	SKC_DB.LootManager:Reset();
@@ -3481,61 +3685,90 @@ function SKC_Main:isGL()
 	return(UnitName("player") == GL_OVRD or IsGuildLeader());
 end
 
-function SKC_Main:BenchShow()
-	-- prints the current bench
-	if #SKC_DB.Bench == 0 then
-		SKC_Main:Print("NORMAL","Bench is empty");
-	else
-		SKC_Main:Print("NORMAL","Bench:");
-		for idx,name in ipairs(SKC_DB.Bench) do
-			SKC_Main:Print("NORMAL",name);
+function SKC_Main:SimpleListShow(list_name)
+	-- shows a simple list
+	if list_name == nil or (list_name ~= "Bench" and list_name ~= "LootOfficers" and list_name ~= "ActiveRaids") then
+		SKC_Main:Print("ERROR","Input list is not valid");
+		return;
+	end
+	DEFAULT_CHAT_FRAME:AddMessage(" ");
+	SKC_Main:Print("IMPORTANT",list_name..":");
+	SKC_DB[list_name]:Show();
+	DEFAULT_CHAT_FRAME:AddMessage(" ");
+	return;
+end
+
+function SKC_Main:SimpleListAdd(list_name,element)
+	-- adds element to a simple list
+	if list_name == nil or (list_name ~= "Bench" and list_name ~= "LootOfficers" and list_name ~= "ActiveRaids") then
+		SKC_Main:Print("ERROR","Input list is not valid");
+		return;
+	end
+	-- check for special conditions
+	if element == nil then
+		SKC_Main:Print("ERROR","Input cannot be nil");
+		return;
+	end
+	if (list_name == "Bench" or list_name == "LootOfficers") and not SKC_DB.GuildData:Exists(element) then
+		SKC_Main:Print("ERROR",element.." is not a valid guild member");
+		return;
+	end
+	if list_name == "ActiveRaids" and RAID_NAME_MAP[element] == nil then
+		SKC_Main:Print("ERROR",element.." is not a valid raid acronym");
+		SKC_Main:Print("WARN","Valid raid acronyms are:");
+		for raid_acro_tmp,raid_name_full in pairs(RAID_NAME_MAP) do
+			SKC_Main:Print("WARN",raid_acro_tmp.." ("..raid_name_full..")");
 		end
+		return;
+	end
+	-- add to list
+	local success = SKC_DB[list_name]:Add(element);
+	if success then
+		SKC_Main:Print("NORMAL",element.." added to "..list_name);
+		-- sync
+		if list_name == "Bench" then UpdateLiveList() end
+		SyncPushSend(list_name,CHANNELS.SYNC_PUSH,"GUILD",nil);
+		SKC_Main:SimpleListShow(list_name);
+		ActivateSKC(true);
 	end
 	return;
 end
 
-function SKC_Main:BenchAdd(name)
-	-- add name to Bench if they exist in the guild DB
-	if name == nil then
-		SKC_Main:Print("ERROR","You must give a character name")
-		return false;
-	elseif not SKC_Main:isGL() and not SKC_Main:isML() then
-		SKC_Main:Print("ERROR","You must be master looter or guild leader to do that")
-		return false;
-	end
-	if not SKC_DB.GuildData:Exists(name) then
-		SKC_Main:Print("ERROR",name.." not in guild database");
-		return false;
-	elseif (#SKC_DB.Bench == 19) then
-		-- 19 names x 13 characters (12 + comma) = 247 < 250 character limit for msg
-		SKC_Main:Print("ERROR","The bench can only contain 15 characters");
-		return false;
-	else
-		-- check if already in bench
-		for _,bench_name in ipairs(SKC_DB.Bench) do
-			if name == bench_name then
-				SKC_Main:Print("ERROR",name.." already in bench");
-				return false;
-			end
-		end
-		SKC_DB.Bench[#SKC_DB.Bench + 1] = name;
-		SKC_Main:Print("NORMAL",name.." added to bench");
-		UpdateLiveList();
-		SyncPushSend("Bench",CHANNELS.SYNC_PUSH,"GUILD",nil);
-		return true;
-	end
-end
-
-function SKC_Main:BenchClear()
-	-- prints the current bench
-	if not SKC_Main:isGL() and not SKC_Main:isML() then
-		SKC_Main:Print("ERROR","You must be master looter or guild leader to do that.")
+function SKC_Main:SimpleListRemove(list_name,element)
+	-- remove element from a simple list
+	if list_name == nil or (list_name ~= "Bench" and list_name ~= "LootOfficers" and list_name ~= "ActiveRaids") then
+		SKC_Main:Print("ERROR","Input list is not valid");
 		return;
 	end
-	SKC_DB.Bench = {};
-	SKC_Main:Print("NORMAL","Bench cleared");
-	UpdateLiveList();
-	SyncPushSend("Bench",CHANNELS.SYNC_PUSH,"GUILD",nil);
+	-- add to list
+	local success = SKC_DB[list_name]:Remove(element);
+	if success then
+		SKC_Main:Print("NORMAL",element.." removed from "..list_name);
+		-- sync
+		if list_name == "Bench" then UpdateLiveList() end
+		SyncPushSend(list_name,CHANNELS.SYNC_PUSH,"GUILD",nil);
+		SKC_Main:SimpleListShow(list_name);
+		ActivateSKC(true);
+	end
+	return;
+end
+
+function SKC_Main:SimpleListClear(list_name)
+	-- clears a simple list
+	if list_name == nil or (list_name ~= "Bench" and list_name ~= "LootOfficers" and list_name ~= "ActiveRaids") then
+		SKC_Main:Print("ERROR","Input list is not valid");
+		return;
+	end
+	-- add to list
+	local success = SKC_DB[list_name]:Clear();
+	if success then
+		SKC_Main:Print("NORMAL",list_name.." cleared");
+		-- sync
+		if list_name == "Bench" then UpdateLiveList() end
+		SyncPushSend(list_name,CHANNELS.SYNC_PUSH,"GUILD",nil);
+		SKC_Main:SimpleListShow(list_name);
+		ActivateSKC(true);
+	end
 	return;
 end
 
@@ -3791,6 +4024,7 @@ function SKC_Main:HideLootDecisionGUI()
 	-- if not yet created, do nothing
 	if SKC_LootGUI == nil then return end
 	SKC_LootGUI.ItemClickBox:SetScript("OnMouseDown",nil);
+	SKC_LootGUI.ItemClickBox:EnableMouse(false);
 	SKC_LootGUI:Hide();
 	return;
 end
@@ -3813,6 +4047,8 @@ function SKC_Main:DisplayLootDecisionGUI(open_roll,sk_list)
 	StartLootTimer();
 	-- set link
 	SKC_LootGUI.ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
+	-- enable mouse
+	SKC_LootGUI.ItemClickBox:EnableMouse(true);
 	-- show
 	SKC_LootGUI:Show();
 	return;
