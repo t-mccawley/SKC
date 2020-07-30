@@ -1,8 +1,8 @@
 -- TODO:
--- FIX BUG: somehow current_loot.decisions is empty in ReadLootDecision, but is being written okay in KickOff
 -- investigate bug regarding multiple loot timers?
 -- when importing loot prio check if item already added and return error if so
 -- Queue of items displayed on side of screen to remind players what is upcoming
+-- bug with fresh reset where get double sync
 
 --------------------------------------
 -- NAMESPACES
@@ -22,7 +22,7 @@ local ML_OVRD = nil; -- name of faux ML override master looter permissions
 local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
-local LOG_ACTIVE_OVRD = false; -- true to force logging
+local LOG_ACTIVE_OVRD = true; -- true to force logging
 local OVRD_CHARS = { -- characters which are pushed into GuildData
 	-- Duarte = true,
 	-- Skc = true,
@@ -31,8 +31,8 @@ local OVRD_CHARS = { -- characters which are pushed into GuildData
 -- verbosity
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
-local COMM_VERBOSE = true; -- prints messages relating to addon communication
-local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
+local COMM_VERBOSE = false; -- prints messages relating to addon communication
+local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
 --------------------------------------
 -- LOCAL CONSTANTS
@@ -697,17 +697,26 @@ local LOG_OPTIONS = {
 			TSK = "TSK",
 		}
 	},
+	["Decision"] = {
+		Text = "Decision",
+	},
 	["Character"] = {
 		Text = "Character",
 	},
 	["Item"] = {
 		Text = "Item",
 	},
+	["Prio"] = {
+		Text = "Prio",
+	},
 	["Previous SK Position"] = {
 		Text = "Previous SK Position",
 	},
 	["New SK Position"] = {
 		Text = "New SK Position",
+	},
+	["Roll"] = {
+		Text = "Roll",
 	},
 };
 
@@ -855,7 +864,6 @@ end
 SK_List = { --a doubly linked list table where each node is referenced by player name. Each node is a SK_Node:
 	top = nil, -- top name in list
 	bottom = nil, -- bottom name in list
-	live_bottom = nil, -- bottom name in live list
 	list = {}, -- list of SK_Node
 	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
 	edit_ts_generic = nil, -- timestamp of most recent edit
@@ -868,7 +876,6 @@ function SK_List:new(sk_list)
 		local obj = {};
 		obj.top = nil; 
 		obj.bottom = nil;
-		obj.live_bottom = nil;
 		obj.list = {};
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
@@ -944,7 +951,6 @@ Loot = {
 	sk_list = "MSK", -- name of associated sk list (MSK TSK)
 	decisions = {}, -- map from character name to LOOT_DECISION
 	prios = {}, -- map from character name to PRIO_TIERS
-	sk_pos = {}, -- map from character name to absolute SK position on corresponding sk_list
 	awarded = false, -- true when loot has been awarded
 }; 
 Loot.__index = Loot;
@@ -959,7 +965,6 @@ function Loot:new(loot,item_name,item_link,open_roll,sk_list)
 		obj.sk_list = sk_list or "MSK";
 		obj.decisions = {};
 		obj.prios = {};
-		obj.sk_pos = {};
 		obj.awarded = false;
 		setmetatable(obj,Loot);
 		return obj;
@@ -1043,7 +1048,7 @@ local function DeepCopy(obj, seen)
     return setmetatable(res, getmetatable(obj))
 end
 
-local function WriteToLog(time_txt,action,src,sk_list,character,item,prev_sk_pos,new_sk_pos)
+local function WriteToLog(time_txt,action,src,sk_list,decision,character,item,prio,prev_sk_pos,new_sk_pos,roll)
 	-- writes new log entry (if raid logging active)
 	if not event_states.RaidLoggingActive then return end
 	local idx = #SKC_DB.RaidLog + 1;
@@ -1056,10 +1061,13 @@ local function WriteToLog(time_txt,action,src,sk_list,character,item,prev_sk_pos
 	SKC_DB.RaidLog[idx][2] = action;
 	SKC_DB.RaidLog[idx][3] = src;
 	SKC_DB.RaidLog[idx][4] = sk_list;
-	SKC_DB.RaidLog[idx][5] = character;
-	SKC_DB.RaidLog[idx][6] = item;
-	SKC_DB.RaidLog[idx][7] = prev_sk_pos;
-	SKC_DB.RaidLog[idx][8] = new_sk_pos;
+	SKC_DB.RaidLog[idx][5] = decision;
+	SKC_DB.RaidLog[idx][6] = character;
+	SKC_DB.RaidLog[idx][7] = item;
+	SKC_DB.RaidLog[idx][8] = prio;
+	SKC_DB.RaidLog[idx][9] = prev_sk_pos;
+	SKC_DB.RaidLog[idx][10] = new_sk_pos;
+	SKC_DB.RaidLog[idx][11] = roll;
 	return;
 end
 
@@ -1080,8 +1088,7 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_call
 		db_msg = "META,"..
 			db_name..","..
 			NilToStr(SKC_DB[db_name].top)..","..
-			NilToStr(SKC_DB[db_name].bottom)..","..
-			NilToStr(SKC_DB[db_name].live_bottom);
+			NilToStr(SKC_DB[db_name].bottom);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		for node_name,node in pairs(SKC_DB[db_name].list) do
 			db_msg = "DATA,"..
@@ -1319,23 +1326,6 @@ function SK_List:CheckIfFucked()
 	return false;
 end
 
-function SK_List:SetLiveBottom()
-	-- scan list to find bottom live player
-	-- note, this method does not change the updated timestamp
-	if self:CheckIfFucked() then return false end
-	local current_name = self.top;
-	local live_bottom_tmp = nil;
-	while (current_name ~= nil) do
-		if self.list[current_name].live then
-			live_bottom_tmp = current_name;
-		end
-		current_name = self.list[current_name].below;
-	end
-	-- assign
-	self.live_bottom = live_bottom_tmp;
-	return true;
-end
-
 function SK_List:ResetPos()
 	-- resets absolute positions of all nodes
 	if self:CheckIfFucked() then return false end
@@ -1377,8 +1367,6 @@ function SK_List:PushTop(name)
 	self.top = name;
 	-- adjust position
 	self:ResetPos();
-	-- adjust live bottom
-	self:SetLiveBottom();
 	-- reset positions / adjust time
 	local ts = time();
 	self.edit_ts_generic = ts;
@@ -1446,8 +1434,6 @@ function SK_List:InsertBelow(name,new_above_name,verbose)
 		self.list[name] = SK_Node:new(self.list[name],name,nil);
 		-- adjust position
 		self:ResetPos();
-		-- adjust live bottom
-		self:SetLiveBottom();
 		local ts = time();
 		self.edit_ts_generic = ts;
 		if SKC_Active then self.edit_ts_raid = ts end
@@ -1508,8 +1494,6 @@ function SK_List:InsertBelow(name,new_above_name,verbose)
 	if self.list[name].above == name then self.top = name end
 	-- adjust position
 	self:ResetPos();
-	-- adjust live bottom
-	self:SetLiveBottom();
 	local ts = time();
 	self.edit_ts_generic = ts;
 	if SKC_Active then self.edit_ts_raid = ts end
@@ -1549,10 +1533,10 @@ function SK_List:PushBack(name)
 	return  self:InsertBelow(name,self.bottom);
 end
 
-function SK_List:PushBackLive(name)
-	-- Pushes name to back (bottom of live) of list (creates if does not exist)
-	return self:InsertBelow(name,self.live_bottom);
-end
+-- function SK_List:PushBackLive(name)
+-- 	-- Pushes name to back (bottom of live) of list (creates if does not exist)
+-- 	return self:InsertBelow(name,self.live_bottom);
+-- end
 
 function SK_List:SetSK(name,new_above_name)
 	-- Removes player from list and sets them to specific location
@@ -1577,9 +1561,56 @@ function SK_List:Remove(name)
 	self.list[bot].below = nil;
 	self.list.bottom = bot;
 	-- no need to update position because PushBack first
-	-- Update live bottom
-	self:SetLiveBottom();
 	return;
+end
+
+function SK_List:LiveSK(winner)
+	-- Performs SK on live list on winner
+	local success = false;
+	if self:CheckIfFucked() then return false end
+	-- WIP
+
+	-- create temporary live list
+	local live_list = SK_List:new(nil);
+
+	-- push all live characters into live list
+	-- Scan list in order
+	local current_name = self.top;
+	while (current_name ~= nil) do
+		if self.list[current_name].live then
+			live_list:PushBack(current_name);
+		end
+		current_name = self.list[current_name].below;
+	end
+
+	-- Perform SK on live list
+	success = live_list:PushBack(winner);
+
+	if not success then return false end
+
+	-- merge lists
+	local current_actual = self.top;
+	local current_live = live_list.top;
+	while current_actual ~= nil or current_live ~= nil do
+		if self.list[current_actual].live then
+			-- given slot is in live list
+			-- insert live character below current actual
+			self:InsertBelow(current_live,current_actual);
+			-- remove current actual
+			self:Remove(current_actual);
+			-- increment
+			current_live = live_list[current_live].below;
+		end 
+		current_actual = self.list[current_actual].below;
+	end
+
+	success = current_live == nil;
+	if not success then
+		SKC_Main:Print("ERROR","Entire live list was not merged")
+		return false;
+	end
+	
+	return true;
 end
 
 function SK_List:GetBelow(name)
@@ -1771,12 +1802,8 @@ function LootManager:SetCurrentLootByIdx(loot_idx)
 	local sk_list = self.pending_loot[loot_idx].sk_list;
 	self:SetCurrentLootDirect(item_name,item_link,open_roll,sk_list);
 	-- add the pending decision status for all elligible players
+	-- copy pending decisions over from pending_loot (created when item was originally saved to LootManager)
 	self.current_loot.decisions = DeepCopy(self.pending_loot[loot_idx].decisions);
-	-- TODO: Remove this
-	SKC_Main:Print("IMPORTANT","Printing current loot decisions")
-	for char_name,ld in pairs(self.current_loot.decisions) do
-		SKC_Main:Print("NORMAL",char_name..": "..LOOT_DECISION.TEXT_MAP[ld])
-	end
 	return
 end
 
@@ -1904,7 +1931,15 @@ function LootManager:ReadLootMsg(msg,sender)
 	self.loot_master = StripRealmName(sender);
 	local item_name, item_link, open_roll, sk_list = strsplit(",",msg,4);
 	open_roll = BoolOut(open_roll);
-	self:SetCurrentLootDirect(item_name,item_link,open_roll,sk_list);
+	if not SKC_Main:isML() then
+		-- instantiate fresh object
+		self:SetCurrentLootDirect(item_name,item_link,open_roll,sk_list);
+	else
+		-- current loot already exists, just check that item matches
+		if item_name ~= self.current_loot.lootName then
+			SKC_Main:Print("ERROR","Received loot message for item that is not current_loot!");
+		end
+	end
 	-- start GUI
 	self:StartPersonalLootDecision()
 	return;
@@ -1929,29 +1964,32 @@ local function KickOffWithDelay()
 	return;
 end
 
-function LootManager:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_sk_pos,winner_roll,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
+function LootManager:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_roll,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
 	-- constructs and sends outcome message
-	local winner_log_str = winner;
 	local msg = nil;
+	local winner_decision_log = nil;
+	local winner_roll_log = "";
 	if winner_decision == LOOT_DECISION.SK then
-		msg = winner.." won "..loot_link.." by "..sk_list.." (prio: "..winner_prio..", position: "..winner_sk_pos..")!";
-		winner_log_str = winner_log_str.." {SK} ["..winner_prio.."] ["..winner_sk_pos.."]";
+		msg = winner.." won "..loot_link.." by "..sk_list.." (prio: "..winner_prio..", position: "..prev_sk_pos.." --> "..SKC_DB[sk_list]:GetPos(winner)..")!";
+		winner_decision_log = LOOT_DECISION.TEXT_MAP[winner_decision];
 	elseif winner_decision == LOOT_DECISION.ROLL then
 		msg = winner.." won "..loot_link.." by roll (prio: "..winner_prio..", roll: "..winner_roll..")!";
-		winner_log_str = winner_log_str.." {ROLL} ["..winner_prio.."] ["..winner_roll.."]";
+		winner_decision_log = LOOT_DECISION.TEXT_MAP[winner_decision];
+		winner_roll_log = winner_roll;
 	else
 		-- Everyone passed
 		msg = "Everyone passed on "..loot_link..", awarded to "..winner;
 		if DE then
 			msg = msg.." to be disenchanted."
-			winner_log_str = winner_log_str.." {DE}"
+			winner_decision_log = "DE";
 		else
 			msg = msg.." for the guild bank."
-			winner_log_str = winner_log_str.." {GB}"
+			winner_decision_log = "GB";
 		end
 	end
 	if not send_success then
 		msg = msg.." Send failed, item given to master looter."
+		winner_decision_log = "ML";
 	end
 	-- Write outcome to log
 	WriteToLog( 
@@ -1959,10 +1997,13 @@ function LootManager:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_sk
 		LOG_OPTIONS["Action"].Options.ALD,
 		LOG_OPTIONS["Source"].Options.SKC,
 		LOG_OPTIONS["SK List"].Options[sk_list],
-		winner_log_str,
+		winner_decision_log,
+		winner,
 		loot_name,
+		winner_prio,
 		prev_sk_pos,
-		SKC_DB[sk_list]:GetPos(winner)
+		SKC_DB[sk_list]:GetPos(winner),
+		winner_roll_log 
 	);
 	-- Send Outcome Message
 	-- when message has been sent, kick off next loot (with delay)
@@ -2006,20 +2047,23 @@ end
 function LootManager:GiveLoot(loot_name,loot_link,winner)
 	-- sends loot to winner
 	local success = false;
-	-- find item
-	for i_loot = 1, GetNumLootItems() do
-		-- get item data
-		local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(i_loot);
-		if lootName == loot_name then
-			-- find character in raid
-			for i_char = 1,40 do
-				if GetMasterLootCandidate(i_loot, i_char) == winner then
-					if LOOT_DIST_DISABLE or LOOT_SAFE_MODE then
-						SKC_Main:Print("IMPORTANT","Faux distribution of loot successful!");
-					else 
-						GiveMasterLoot(i_loot,i_char);
+	-- attempt to award loot if winner is online
+	if UnitExists(winner) then
+		-- find item
+		for i_loot = 1, GetNumLootItems() do
+			-- get item data
+			local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(i_loot);
+			if lootName == loot_name then
+				-- find character in raid
+				for i_char = 1,40 do
+					if GetMasterLootCandidate(i_loot, i_char) == winner then
+						if LOOT_DIST_DISABLE or LOOT_SAFE_MODE then
+							SKC_Main:Print("IMPORTANT","Faux distribution of loot successful!");
+						else 
+							GiveMasterLoot(i_loot,i_char);
+						end
+						success = true;
 					end
-					success = true;
 				end
 			end
 		end
@@ -2043,7 +2087,7 @@ function LootManager:GiveLootToML(loot_name,loot_link)
 	return;
 end
 
-function LootManager:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winner_sk_pos,winner_roll)
+function LootManager:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winner_roll)
 	-- award actual loot to winner, perform SK (if necessary), and send alert message
 	-- initialize
 	local loot_name = self.current_loot.lootName;
@@ -2071,7 +2115,7 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winne
 	local prev_sk_pos = SKC_DB[sk_list]:GetPos(winner);
 	if winner_decision == LOOT_DECISION.SK then
 		-- perform SK on winner (below current live bottom)
-		local sk_success = SKC_DB[sk_list]:PushBackLive(winner);
+		local sk_success = SKC_DB[sk_list]:LiveSK(winner);
 		if not sk_success then
 			SKC_Main:Print("ERROR",sk_list.." for "..winner.." failed");
 		else
@@ -2088,7 +2132,7 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winne
 		self:GiveLootToML(loot_name,loot_link);
 	end
 	-- send outcome message (and write to log)
-	self:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_sk_pos,winner_roll,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
+	self:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_roll,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
 	return;
 end
 
@@ -2099,6 +2143,7 @@ function LootManager:DetermineWinner()
 	local winner_prio = PRIO_TIERS.PASS;
 	local winner_sk_pos = nil;
 	local winner_roll = nil; -- random number [0,1)
+	local sk_list = self.current_loot.sk_list;
 	-- scan decisions and determine winner
 	if LOOT_VERBOSE then
 		DEFAULT_CHAT_FRAME:AddMessage(" ");
@@ -2113,7 +2158,7 @@ function LootManager:DetermineWinner()
 		if loot_decision ~= LOOT_DECISION.PASS then
 			local new_winner = false;
 			local prio_tmp = self.current_loot.prios[char_name];
-			local sk_pos_tmp = self.current_loot.sk_pos[char_name];
+			local sk_pos_tmp = SKC_DB[sk_list]:GetPos(char_name);
 			local roll_tmp = math.floor(math.random()*100);
 			if LOOT_VERBOSE then
 				SKC_Main:Print("WARN","Prio: "..prio_tmp);
@@ -2175,7 +2220,7 @@ function LootManager:DetermineWinner()
 	end
 	-- award loot to winner
 	-- note, winner is nil if everyone passed
-	self:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winner_sk_pos,winner_roll);
+	self:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winner_roll);
 	return;
 end
 
@@ -2241,8 +2286,15 @@ function LootManager:ForceDistribution()
 end
 
 local function ForceDistributionWrapper()
-	-- wrapper because i cant figure out how to call object method from After()
+	-- wrapper because i cant figure out how to call object method from NewTimer()
 	SKC_DB.LootManager:ForceDistribution();
+	return;
+end
+
+local function ForceDistributionWithDelay()
+	-- calls kick off function after configurable amount of delay
+	SKC_DB.LootManager.current_loot_timer = C_Timer.NewTimer(LOOT_DECISION.OPTIONS.MAX_TIME + LOOT_DECISION.OPTIONS.ML_WAIT_BUFFER, ForceDistributionWrapper);
+	if LOOT_VERBOSE then SKC_Main:Print("WARN","Starting current loot timer") end
 	return;
 end
 
@@ -2260,7 +2312,8 @@ function LootManager:KickOff()
 			-- sends loot messages to all elligible players
 			self:SendLootMsgs(loot_idx); 
 			-- Start timer for when loot is automatically passed on by players that never responded
-			self.current_loot_timer = C_Timer.NewTimer(LOOT_DECISION.OPTIONS.MAX_TIME + LOOT_DECISION.OPTIONS.ML_WAIT_BUFFER, ForceDistributionWrapper);
+			-- Put blank message in queue so that timer starts after last message has been sent
+			ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT,"BLANK","WHISPER",UnitName("player"),"main_queue",ForceDistributionWithDelay);
 			return;
 		end
 	end
@@ -2272,13 +2325,6 @@ function LootManager:ReadLootDecision(msg,sender)
 	-- read loot decision from loot participant
 	-- determines if all decisions received and ready to allocate loot
 	-- MASTER LOOTER ONLY
-
-	-- XXX REMOVE TODO
-	SKC_Main:Print("NORMAL","Checking decisions");
-	for char_name_tmp,ld_tmp in pairs(self.current_loot.decisions) do
-		SKC_Main:Print("NORMAL",char_name_tmp..": "..LOOT_DECISION.TEXT_MAP[ld_tmp])
-	end
-
 	if not SKC_Main:isML() then return end
 	local char_name = StripRealmName(sender);
 	local loot_name, loot_decision = strsplit(",",msg,2);
@@ -2297,15 +2343,10 @@ function LootManager:ReadLootDecision(msg,sender)
 	self.current_loot.decisions[char_name] = loot_decision;
 	-- save current position in corresponding sk list
 	local sk_list = self.current_loot.sk_list;
-	self.current_loot.sk_pos[char_name] = SKC_DB[sk_list]:GetPos(char_name);
 	-- calculate / save prio
 	self:DeterminePrio(char_name);
 	-- Determine if all decisions collected
-	-- TODO: Remove this
-	SKC_Main:Print("NORMAL","Checking decisions");
 	for char_name_tmp,ld_tmp in pairs(self.current_loot.decisions) do
-		-- TODO: Remove this
-		SKC_Main:Print("NORMAL",char_name_tmp..": "..LOOT_DECISION.TEXT_MAP[ld_tmp])
 		if ld_tmp == LOOT_DECISION.PENDING then 
 			SKC_Main:Print("WARN","Waiting on: "..char_name_tmp);
 			return;
@@ -2326,10 +2367,13 @@ local function ResetRaidLogging()
 		LOG_OPTIONS["Action"].Text,
 		LOG_OPTIONS["Source"].Text,
 		LOG_OPTIONS["SK List"].Text,
+		LOG_OPTIONS["Decision"].Text,
 		LOG_OPTIONS["Character"].Text,
 		LOG_OPTIONS["Item"].Text,
+		LOG_OPTIONS["Prio"].Text,
 		LOG_OPTIONS["Previous SK Position"].Text,
-		LOG_OPTIONS["New SK Position"].Text
+		LOG_OPTIONS["New SK Position"].Text,
+		LOG_OPTIONS["Roll"].Text
 	);
 	SKC_Main:Print("WARN","Initialized RaidLog");
 end
@@ -2462,10 +2506,6 @@ local function UpdateLiveList()
 	for _,char_name in ipairs(SKC_DB.Bench) do
 		AddToLiveLists(char_name,true);
 	end
-
-	-- Set live_bottom for all lists
-	SKC_DB.MSK:SetLiveBottom();
-	SKC_DB.TSK:SetLiveBottom();
 
 	-- Reload GUI
 	SKC_Main:ReloadUIMain();
@@ -2786,10 +2826,13 @@ local function OnClick_FullSK(self)
 				LOG_OPTIONS["Action"].Options.ManSK,
 				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
 				LOG_OPTIONS["SK List"].Options[sk_list],
+				"Full SK",
 				name,
 				"",
+				"",
 				prev_pos,
-				SKC_DB[sk_list]:GetPos(name)
+				SKC_DB[sk_list]:GetPos(name),
+				""
 			);
 			SKC_Main:Print("IMPORTANT","Full SK on "..name);
 			-- send SK data to all players
@@ -2820,10 +2863,13 @@ local function OnClick_SingleSK(self)
 				LOG_OPTIONS["Action"].Options.ManSK,
 				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
 				LOG_OPTIONS["SK List"].Options[sk_list],
+				"Single SK",
 				name,
 				"",
+				"",
 				prev_pos,
-				SKC_DB[sk_list]:GetPos(name)
+				SKC_DB[sk_list]:GetPos(name),
+				""
 			);
 			SKC_Main:Print("IMPORTANT","Single SK on "..name);
 			-- send SK data to all players
@@ -2865,10 +2911,13 @@ local function OnClick_NumberCard(self,button)
 				LOG_OPTIONS["Action"].Options.ManSK,
 				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
 				LOG_OPTIONS["SK List"].Options[sk_list],
+				"Set SK",
 				name,
 				"",
+				"",
 				prev_pos,
-				SKC_DB[sk_list]:GetPos(name)
+				SKC_DB[sk_list]:GetPos(name),
+				""
 			);
 			SKC_Main:Print("IMPORTANT","Set SK position of "..name.." to "..SKC_DB[sk_list]:GetPos(name));
 			-- send SK data to all players
@@ -2911,6 +2960,7 @@ local function OnMouseDown_ShowItemTooltip(self, button)
 	local itemString = string.match(lootLink,"item[%-?%d:]+");
 	local itemLabel = string.match(lootLink,"|h.+|h");
 	SetItemRef(itemString, itemLabel, button, SKC_LootGUI);
+	return;
 end
 
 local function SetSKItem()
@@ -2946,7 +2996,7 @@ local function TimerBarHandler()
 		SKC_Main:Print("WARN","Time expired. You PASS on "..SKC_DB.LootManager:GetCurrentLootLink());
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.PASS);
-		SKC_LootGUI:Hide();
+		SKC_Main:HideLootDecisionGUI();
 	end
 
 	return;
@@ -2964,7 +3014,7 @@ local function OnClick_PASS(self,button)
 	if self:IsEnabled() then
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.PASS);
-		SKC_LootGUI:Hide();
+		SKC_Main:HideLootDecisionGUI();
 	end
 	return;
 end
@@ -2973,7 +3023,7 @@ local function OnClick_SK(self,button)
 	if self:IsEnabled() then
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.SK);
-		SKC_LootGUI:Hide();
+		SKC_Main:HideLootDecisionGUI();
 	end
 	return;
 end
@@ -2982,7 +3032,7 @@ local function OnClick_ROLL(self,button)
 	if self:IsEnabled() then
 		LootTimer:Cancel();
 		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.ROLL);
-		SKC_LootGUI:Hide();
+		SKC_Main:HideLootDecisionGUI();
 	end
 	return;
 end
@@ -3064,10 +3114,9 @@ local function SyncPushRead(msg)
 			tmp_sync_var.edit_ts_generic = ts_generic;
 			tmp_sync_var.edit_ts_raid = ts_raid;
 		elseif part == "META" then
-			local top, bottom, live_bottom = strsplit(",",msg_rem,3);
+			local top, bottom = strsplit(",",msg_rem,2);
 			tmp_sync_var.top = StrOut(top);
 			tmp_sync_var.bottom = StrOut(bottom);
-			tmp_sync_var.live_bottom = StrOut(live_bottom);
 		elseif part == "DATA" then
 			local name, above, below, abs_pos, live = strsplit(",",msg_rem,7);
 			name = StrOut(name);
@@ -3215,7 +3264,9 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 			Read (ReadLootMsg): Initiate loot decision GUI for player
 		--]]
 		-- read loot message and save to LootManager
-		SKC_DB.LootManager:ReadLootMsg(msg,sender);
+		if msg ~= "BLANK" then
+			SKC_DB.LootManager:ReadLootMsg(msg,sender);
+		end
 	elseif prefix == CHANNELS.LOOT_DECISION then
 		--[[ 
 			Send (SendLootDecision): Send loot decision to ML
@@ -3224,7 +3275,9 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		-- read message, determine winner, award loot, start next loot decision
 		SKC_DB.LootManager:ReadLootDecision(msg,sender);
 	elseif prefix == CHANNELS.LOOT_OUTCOME then
-		SKC_Main:Print("NORMAL",msg);
+		if msg ~= nil then
+			SKC_Main:Print("NORMAL",msg);
+		end
 	end
 	return;
 end
@@ -3342,6 +3395,8 @@ local function CreateUIBorder(title,width,height)
 end
 
 local function OnClick_SKListCycle()
+	-- cycle SK list when click title
+	if SetSK_Flag then return end -- reject cycle if SK is being set
 	-- cycle through SK lists
 	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	if sk_list == "MSK" then
@@ -3531,10 +3586,14 @@ local function OnClick_ImportLootPrio()
 	-- get text
 	local name = "Loot Priority Import";
 	local txt = SKC_UICSV[name].EditBox:GetText();
-	-- skip first row (header)
 	local line = nil;
 	local txt_rem = txt;
-	line, txt_rem = strsplit("\n",txt_rem,2);
+	-- check if first row is header
+	line = strsplit(",",txt_rem,2);
+	if line == "Item" then
+		-- header --> skip
+		line, txt_rem = strsplit("\n",txt_rem,2);
+	end
 	-- read data
 	local valid = true;
 	local line_count = 2; -- account for header
@@ -3727,6 +3786,15 @@ function SKC_Main:CSVImport(name,sk_list)
 	return;
 end
 
+function SKC_Main:HideLootDecisionGUI()
+	-- hide loot decision gui
+	-- if not yet created, do nothing
+	if SKC_LootGUI == nil then return end
+	SKC_LootGUI.ItemClickBox:SetScript("OnMouseDown",nil);
+	SKC_LootGUI:Hide();
+	return;
+end
+
 function SKC_Main:DisplayLootDecisionGUI(open_roll,sk_list)
 	-- ensure SKC_LootGUI is created
 	if SKC_LootGUI == nil then SKC_Main:CreateLootGUI() end
@@ -3743,6 +3811,8 @@ function SKC_Main:DisplayLootDecisionGUI(open_roll,sk_list)
 	SetSKItem();
 	-- Initiate timer
 	StartLootTimer();
+	-- set link
+	SKC_LootGUI.ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
 	-- show
 	SKC_LootGUI:Show();
 	return;
@@ -3750,6 +3820,8 @@ end
 
 function SKC_Main:CreateLootGUI()
 	-- Creates the GUI object for making a loot decision
+	if SKC_LootGUI ~= nil then return end
+
 	-- Create Frame
 	SKC_LootGUI = CreateFrame("Frame",border_key,UIParent,"TranslucentFrameTemplate");
 	SKC_LootGUI:SetSize(UI_DIMENSIONS.DECISION_WIDTH,UI_DIMENSIONS.DECISION_HEIGHT);
@@ -3783,7 +3855,6 @@ function SKC_Main:CreateLootGUI()
 	SKC_LootGUI.ItemClickBox:SetFrameLevel(7)
 	SKC_LootGUI.ItemClickBox:SetSize(UI_DIMENSIONS.ITEM_WIDTH,UI_DIMENSIONS.ITEM_HEIGHT);
 	SKC_LootGUI.ItemClickBox:SetPoint("CENTER",SKC_LootGUI.ItemTexture,"CENTER");
-	SKC_LootGUI.ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
 	-- set decision buttons
 	-- SK
 	local loot_btn_x_offst = 40;
@@ -3848,7 +3919,7 @@ function SKC_Main:CreateLootGUI()
 	table.insert(UISpecialFrames, "SKC_LootGUI");
 
 	-- hide
-	SKC_LootGUI:Hide();
+	SKC_Main:HideLootDecisionGUI();
 	return;
 end
 
