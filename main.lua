@@ -33,7 +33,7 @@ local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
 local COMM_VERBOSE = false; -- prints messages relating to addon communication
-local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
+local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
 local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
@@ -42,8 +42,8 @@ local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p"
 local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
-	MAIN_WIDTH = 810,
-	MAIN_HEIGHT = 455,
+	MAIN_WIDTH = 815,
+	MAIN_HEIGHT = 450,
 	MAIN_BORDER_Y_TOP = -60,
 	MAIN_BORDER_PADDING = 15,
 	SK_TAB_TITLE_CARD_WIDTH = 80,
@@ -51,7 +51,9 @@ local UI_DIMENSIONS = { -- ui dimensions
 	LOOT_GUI_TITLE_CARD_WIDTH = 80,
 	LOOT_GUI_TITLE_CARD_HEIGHT = 40,
 	SK_FILTER_WIDTH = 255,
-	SK_FILTER_HEIGHT = 205,
+	SK_FILTER_HEIGHT = 180,
+	SKC_STATUS_WIDTH = 255,
+	SKC_STATUS_HEIGHT = 153,
 	DECISION_WIDTH = 250,
 	DECISION_HEIGHT = 160,
 	SK_DETAILS_WIDTH = 270,
@@ -635,7 +637,7 @@ local LOOT_DECISION = {
 		"ROLL",
 	},
 	OPTIONS = {
-		MAX_TIME = 20, -- TODO. make this 20
+		MAX_DECISION_TIME = 30,
 		TIME_STEP = 1,
 		ML_WAIT_BUFFER = 5, -- additional time that master looter waits before triggering auto pass (accounts for transmission delays)
 		KICKOFF_DELAY = 3, -- delay after finishing one loot distribution before next begins
@@ -758,6 +760,7 @@ local event_states = { -- tracks if certain events have fired
 	AddonLoaded = false,
 	RaidLoggingActive = LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
 	SyncRequestSent = false,
+	SyncInProgressCnt = 0,
 	LoginSyncName = {
 		MSK = nil,
 		TSK = nil,
@@ -1110,11 +1113,15 @@ end
 
 local function PrintSyncMsgStart(db_name)
 	if COMM_VERBOSE then SKC_Main:Print("WARN","Synchronizing "..db_name.."...") end
+	event_states.SyncInProgressCnt = event_states.SyncInProgressCnt + 1;
+	SKC_Main:RefreshStatus();
 	return;
 end
 
 local function PrintSyncMsgEnd(db_name)
 	if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","Synchronization for "..db_name.." complete!") end
+	event_states.SyncInProgressCnt = event_states.SyncInProgressCnt - 1;
+	SKC_Main:RefreshStatus();
 	return;
 end
 
@@ -1417,6 +1424,7 @@ end
 function GuildData:SetActivityThreshold(new_thresh)
 	-- sets new activity threshold (input days, stored as seconds)
 	self.activity_thresh = new_thresh;
+	SKC_Main:RefreshStatus();
 	return;
 end
 
@@ -2060,7 +2068,9 @@ function LootManager:StartPersonalLootDecision()
 	local sk_list = self:GetCurrentLootSKList();
 	local open_roll = self:GetCurrentOpenRoll();
 	local alert_msg = "Would you like to "..sk_list.." for "..self:GetCurrentLootLink().."?";
+	print(" ");
 	SKC_Main:Print("IMPORTANT",alert_msg);
+	print(" ");
 	-- Trigger GUI
 	SKC_Main:DisplayLootDecisionGUI(open_roll,sk_list);
 	return;
@@ -2104,7 +2114,9 @@ function LootManager:ReadLootMsg(msg,sender)
 end
 
 function LootManager:SendLootDecision(loot_decision)
-	SKC_Main:Print("NORMAL","You selected "..LOOT_DECISION.TEXT_MAP[loot_decision].." for "..self:GetCurrentLootLink());
+	print(" ");
+	SKC_Main:Print("IMPORTANT","You selected "..LOOT_DECISION.TEXT_MAP[loot_decision].." for "..self:GetCurrentLootLink());
+	print(" ");
 	local msg = self:GetCurrentLootName()..","..loot_decision;
 	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DECISION,msg,"WHISPER",self.loot_master,"main_queue");
 	return;
@@ -2125,6 +2137,7 @@ end
 function LootManager:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_roll,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
 	-- constructs and sends outcome message
 	local msg = nil;
+	local winner_log = winner;
 	local winner_decision_log = nil;
 	local winner_roll_log = "";
 	if winner_decision == LOOT_DECISION.SK then
@@ -2148,6 +2161,7 @@ function LootManager:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_ro
 	if not send_success then
 		msg = msg.." Send failed, item given to master looter."
 		winner_decision_log = "ML";
+		winner_log = UnitName("player");
 	end
 	-- Write outcome to log
 	WriteToLog( 
@@ -2156,7 +2170,7 @@ function LootManager:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_ro
 		LOG_OPTIONS["Source"].Options.SKC,
 		LOG_OPTIONS["SK List"].Options[sk_list],
 		winner_decision_log,
-		winner,
+		winner_log,
 		loot_name,
 		winner_prio,
 		prev_sk_pos,
@@ -2280,8 +2294,8 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winne
 			-- push new sk list to guild
 			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		end
-		-- reload UI
-		SKC_Main:ReloadUIMain();
+		-- populate data
+		SKC_Main:PopulateData();
 	end
 	-- send loot and mark as awarded
 	local send_success = self:GiveLoot(loot_name,loot_link,winner);
@@ -2451,7 +2465,7 @@ end
 
 local function ForceDistributionWithDelay()
 	-- calls kick off function after configurable amount of delay
-	SKC_DB.LootManager.current_loot_timer = C_Timer.NewTimer(LOOT_DECISION.OPTIONS.MAX_TIME + LOOT_DECISION.OPTIONS.ML_WAIT_BUFFER, ForceDistributionWrapper);
+	SKC_DB.LootManager.current_loot_timer = C_Timer.NewTimer(LOOT_DECISION.OPTIONS.MAX_DECISION_TIME + LOOT_DECISION.OPTIONS.ML_WAIT_BUFFER, ForceDistributionWrapper);
 	if LOOT_VERBOSE then SKC_Main:Print("WARN","Starting current loot timer") end
 	return;
 end
@@ -2594,11 +2608,13 @@ local function SyncGuildData()
 			if not InitGuildSync then SKC_Main:Print("ERROR",name.." removed from databases") end
 		end
 	end
-
+	-- miscellaneous
 	UnFilteredCnt = SKC_DB.GuildData:length();
 	if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
 		-- init sync completed
 		SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")");
+		-- add self (GL) to loot officers by default
+		SKC_DB.LootOfficers:Add(UnitName("player"));
 		InitGuildSync = false;
 	end
 	event_states.SyncCompleted.GuildData = true;
@@ -2651,6 +2667,8 @@ local function ActivateSKC(verbose)
 			SKC_Main:Print("IMPORTANT","Inactive");
 		end
 	end
+	-- set GUI state
+	SKC_Main:RefreshStatus();
 	return;
 end
 
@@ -2687,8 +2705,8 @@ local function UpdateLiveList()
 		AddToLiveLists(char_name,true);
 	end
 
-	-- Reload GUI
-	SKC_Main:ReloadUIMain();
+	-- populate data
+	SKC_Main:PopulateData();
 	return;
 end
 
@@ -2722,7 +2740,7 @@ local function OnAddonLoad(addon_name)
 	end
 	if SKC_DB == nil or HARD_DB_RESET then
 		SKC_DB.SKC_Enable = nil;
-		SKC_Main:Enable(true);
+		SKC_DB.SKC_Enable = true;
 	end
 	if SKC_DB.GuildData == nil or HARD_DB_RESET then
 		SKC_DB.GuildData = nil;
@@ -2784,6 +2802,8 @@ local function OnAddonLoad(addon_name)
 	SKC_DB.LootOfficers = SimpleMap:new(SKC_DB.LootOfficers);
 	-- Addon loaded
 	event_states.AddonLoaded = true;
+	-- Enable / Disable SKC
+	SKC_Main:Enable(SKC_DB.SKC_Enable);
 	-- Update live list
 	UpdateLiveList();
 	return;
@@ -2804,14 +2824,13 @@ local function OnMouseWheel_ScrollFrame(self,delta)
     return
 end
 
-local function UpdateSKUI()
+function SKC_Main:UpdateSKUI()
 	-- populates the SK list
-	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
-
-	-- Addon not yet loaded, return
+	if SKC_UIMain == nil then return end
 	if not event_states.AddonLoaded then return end
-
+	
 	-- Hide all cards
+	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	for idx = 1, SKC_DB.GuildData:length() do
 		SKC_UIMain.sk_list.NumberFrame[idx]:Hide();
 		SKC_UIMain.sk_list.NameFrame[idx]:Hide();
@@ -2851,11 +2870,43 @@ end
 
 local function OnCheck_FilterFunction (self, button)
 	SKC_DB.FilterStates[self.text:GetText()] = self:GetChecked();
-	UpdateSKUI();
+	SKC_Main:UpdateSKUI();
 	return;
 end
 
-local function Refresh_Details(name)
+function SKC_Main:RefreshStatus()
+	-- populates the status fields
+	if SKC_UIMain == nil then return end
+	if SKC_Active then
+		SKC_UIMain["Status_border"]["Status"].Data:SetText("Active");
+		SKC_UIMain["Status_border"]["Status"].Data:SetTextColor(0,1,0,1);
+	else
+		SKC_UIMain["Status_border"]["Status"].Data:SetText("Inactive");
+		SKC_UIMain["Status_border"]["Status"].Data:SetTextColor(1,0,0,1);
+	end
+	if SKC_DB.SKC_Enable then
+		SKC_UIMain["Status_border"]["Control"].Data:SetText("Enabled");
+		SKC_UIMain["Status_border"]["Control"].Data:SetTextColor(0,1,0,1);
+	else
+		SKC_UIMain["Status_border"]["Control"].Data:SetText("Disabled");
+		SKC_UIMain["Status_border"]["Control"].Data:SetTextColor(1,0,0,1);
+	end
+	if event_states.SyncInProgressCnt > 0 then
+		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("In Progress");
+		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
+	else
+		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Complete");
+		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(0,1,0,1);
+	end
+	SKC_UIMain["Status_border"]["Loot Prio Items"].Data:SetText(SKC_DB.LootPrio:length().." items");
+	SKC_UIMain["Status_border"]["Loot Officers"].Data:SetText(SKC_DB.LootOfficers:length());
+	SKC_UIMain["Status_border"]["Activity Threshold"].Data:SetText(SKC_DB.GuildData:GetActivityThreshold().." days");
+	return;
+end
+
+function SKC_Main:RefreshDetails(name)
+	-- populates the details fields
+	if SKC_UIMain == nil then return end
 	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Last Raid"};
 	if name == nil then
 		-- reset
@@ -2880,15 +2931,18 @@ local function Refresh_Details(name)
 		-- update last raid time
 		UpdatedActivity(name);
 	end
-	return
+	return;
 end
 
-local function PopulateData(name)
-	-- Populates GUI with details of seleced player (reset if name == nil) and repopulates SK list
+function SKC_Main:PopulateData(name)
+	-- Populates GUI with data if it already exists
+	if SKC_UIMain == nil then return end
+	-- Update Status
+	SKC_Main:RefreshStatus();
 	-- Refresh details
-	Refresh_Details(name);
+	SKC_Main:RefreshDetails(name);
 	-- Update SK cards
-	UpdateSKUI();
+	SKC_Main:UpdateSKUI();
 	return;
 end
 
@@ -2927,7 +2981,7 @@ function OnClick_EditDropDownOption(field,value) -- Must be global
 	local prev_val = SKC_DB.GuildData:GetData(name,field);
 	prev_val = SKC_DB.GuildData:SetData(name,field,value);
 	-- Refresh data
-	PopulateData(name);
+	SKC_Main:PopulateData(name);
 	-- Reset menu toggle
 	DD_State = 0;
 	-- send GuildData to all players
@@ -3001,7 +3055,7 @@ local function OnClick_SK_Card(self, button)
 	-- populates details frame for given sk card character
 	if button=='LeftButton' and self.Text:GetText() ~= nill and DD_State == 0 and not SetSK_Flag then
 		-- Populate data
-		Refresh_Details(self.Text:GetText());
+		SKC_Main:RefreshDetails(self.Text:GetText());
 		-- Enable edit buttons
 		EnableDetailsButtons();
 	end
@@ -3037,7 +3091,7 @@ local function OnClick_FullSK(self)
 			-- send SK data to all players
 			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 			-- Refresh SK List
-			UpdateSKUI();
+			SKC_Main:UpdateSKUI();
 		else
 			SKC_Main:Print("ERROR","Full SK on "..name.." rejected");
 		end
@@ -3075,7 +3129,7 @@ local function OnClick_SingleSK(self)
 			-- send SK data to all players
 			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 			-- Refresh SK List
-			UpdateSKUI();
+			SKC_Main:UpdateSKUI();
 		else
 			SKC_Main:Print("ERROR","Single SK on "..name.." rejected");
 		end
@@ -3123,7 +3177,7 @@ local function OnClick_NumberCard(self,button)
 			-- send SK data to all players
 			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 			-- Refresh SK List
-			UpdateSKUI();
+			SKC_Main:UpdateSKUI();
 		else
 			SKC_Main:Print("ERROR","Set SK on "..name.." rejected");
 		end
@@ -3180,7 +3234,7 @@ end
 
 local function InitTimerBarValue()
 	SKC_LootGUI.TimerBar:SetValue(0);
-	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_TIME);
+	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_DECISION_TIME);
 end
 
 local function TimerBarHandler()
@@ -3188,9 +3242,9 @@ local function TimerBarHandler()
 
 	-- updated timer bar
 	SKC_LootGUI.TimerBar:SetValue(time_elapsed);
-	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_TIME - time_elapsed);
+	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_DECISION_TIME - time_elapsed);
 
-	if time_elapsed >= LOOT_DECISION.OPTIONS.MAX_TIME then
+	if time_elapsed >= LOOT_DECISION.OPTIONS.MAX_DECISION_TIME then
 		-- out of time
 		-- send loot response
 		SKC_Main:Print("WARN","Time expired. You PASS on "..SKC_DB.LootManager:GetCurrentLootLink());
@@ -3206,7 +3260,7 @@ local function StartLootTimer()
 	InitTimerBarValue();
 	if LootTimer ~= nil and not LootTimer:IsCancelled() then LootTimer:Cancel() end
 	-- start new timer
-	LootTimer = C_Timer.NewTicker(LOOT_DECISION.OPTIONS.TIME_STEP, TimerBarHandler, LOOT_DECISION.OPTIONS.MAX_TIME/LOOT_DECISION.OPTIONS.TIME_STEP);
+	LootTimer = C_Timer.NewTicker(LOOT_DECISION.OPTIONS.TIME_STEP, TimerBarHandler, LOOT_DECISION.OPTIONS.MAX_DECISION_TIME/LOOT_DECISION.OPTIONS.TIME_STEP);
 	return;
 end
 
@@ -3394,7 +3448,7 @@ local function SyncPushRead(msg)
 	if part == "END" then
 		PrintSyncMsgEnd(db_name);
 		event_states.SyncCompleted[db_name] = true;
-		SKC_Main:ReloadUIMain();
+		SKC_Main:PopulateData();
 	end
 	return;
 end
@@ -3481,7 +3535,9 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		SKC_DB.LootManager:ReadLootDecision(msg,sender);
 	elseif prefix == CHANNELS.LOOT_OUTCOME then
 		if msg ~= nil then
-			SKC_Main:Print("NORMAL",msg);
+			print(" ");
+			SKC_Main:Print("IMPORTANT",msg);
+			print(" ");
 		end
 	end
 	return;
@@ -3527,6 +3583,11 @@ local function SaveLoot()
 
 	-- Check if loot decision already pending
 	if SKC_DB.LootManager:LootDecisionPending() then return end
+
+	-- Check if sync in progress
+	if event_states.SyncInProgressCnt > 0 then
+		SKC_Main:Print("IMPORTANT","Synchronization in progress. Loot distribution will start soon...");
+	end
 	
 	-- Reset LootManager
 	SKC_DB.LootManager:Reset();
@@ -3609,7 +3670,7 @@ local function OnClick_SKListCycle()
 		SKC_UIMain["sk_list_border"].Title.Text:SetText("MSK");
 	end
 	-- populate data
-	PopulateData();
+	SKC_Main:PopulateData();
 	-- enable / disable details buttons
 	EnableDetailsButtons(true);
 end
@@ -3619,33 +3680,15 @@ end
 function SKC_Main:ToggleUIMain(force_show)
 	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
 	-- Refresh Data
-	PopulateData();
+	SKC_Main:PopulateData();
 	menu:SetShown(force_show or not menu:IsShown());
 end
 
 function SKC_Main:Enable(enable_flag)
 	SKC_DB.SKC_Enable = enable_flag;
-	if SKC_DB.SKC_Enable then
-		SKC_Main:Print("IMPORTANT","Enabled");
-	else
-		SKC_Main:Print("IMPORTANT","Disabled");
-	end
+	SKC_Main:RefreshStatus();
 	ActivateSKC(true);
 	return;
-end
-
-function SKC_Main:ReloadUIMain()
-	-- if UI Main has already been created, repopulates with data and sets to previous shown state
-	if GUI_VERBOSE then SKC_Main:Print("NORMAL","Reloading UI Main") end
-	local is_shown = false;
-	if SKC_UIMain ~= nil then is_shown = SKC_UIMain:IsShown() end
-	if SKC_UIMain == nil then
-		if GUI_VERBOSE then SKC_Main:Print("NORMAL","ReloadUIMain: SKC_UIMain not created yet") end
-		return;
-	end
-	-- Refresh Data
-	PopulateData();
-	SKC_UIMain:SetShown(is_shown);
 end
 
 function SKC_Main:ResetData()
@@ -3661,7 +3704,7 @@ function SKC_Main:ResetData()
 	-- event_states.SyncRequestSent = false;
 	-- LoginSyncCheckSend(); 
 	-- Refresh Data
-	SKC_Main:ReloadUIMain();
+	SKC_Main:PopulateData();
 end
 
 function SKC_Main:GetThemeColor(type)
@@ -3924,6 +3967,7 @@ local function OnClick_ImportLootPrio()
 	SKC_DB.LootPrio.edit_ts_generic = ts;
 	SKC_Main:Print("NORMAL","Loot Priority Import Complete");
 	SKC_Main:Print("NORMAL",SKC_DB.LootPrio:length().." items added");
+	SKC_Main:RefreshStatus();
 	-- push new loot prio to guild
 	SyncPushSend("LootPrio",CHANNELS.SYNC_PUSH,"GUILD",nil);
 	-- close import GUI
@@ -4045,10 +4089,10 @@ function SKC_Main:DisplayLootDecisionGUI(open_roll,sk_list)
 	SetSKItem();
 	-- Initiate timer
 	StartLootTimer();
-	-- set link
-	SKC_LootGUI.ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
 	-- enable mouse
 	SKC_LootGUI.ItemClickBox:EnableMouse(true);
+	-- set link
+	SKC_LootGUI.ItemClickBox:SetScript("OnMouseDown",OnMouseDown_ShowItemTooltip);
 	-- show
 	SKC_LootGUI:Show();
 	return;
@@ -4146,9 +4190,9 @@ function SKC_Main:CreateLootGUI()
 	SKC_LootGUI.TimerBar.Text = SKC_LootGUI.TimerBar:CreateFontString(nil,"ARTWORK",nil,7)
 	SKC_LootGUI.TimerBar.Text:SetFontObject("GameFontHighlightSmall")
 	SKC_LootGUI.TimerBar.Text:SetPoint("CENTER",SKC_LootGUI.TimerBar,"CENTER")
-	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_TIME)
+	SKC_LootGUI.TimerBar.Text:SetText(LOOT_DECISION.OPTIONS.MAX_DECISION_TIME)
 	-- values
-	SKC_LootGUI.TimerBar:SetMinMaxValues(0,LOOT_DECISION.OPTIONS.MAX_TIME);
+	SKC_LootGUI.TimerBar:SetMinMaxValues(0,LOOT_DECISION.OPTIONS.MAX_DECISION_TIME);
 	SKC_LootGUI.TimerBar:SetValue(0);
 
 	-- Make frame closable with esc
@@ -4182,14 +4226,33 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain.Title:SetPoint("LEFT", SKC_UIMainTitleBG, "LEFT", 6, 0);
 	SKC_UIMain.Title:SetText("SKC");
 
+	-- Create status panel
+	local status_border_key = CreateUIBorder("Status",UI_DIMENSIONS.SKC_STATUS_WIDTH,UI_DIMENSIONS.SKC_STATUS_HEIGHT)
+	-- set position
+	SKC_UIMain[status_border_key]:SetPoint("TOPLEFT", SKC_UIMainTitleBG, "TOPLEFT", UI_DIMENSIONS.MAIN_BORDER_PADDING+5, UI_DIMENSIONS.MAIN_BORDER_Y_TOP);
+	-- create status fields
+	local status_fields = {"Status","Control","Synchronization","Loot Prio Items","Loot Officers","Activity Threshold"};
+	for idx,value in ipairs(status_fields) do
+		-- fields
+		SKC_UIMain[status_border_key][value] = CreateFrame("Frame",SKC_UIMain[status_border_key])
+		SKC_UIMain[status_border_key][value].Field = SKC_UIMain[status_border_key]:CreateFontString(nil,"ARTWORK");
+		SKC_UIMain[status_border_key][value].Field:SetFontObject("GameFontNormal");
+		SKC_UIMain[status_border_key][value].Field:SetPoint("RIGHT",SKC_UIMain[status_border_key],"TOPLEFT",130,-20*idx-8);
+		SKC_UIMain[status_border_key][value].Field:SetText(value..":");
+		-- data
+		SKC_UIMain[status_border_key][value].Data = SKC_UIMain[status_border_key]:CreateFontString(nil,"ARTWORK");
+		SKC_UIMain[status_border_key][value].Data:SetFontObject("GameFontHighlight");
+		SKC_UIMain[status_border_key][value].Data:SetPoint("CENTER",SKC_UIMain[status_border_key][value].Field,"RIGHT",45,0);
+	end
+
 	-- Create filter panel
 	local filter_border_key = CreateUIBorder("Filters",UI_DIMENSIONS.SK_FILTER_WIDTH,UI_DIMENSIONS.SK_FILTER_HEIGHT)
 	-- set position
-	SKC_UIMain[filter_border_key]:SetPoint("TOPLEFT", SKC_UIMainTitleBG, "TOPLEFT", UI_DIMENSIONS.MAIN_BORDER_PADDING, UI_DIMENSIONS.MAIN_BORDER_Y_TOP);
+	SKC_UIMain[filter_border_key]:SetPoint("TOPLEFT", SKC_UIMain[status_border_key],"BOTTOMLEFT", 0, -22);
 	-- create details fields
 	local faction_class;
 	if UnitFactionGroup("player") == "Horde" then faction_class="Shaman" else faction_class="Paladin" end
-	local filter_roles = {"DPS","Healer","Tank","Live","SKIP","SKIP","Main","Alt","SKIP","Inactive","Active","SKIP","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
+	local filter_roles = {"DPS","Healer","Tank","Main","Alt","SKIP","Inactive","Active","Live","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
 	local num_cols = 3;
 	for idx,value in ipairs(filter_roles) do
 		if value ~= "SKIP" then
@@ -4202,7 +4265,7 @@ function SKC_Main:CreateUIMain()
 			SKC_UIMain[filter_border_key][value]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
 			SKC_UIMain[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
 			SKC_UIMain[filter_border_key][value].text:SetText(value);
-			if idx > 12 then
+			if idx > 9 then
 				-- assign class colors
 				SKC_UIMain[filter_border_key][value].text:SetTextColor(CLASSES[value].color.r,CLASSES[value].color.g,CLASSES[value].color.b,1.0);
 			end
@@ -4225,7 +4288,7 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain[sk_list_border_key].Title.Text:SetText("MSK")
 	SKC_UIMain[sk_list_border_key].Title:SetScript("OnMouseDown",OnClick_SKListCycle);
 	-- set position
-	SKC_UIMain[sk_list_border_key]:SetPoint("TOPLEFT", SKC_UIMain[filter_border_key], "TOPRIGHT", UI_DIMENSIONS.MAIN_BORDER_PADDING, 0);
+	SKC_UIMain[sk_list_border_key]:SetPoint("TOPLEFT", SKC_UIMain[status_border_key], "TOPRIGHT", UI_DIMENSIONS.MAIN_BORDER_PADDING, 0);
 
 	-- Create SK list panel
 	SKC_UIMain.sk_list = CreateFrame("Frame",sk_list,SKC_UIMain,"InsetFrameTemplate");
@@ -4344,7 +4407,7 @@ function SKC_Main:CreateUIMain()
 	SKC_Main:CreateLootGUI();
 
 	-- Populate Data
-	PopulateData();
+	SKC_Main:PopulateData();
 
 	-- Make frame closable with esc
 	table.insert(UISpecialFrames, "SKC_UIMain");
