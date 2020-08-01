@@ -18,16 +18,16 @@ local SKC_LootGUI; -- Loot GUI
 --------------------------------------
 local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = nil; -- name of faux ML override master looter permissions
-local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
+local GL_OVRD = nil; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
-local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
-local LOG_ACTIVE_OVRD = true; -- true to force logging
+local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
+local LOG_ACTIVE_OVRD = false; -- true to force logging
 local CHARS_OVRD = { -- characters which are pushed into GuildData
 	-- Duarte = true,
 	-- Skc = true,
-	Freznic = true,
+	-- Freznic = true,
 };
-local ACTIVE_RAID_OVRD = true; -- true if SKC can be used outside of active raids
+local ACTIVE_RAID_OVRD = false; -- true if SKC can be used outside of active raids
 local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer 
 -- verbosity
 local GUI_VERBOSE = false; -- relating to GUI objects
@@ -39,8 +39,7 @@ local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
--- local ADDON_VERSION = "v0.1-alpha";
-local ADDON_VERSION = "v0.2-alpha";
+local ADDON_VERSION = "v0.1-beta";
 local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
 local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
@@ -2955,6 +2954,7 @@ end
 
 function SKC_Main:HideSKCards()
 	-- Hide all cards
+	if SKC_UIMain == nil then return end
 	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	for idx = 1, SKC_DB.GuildData:length() do
 		SKC_UIMain.sk_list.NumberFrame[idx]:Hide();
