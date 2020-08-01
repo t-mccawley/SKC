@@ -146,12 +146,12 @@ Loot Prio Tiers (Prio 1 is highest priority):
 |  17  |      Pass     |     -     |
 
 Supported Active Raids:
-| Raid                | Acronym |
-|---------------------|:-------:|
-| Onyxia's Lair       |   ONY   |
-| Molten Core         |    MC   |
-| Blackwing Lair      |   BWL   |
-| Zul'Gurub           |    ZG   |
-| Ruins of Ahn'Qiraj  |   AQ20  |
+|         Raid        | Acronym |
+|:-------------------:|:-------:|
+|    Onyxia's Lair    |   ONY   |
+|     Molten Core     |    MC   |
+|    Blackwing Lair   |   BWL   |
+|      Zul'Gurub      |    ZG   |
+|  Ruins of Ahn'Qiraj |   AQ20  |
 | Temple of Ahn'Qiraj |   AQ40  |
-| Naxxramas           |   NAXX  |
+|      Naxxramas      |   NAXX  |
