@@ -17,9 +17,9 @@ core.commands = {
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - Displays bench");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export sk log (CSV) for most recent raid");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export current sk lists (CSV)");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets SKC data and re-sync with guild");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets SKC data");
     if core.SKC_Main:isML() then
-      core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader and Master Looter Only:|r");
+      core.SKC_Main:Print("NORMAL","|cff"..title_color.."Master Looter Only:|r");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - Adds character to bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench remove <character name>|r - Removes character from bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - Clears bench");
@@ -36,7 +36,7 @@ core.commands = {
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid add <raid acro>|r - Adds raid to Active Raids list");      
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid remove <raid acro>|r - Removes raid from Active Raids list");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid clear|r - Clears Active Raids list");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer show|r - Display list of guild members who can enable SKC");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer show|r - Display list of guild members who enable SKC");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer add <name>|r - Adds name to Loot Officers list");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer remove <name>|r - Removes name from Loot Officers list");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer clear|r - Clears Loot Officers list");
