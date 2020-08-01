@@ -11,6 +11,7 @@ core.commands = {
     -- all members
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - Lists all available slash commands");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - Toggles GUI");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ver|r - Shows addon version");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item link/name>|r - Displays loot prio for given item");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio|r - Displays the number of items in saved loot prio");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - Displays bench");
@@ -41,6 +42,9 @@ core.commands = {
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer clear|r - Clears Loot Officers list");
     end
 		print(" ");
+  end,
+  ["ver"] = function()
+    core.SKC_Main:PrintVersion(); 
   end,
   ["prio"] = function(...)
     local itemName = nil;

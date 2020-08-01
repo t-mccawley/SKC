@@ -39,7 +39,9 @@ local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
-local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p"
+-- local ADDON_VERSION = "v0.1-alpha";
+local ADDON_VERSION = "v0.2-alpha";
+local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
 local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
 	MAIN_WIDTH = 815,
@@ -52,8 +54,9 @@ local UI_DIMENSIONS = { -- ui dimensions
 	LOOT_GUI_TITLE_CARD_HEIGHT = 40,
 	SK_FILTER_WIDTH = 255,
 	SK_FILTER_HEIGHT = 180,
+	SK_FILTER_Y_OFFST = -35,
 	SKC_STATUS_WIDTH = 255,
-	SKC_STATUS_HEIGHT = 153,
+	SKC_STATUS_HEIGHT = 140,
 	DECISION_WIDTH = 250,
 	DECISION_HEIGHT = 160,
 	SK_DETAILS_WIDTH = 270,
@@ -734,6 +737,49 @@ local RAID_NAME_MAP = {
 	NAXX = "Naxxramas",
 };
 
+local SKC_STATUS_ENUM = {
+	ACTIVE = {
+		val = 0,
+		text = "Active",
+		color = {0,1,0},
+	},
+	DISABLED = {
+		val = 1,
+		text = "Disabled",
+		color = {1,0,0},
+	},
+	INACTIVE_GL = {
+		val = 2,
+		text = "Inactive (GL)",
+		color = {1,0,0},
+	},
+	INACTIVE_VER = {
+		val = 3,
+		text = "Inactive (VER)",
+		color = {1,0,0},
+	},
+	INACTIVE_RAID = {
+		val = 4,
+		text = "Inactive (RAID)",
+		color = {1,0,0},
+	},
+	INACTIVE_ML = {
+		val = 5,
+		text = "Inactive (ML)",
+		color = {1,0,0},
+	},
+	INACTIVE_INS = {
+		val = 6,
+		text = "Inactive (INS)",
+		color = {1,0,0},
+	},
+	INACTIVE_LO = {
+		val = 7,
+		text = "Inactive (LO)",
+		color = {1,0,0},
+	},
+};
+
 --------------------------------------
 -- REGISTER CHANNELS
 --------------------------------------
@@ -761,6 +807,7 @@ local event_states = { -- tracks if certain events have fired
 	RaidLoggingActive = LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
 	SyncRequestSent = false,
 	SyncInProgressCnt = 0,
+	VersionCheckComplete = false,
 	LoginSyncName = {
 		MSK = nil,
 		TSK = nil,
@@ -786,7 +833,7 @@ local pending_loot = {}; -- array of item names and links to make loot decision 
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
 local SetSK_Flag = false; -- true when SK position is being set
-local SKC_Active = false; -- true when loot distribution is handled by SKC
+local SKC_Status = SKC_STATUS_ENUM.ACTIVE; -- true when loot distribution is handled by SKC
 local InitGuildSync = false; -- used to control for first time setup
 --------------------------------------
 -- CLASS DEFINITIONS / CONSTRUCTORS
@@ -853,6 +900,7 @@ GuildData = {
 	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
 	edit_ts_generic = nil, -- timestamp of most recent edit
 	activity_thresh = nil, -- time threshold [days] which changes activity from Active to Inactive
+	required_ver = nil, -- required addon version (determined by GL) in order to be elligible for loot
 };
 GuildData.__index = GuildData;
 
@@ -864,6 +912,7 @@ function GuildData:new(guild_data)
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
 		obj.activity_thresh = 30;
+		obj.required_ver = nil;
 		setmetatable(obj,GuildData);
 		return obj;
 	else
@@ -1049,9 +1098,42 @@ end
 --------------------------------------
 -- HELPER METHODS
 --------------------------------------
+local function CheckActive()
+	-- returns true of SKC is active
+	return(SKC_Status.val == SKC_STATUS_ENUM.ACTIVE.val);
+end
+
 local function StripRealmName(full_name)
 	local name,_ = strsplit("-",full_name,2);
 	return(name);
+end
+
+local function GetGuildLeader()
+	-- returns name of guild leader
+	-- if not in a guild, return nil
+	if not IsInGuild() then
+		SKC_Main:Print("ERROR","No guild leader, not in guild");
+		return nil;
+	end
+	-- check if manual override
+	if GL_OVRD ~= nil then return GL_OVRD end
+	-- Scan guild roster and find guild leader
+	for idx = 1, GetNumGuildMembers() do
+		local full_name, _, rankIndex = GetGuildRosterInfo(idx);
+		if rankIndex == 0 then
+			local name = StripRealmName(full_name);
+			return name;
+		end
+	end
+	return nil;
+end
+
+local function FormatWithClassColor(str_in,class)
+	-- formats str with class color for class
+	if str_in == nil or class == nil or CLASSES[class] == nil then return str_in end
+	local class_color = CLASSES[class].color.hex
+	local str_out = "|cff"..class_color..str_in.."|r"
+	return str_out;
 end
 
 local function StrOut(inpt)
@@ -1127,6 +1209,10 @@ end
 
 local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_callback_fn)
 	-- send target database to name
+	if not SKC_DB.GuildData:CheckAddonVer() then
+		if COMM_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncPushSend due to addon version") end
+		return;
+	end
 	PrintSyncMsgStart(db_name);
 	if COMM_VERBOSE then SKC_Main:Print("WARN","SyncPushSend for "..db_name.." through "..game_channel) end
 	if name ~= nil then
@@ -1160,7 +1246,8 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_call
 			db_name..","..
 			NilToStr(SKC_DB.GuildData.edit_ts_generic)..","..
 			NilToStr(SKC_DB.GuildData.edit_ts_raid)..","..
-			NilToStr(SKC_DB.GuildData.activity_thresh);
+			NilToStr(SKC_DB.GuildData.activity_thresh)..","..
+			NilToStr(SKC_DB.GuildData.required_ver);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		for guildie_name,c_data in pairs(SKC_DB.GuildData.data) do
 			db_msg = "DATA,"..
@@ -1220,6 +1307,13 @@ end
 --------------------------------------
 -- CLASS METHODS
 --------------------------------------
+function SimpleMap:SetEditTime()
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if CheckActive() then self.edit_ts_raid = ts end
+	return;
+end
+
 function SimpleMap:length()
 	local count = 0;
 	for _ in pairs(self.data) do count = count + 1 end
@@ -1255,9 +1349,7 @@ function SimpleMap:Add(element)
 	-- add to list
 	self.data[element] = true;
 	-- update edit ts
-	local ts = time();
-	if SKC_Active then self.edit_ts_raid = ts end
-	self.edit_ts_generic = ts;
+	self:SetEditTime();
 	return true;
 end
 
@@ -1274,9 +1366,7 @@ function SimpleMap:Remove(element)
 	-- remove from list
 	self.data[element] = nil;
 	-- update edit ts
-	local ts = time();
-	if SKC_Active then self.edit_ts_raid = ts end
-	self.edit_ts_generic = ts;
+	self:SetEditTime();
 	return true;
 end
 
@@ -1284,16 +1374,39 @@ function SimpleMap:Clear()
 	-- clears a simple list
 	self.data = {};
 	-- update edit ts
-	local ts = time();
-	if SKC_Active then self.edit_ts_raid = ts end
-	self.edit_ts_generic = ts;
+	self:SetEditTime();
 	return true;
+end
+
+function GuildData:SetEditTime()
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if CheckActive() then self.edit_ts_raid = ts end
+	return;
 end
 
 function GuildData:length()
 	local count = 0;
 	for _ in pairs(self.data) do count = count + 1 end
 	return count;
+end
+
+function GuildData:SetReqVer(req_ver)
+	-- updates required version if it is different than previous version
+	if self.required_ver ~= req_ver then
+		self.required_ver = req_ver;
+		self:SetEditTime();
+	end
+	return;
+end
+
+function GuildData:CheckAddonVer()
+	-- returns true of client addon version matches required version
+	if self.required_ver == nil then
+		return nil;
+	else
+		return(ADDON_VERSION == self.required_ver);
+	end
 end
 
 function GuildData:GetFirstGuildRoles()
@@ -1358,9 +1471,7 @@ function GuildData:SetData(name,field,value)
 		local raid_role = CLASSES[class].Specs[spec].RR;
 		self.data[name]["Raid Role"] = CHARACTER_DATA["Raid Role"].OPTIONS[raid_role].val;
 	end
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
+	self:SetEditTime();
 	return;
 end
 
@@ -1371,18 +1482,14 @@ end
 
 function GuildData:Add(name,class)
 	self.data[name] = CharacterData:new(nil,name,class);
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
+	self:SetEditTime();
 	return;
 end
 
 function GuildData:Remove(name)
 	if not self:Exists(name) then return end
 	self.data[name] = nil;
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
+	self:SetEditTime();
 	return;
 end
 
@@ -1406,6 +1513,7 @@ end
 
 function GuildData:SetLastLiveTime(name,ts)
 	-- sets the last time the given player was on a live list
+	if not self:Exists(name) then return end
 	self.data[name].last_live_time = ts;
 	return;
 end
@@ -1431,6 +1539,13 @@ end
 function GuildData:GetActivityThreshold()
 	-- returns activity threshold in days
 	return self.activity_thresh;
+end
+
+function SK_List:SetEditTime()
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if CheckActive() then self.edit_ts_raid = ts end
+	return;
 end
 
 function SK_List:Exists(name)
@@ -1479,9 +1594,7 @@ function SK_List:ResetPos()
 		current_name = self.list[current_name].below;
 		idx = idx + 1;
 	end
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
+	self:SetEditTime();
 	return true;
 end
 
@@ -1510,9 +1623,7 @@ function SK_List:PushTop(name)
 	-- adjust position
 	self:ResetPos();
 	-- reset positions / adjust time
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
+	self:SetEditTime();
 	return true;
 end
 
@@ -1576,9 +1687,7 @@ function SK_List:InsertBelow(name,new_above_name,verbose)
 		self.list[name] = SK_Node:new(self.list[name],name,nil);
 		-- adjust position
 		self:ResetPos();
-		local ts = time();
-		self.edit_ts_generic = ts;
-		if SKC_Active then self.edit_ts_raid = ts end
+		self:SetEditTime();
 		if verbose then self:PrintNode(name) end
 		return true;
 	elseif name == new_above_name then
@@ -1636,9 +1745,7 @@ function SK_List:InsertBelow(name,new_above_name,verbose)
 	if self.list[name].above == name then self.top = name end
 	-- adjust position
 	self:ResetPos();
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC_Active then self.edit_ts_raid = ts end
+	self:SetEditTime();
 	if verbose then self:PrintNode(name) end
 	return true;
 end
@@ -1786,10 +1893,7 @@ end
 
 function SK_List:SetLive(name,live_status)
 	-- note, this method does not change the updated timestamp
-	if not self:Exists(name) then 
-		SKC_Main:Print("ERROR",name.." does not exist")
-		return false;
-	end
+	if not self:Exists(name) then return false end
 	self.list[name].live = live_status;
 	return true;
 end
@@ -2108,8 +2212,14 @@ function LootManager:ReadLootMsg(msg,sender)
 			SKC_Main:Print("ERROR","Received loot message for item that is not current_loot!");
 		end
 	end
-	-- start GUI
-	self:StartPersonalLootDecision()
+	-- Check that SKC is active for client
+	if not CheckActive() then
+		-- Automatically pass
+		self:SendLootDecision(LOOT_DECISION.PASS);
+	else
+		-- start GUI
+		self:StartPersonalLootDecision();
+	end
 	return;
 end
 
@@ -2137,19 +2247,20 @@ end
 function LootManager:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_roll,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
 	-- constructs and sends outcome message
 	local msg = nil;
+	local winner_with_color = FormatWithClassColor(winner,SKC_DB.GuildData:GetClass(winner));
 	local winner_log = winner;
 	local winner_decision_log = nil;
 	local winner_roll_log = "";
 	if winner_decision == LOOT_DECISION.SK then
-		msg = winner.." won "..loot_link.." by "..sk_list.." (prio: "..winner_prio..", position: "..prev_sk_pos.." --> "..SKC_DB[sk_list]:GetPos(winner)..")!";
+		msg = winner_with_color.." won "..loot_link.." by "..sk_list.." (prio: "..winner_prio..", position: "..prev_sk_pos.." --> "..SKC_DB[sk_list]:GetPos(winner)..")!";
 		winner_decision_log = LOOT_DECISION.TEXT_MAP[winner_decision];
 	elseif winner_decision == LOOT_DECISION.ROLL then
-		msg = winner.." won "..loot_link.." by roll (prio: "..winner_prio..", roll: "..winner_roll..")!";
+		msg = winner_with_color.." won "..loot_link.." by roll (prio: "..winner_prio..", roll: "..winner_roll..")!";
 		winner_decision_log = LOOT_DECISION.TEXT_MAP[winner_decision];
 		winner_roll_log = winner_roll;
 	else
 		-- Everyone passed
-		msg = "Everyone passed on "..loot_link..", awarded to "..winner;
+		msg = "Everyone passed on "..loot_link..", awarded to "..winner_with_color;
 		if DE then
 			msg = msg.." to be disenchanted."
 			winner_decision_log = "DE";
@@ -2230,7 +2341,7 @@ function LootManager:GiveLoot(loot_name,loot_link,winner)
 				for i_char = 1,40 do
 					if GetMasterLootCandidate(i_loot, i_char) == winner then
 						if LOOT_DIST_DISABLE or LOOT_SAFE_MODE then
-							SKC_Main:Print("IMPORTANT","Faux distribution of loot successful!");
+							if LOOT_VERBOSE then SKC_Main:Print("IMPORTANT","Faux distribution of loot successful!") end
 						else 
 							GiveMasterLoot(i_loot,i_char);
 						end
@@ -2550,6 +2661,25 @@ local function ResetRaidLogging()
 	SKC_Main:Print("WARN","Initialized RaidLog");
 end
 
+local function LoginSyncCheckSend()
+	-- Send timestamps of each database to each online member of GuildData (will sync with first response)
+	if event_states.SyncRequestSent then return end -- sync check already performed
+	if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","LoginSyncCheckSend()") end
+	local db_lsit = {"GuildData","LootPrio","MSK","TSK","Bench","ActiveRaids","LootOfficers"}
+	local msg = nil;
+	for _,db_name in ipairs(db_lsit) do
+		msg = db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
+		ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD",nil,"main_queue");
+		if COMM_VERBOSE then 
+			SKC_Main:Print("NORMAL",db_name.." Edit Timestamp:");
+			SKC_Main:Print("NORMAL","     GENERIC: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_generic));
+			SKC_Main:Print("NORMAL","            RAID: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_raid));
+		end
+	end
+	event_states.SyncRequestSent = true;
+	return;
+end
+
 local function UpdatedActivity(name)
 	-- check if activity exceeds threshold and updates if different
 	local activity = "Inactive";
@@ -2562,113 +2692,112 @@ end
 
 local function SyncGuildData()
 	-- synchronize GuildData with guild roster
-	if not event_states.SyncCompleted.GuildData then
-		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, incomplete sync") end
-		return;
-	end
-	if not IsInGuild() then
-		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, not in guild") end
-		return;
-	end
 	if not SKC_Main:isGL() then
 		-- only fetch data if guild leader
 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, not guild leader") end
-		return;
-	end
-	if GetNumGuildMembers() <= 1 then
-		-- only fetch data if guild leader
-		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, no guild members") end
-		return;
-	end
-	event_states.SyncCompleted.GuildData = false;
-	-- Scan guild roster and add new players
-	local guild_roster = {};
-	for idx = 1, GetNumGuildMembers() do
-		local full_name, _, _, level, class = GetGuildRosterInfo(idx);
-		local name = StripRealmName(full_name);
-		if level == 60 or CHARS_OVRD[name] then
-			guild_roster[name] = true;
-			if not SKC_DB.GuildData:Exists(name) then
-				-- new player, add to DB and SK lists
-				SKC_DB.GuildData:Add(name,class);
-				SKC_DB.MSK:PushBack(name);
-				SKC_DB.TSK:PushBack(name);
-				if not InitGuildSync then SKC_Main:Print("NORMAL",name.." added to databases") end
+	else
+		if not IsInGuild() then
+			if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, not in guild") end
+		else
+			if not event_states.SyncCompleted.GuildData then
+				if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, incomplete sync") end
+			else
+				if GetNumGuildMembers() <= 1 then
+					-- guild is only one person, no members to fetch data for
+					if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, no guild members") end
+				else
+					event_states.SyncCompleted.GuildData = false;
+					-- Scan guild roster and add new players
+					local guild_roster = {};
+					for idx = 1, GetNumGuildMembers() do
+						local full_name, _, _, level, class = GetGuildRosterInfo(idx);
+						local name = StripRealmName(full_name);
+						if level == 60 or CHARS_OVRD[name] then
+							guild_roster[name] = true;
+							if not SKC_DB.GuildData:Exists(name) then
+								-- new player, add to DB and SK lists
+								SKC_DB.GuildData:Add(name,class);
+								SKC_DB.MSK:PushBack(name);
+								SKC_DB.TSK:PushBack(name);
+								if not InitGuildSync then SKC_Main:Print("NORMAL",name.." added to databases") end
+							end
+							-- check activity level and update
+							UpdatedActivity(name);
+						end
+					end
+					-- Scan guild data and remove players
+					for name,data in pairs(SKC_DB.GuildData.data) do
+						if guild_roster[name] == nil then
+							SKC_DB.MSK:Remove(name);
+							SKC_DB.TSK:Remove(name);
+							SKC_DB.GuildData:Remove(name);
+							if not InitGuildSync then SKC_Main:Print("ERROR",name.." removed from databases") end
+						end
+					end
+					-- miscellaneous
+					UnFilteredCnt = SKC_DB.GuildData:length();
+					if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
+						-- init sync completed
+						SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")");
+						-- add self (GL) to loot officers by default
+						SKC_DB.LootOfficers:Add(UnitName("player"));
+						InitGuildSync = false;
+					end
+					-- set required version to current version
+					SKC_DB.GuildData:SetReqVer(ADDON_VERSION);
+					event_states.SyncCompleted.GuildData = true;
+					if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL","SyncGuildData success!") end
+				end
 			end
-			-- check activity level and update
-			UpdatedActivity(name);
 		end
 	end
-	-- Scan guild data and remove players
-	for name,data in pairs(SKC_DB.GuildData.data) do
-		if guild_roster[name] == nil then
-			SKC_DB.MSK:Remove(name);
-			SKC_DB.TSK:Remove(name);
-			SKC_DB.GuildData:Remove(name);
-			if not InitGuildSync then SKC_Main:Print("ERROR",name.." removed from databases") end
-		end
-	end
-	-- miscellaneous
-	UnFilteredCnt = SKC_DB.GuildData:length();
-	if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
-		-- init sync completed
-		SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")");
-		-- add self (GL) to loot officers by default
-		SKC_DB.LootOfficers:Add(UnitName("player"));
-		InitGuildSync = false;
-	end
-	event_states.SyncCompleted.GuildData = true;
-	if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL","SyncGuildData success!") end
+	-- Sync check with guild
+	LoginSyncCheckSend();
 	return;
 end
 
-local function ActivateSKC(verbose)
+local function ActivateSKC()
 	-- master control for wheter or not loot is managed with SKC
-	-- check if raid distribution type is master looter
-	local master_looter_check = GetLootMethod() == "master";
-	if master_looter_check and RAID_VERBOSE then
-		SKC_Main:Print("NORMAL","Master Looter Check Passed");
-	end
-	-- check if current raid is active
-	local raid_check = ACTIVE_RAID_OVRD;
-	local raid_name = GetInstanceInfo();
-	for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
-		if raid_name == RAID_NAME_MAP[active_raid_acro] then
-			raid_check = true;
-			break;
-		end
-	end
-	if raid_check and RAID_VERBOSE then
-		SKC_Main:Print("NORMAL","Raid Check Passed");
-	end
-	-- check if Loot Officer is in raid
-	local loot_officer_check = LOOT_OFFICER_OVRD;
-	for raidIndex = 1,40 do
-		local char_name = GetRaidRosterInfo(raidIndex);
-		if SKC_DB.LootOfficers.data[char_name] then
-			loot_officer_check = true;
-			break;
-		end
-	end
-	if loot_officer_check and RAID_VERBOSE then
-		SKC_Main:Print("NORMAL","Loot Officer Check Passed");
-	end
-	-- determine if SKC is active
-	local active_prev = SKC_Active;
-	SKC_Active = SKC_DB.SKC_Enable and master_looter_check and raid_check and loot_officer_check;
-	-- add message
-	if verbose then
-		if SKC_Active and not active_prev then
-			SKC_Main:Print("IMPORTANT","Active");
-			if SKC_Main:isML() then 
-				SKC_Main:Print("WARN","Don't forget to add benched characters");
+	local active_prev = SKC_Status;
+	if not SKC_DB.SKC_Enable then
+		SKC_Status = SKC_STATUS_ENUM.DISABLED;
+	elseif SKC_DB.GuildData:CheckAddonVer() == nil then
+		SKC_Status = SKC_STATUS_ENUM.INACTIVE_GL;
+	elseif not SKC_DB.GuildData:CheckAddonVer() then
+		SKC_Status = SKC_STATUS_ENUM.INACTIVE_VER;
+	elseif not UnitInRaid("player") then
+		SKC_Status = SKC_STATUS_ENUM.INACTIVE_RAID;
+	elseif GetLootMethod() ~= "master" then
+		SKC_Status = SKC_STATUS_ENUM.INACTIVE_ML;
+	else
+		-- 5. Elligible instance
+		local instance_check = ACTIVE_RAID_OVRD;
+		local raid_name = GetInstanceInfo();
+		for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
+			if raid_name == RAID_NAME_MAP[active_raid_acro] then
+				instance_check = true;
+				break;
 			end
-		elseif not SKC_Active and active_prev then
-			SKC_Main:Print("IMPORTANT","Inactive");
+		end
+		if not instance_check then
+			SKC_Status = SKC_STATUS_ENUM.INACTIVE_INS;
+		else
+			-- 6. Loot Officer is in raid
+			local loot_officer_check = LOOT_OFFICER_OVRD;
+			for raidIndex = 1, 40 do
+				local char_name = GetRaidRosterInfo(raidIndex);
+				if SKC_DB.LootOfficers.data[char_name] then
+					loot_officer_check = true;
+					break;
+				end
+			end
+			if not loot_officer_check then
+				SKC_Status = SKC_STATUS_ENUM.INACTIVE_LO;
+			else
+				SKC_Status = SKC_STATUS_ENUM.ACTIVE;
+			end
 		end
 	end
-	-- set GUI state
-	SKC_Main:RefreshStatus();
 	return;
 end
 
@@ -2678,8 +2807,7 @@ local function AddToLiveLists(name,live_status)
 	for _,sk_list in pairs(sk_lists) do
 		local success = SKC_DB[sk_list]:SetLive(name,live_status);
 		if not success then
-			SKC_Main:Print("ERROR","Failed to add "..name.." to live list");
-			return 
+			SKC_Main:Print("ERROR","Failed to add "..name.." to "..sk_list.." live list");
 		end
 	end
 	-- update guild data
@@ -2690,10 +2818,11 @@ end
 
 local function UpdateLiveList()
 	-- Adds every player in raid to live list
+	-- All players update their own local live lists
 	if RAID_VERBOSE then SKC_Main:Print("IMPORTANT","Updating live list") end
 
 	-- Activate SKC
-	ActivateSKC(true);
+	SKC_Main:RefreshStatus();
 
 	-- Scan raid and update live list
 	for char_name,_ in pairs(SKC_DB.GuildData.data) do
@@ -2824,19 +2953,26 @@ local function OnMouseWheel_ScrollFrame(self,delta)
     return
 end
 
-function SKC_Main:UpdateSKUI()
-	-- populates the SK list
-	if SKC_UIMain == nil then return end
-	if not event_states.AddonLoaded then return end
-	
+function SKC_Main:HideSKCards()
 	-- Hide all cards
 	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	for idx = 1, SKC_DB.GuildData:length() do
 		SKC_UIMain.sk_list.NumberFrame[idx]:Hide();
 		SKC_UIMain.sk_list.NameFrame[idx]:Hide();
 	end
+	return;
+end
+
+function SKC_Main:UpdateSKUI()
+	-- populates the SK list
+	if GUI_VERBOSE then SKC_Main:Print("NORMAL","UpdateSKUI() start") end
+	if SKC_UIMain == nil then return end
+	if not event_states.AddonLoaded then return end
+	
+	SKC_Main:HideSKCards();
 
 	-- Populate non filtered cards
+	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	local print_order = SKC_DB[sk_list]:ReturnList();
 	local idx = 1;
 	for key,name in ipairs(print_order) do
@@ -2866,6 +3002,8 @@ function SKC_Main:UpdateSKUI()
 	UnFilteredCnt = idx; -- 1 larger than max cards
 	-- update scroll length
 	SKC_UIMain.sk_list.SK_List_SF:GetScrollChild():SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,GetScrollMax());
+	if GUI_VERBOSE then SKC_Main:Print("NORMAL","UpdateSKUI() end") end
+	return;
 end
 
 local function OnCheck_FilterFunction (self, button)
@@ -2875,22 +3013,12 @@ local function OnCheck_FilterFunction (self, button)
 end
 
 function SKC_Main:RefreshStatus()
-	-- populates the status fields
+	-- refresh variable and update GUI
+	if GUI_VERBOSE then SKC_Main:Print("NORMAL","RefreshStatus()") end
+	ActivateSKC();
 	if SKC_UIMain == nil then return end
-	if SKC_Active then
-		SKC_UIMain["Status_border"]["Status"].Data:SetText("Active");
-		SKC_UIMain["Status_border"]["Status"].Data:SetTextColor(0,1,0,1);
-	else
-		SKC_UIMain["Status_border"]["Status"].Data:SetText("Inactive");
-		SKC_UIMain["Status_border"]["Status"].Data:SetTextColor(1,0,0,1);
-	end
-	if SKC_DB.SKC_Enable then
-		SKC_UIMain["Status_border"]["Control"].Data:SetText("Enabled");
-		SKC_UIMain["Status_border"]["Control"].Data:SetTextColor(0,1,0,1);
-	else
-		SKC_UIMain["Status_border"]["Control"].Data:SetText("Disabled");
-		SKC_UIMain["Status_border"]["Control"].Data:SetTextColor(1,0,0,1);
-	end
+	SKC_UIMain["Status_border"]["Status"].Data:SetText(SKC_Status.text);
+	SKC_UIMain["Status_border"]["Status"].Data:SetTextColor(unpack(SKC_Status.color));
 	if event_states.SyncInProgressCnt > 0 then
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("In Progress");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
@@ -2937,6 +3065,7 @@ end
 function SKC_Main:PopulateData(name)
 	-- Populates GUI with data if it already exists
 	if SKC_UIMain == nil then return end
+	if GUI_VERBOSE then SKC_Main:Print("NORMAL","PopulateData()") end
 	-- Update Status
 	SKC_Main:RefreshStatus();
 	-- Refresh details
@@ -3347,6 +3476,13 @@ end
 local function SyncPushRead(msg)
 	-- Write data to tmp_sync_var first, then given datbase
 	local part, db_name, msg_rem = strsplit(",",msg,3);
+	if db_name ~= "GuildData" and not SKC_DB.GuildData:CheckAddonVer() then
+		if COMM_VERBOSE then 
+			SKC_Main:Print("ERROR","Rejected SyncPushRead due to addon version");
+		end
+		event_states.SyncCompleted[db_name] = true;
+		return;
+	end
 	if part == "INIT" then
 		PrintSyncMsgStart(db_name);
 		event_states.SyncCompleted[db_name] = false;
@@ -3382,13 +3518,14 @@ local function SyncPushRead(msg)
 		end
 	elseif db_name == "GuildData" then
 		if part == "INIT" then
-			local ts_generic, ts_raid, activity_thresh = strsplit(",",msg_rem,3);
+			local ts_generic, ts_raid, activity_thresh, req_ver = strsplit(",",msg_rem,4);
 			ts_generic = NumOut(ts_generic);
 			ts_raid = NumOut(ts_raid);
 			tmp_sync_var = GuildData:new(nil);
 			tmp_sync_var.edit_ts_generic = ts_generic;
 			tmp_sync_var.edit_ts_raid = ts_raid;
 			tmp_sync_var.activity_thresh = NumOut(activity_thresh);
+			tmp_sync_var.required_ver = req_ver;
 		elseif part == "META" then
 			-- nothing to do
 		elseif part == "DATA" then
@@ -3543,25 +3680,6 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 	return;
 end
 
-local function LoginSyncCheckSend()
-	if event_states.SyncRequestSent then return end -- sync check already performed
-	if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","LoginSyncCheckSend()") end
-	-- Send timestamps of each database to each online member of GuildData (will sync with first response)
-	local db_lsit = {"GuildData","LootPrio","MSK","TSK","Bench","ActiveRaids","LootOfficers"}
-	local msg = nil;
-	for _,db_name in ipairs(db_lsit) do
-		msg = db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
-		ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD",nil,"main_queue");
-		if COMM_VERBOSE then 
-			SKC_Main:Print("NORMAL",db_name.." Edit Timestamp:");
-			SKC_Main:Print("NORMAL","     GENERIC: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_generic));
-			SKC_Main:Print("NORMAL","            RAID: "..date(DATE_FORMAT,SKC_DB[db_name].edit_ts_raid));
-		end
-	end
-	event_states.SyncRequestSent = true;
-	return;
-end
-
 local function SaveLoot()
 	-- Scans items / characters and stores loot in LootManager
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
@@ -3574,9 +3692,9 @@ local function SaveLoot()
 	end
 
 	-- Update SKC Active flag
-	ActivateSKC(false);
+	SKC_Main:RefreshStatus();
 
-	if not SKC_Active then
+	if not CheckActive() then
 		SKC_Main:Print("WARN","SKC not active. Skipping loot distribution.");
 		return;
 	end
@@ -3678,6 +3796,7 @@ end
 -- SHARED FUNCTIONS
 --------------------------------------
 function SKC_Main:ToggleUIMain(force_show)
+	if GUI_VERBOSE then SKC_Main:Print("NORMAL","ToggleUIMain()") end
 	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
 	-- Refresh Data
 	SKC_Main:PopulateData();
@@ -3687,11 +3806,13 @@ end
 function SKC_Main:Enable(enable_flag)
 	SKC_DB.SKC_Enable = enable_flag;
 	SKC_Main:RefreshStatus();
-	ActivateSKC(true);
+	SKC_Main:RefreshStatus();
 	return;
 end
 
 function SKC_Main:ResetData()
+	-- First hide SK cards
+	SKC_Main:HideSKCards();
 	-- Reset data
 	HARD_DB_RESET = true;
 	OnAddonLoad("SKC");
@@ -3700,9 +3821,6 @@ function SKC_Main:ResetData()
 	InitGuildSync = true;
 	event_states.SyncCompleted.GuildData = true;
 	SyncGuildData();
-	-- TODO, uncomment
-	-- event_states.SyncRequestSent = false;
-	-- LoginSyncCheckSend(); 
 	-- Refresh Data
 	SKC_Main:PopulateData();
 end
@@ -3772,7 +3890,7 @@ function SKC_Main:SimpleListAdd(list_name,element)
 		if list_name == "Bench" then UpdateLiveList() end
 		SyncPushSend(list_name,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		SKC_Main:SimpleListShow(list_name);
-		ActivateSKC(true);
+		SKC_Main:RefreshStatus();
 	end
 	return;
 end
@@ -3791,7 +3909,7 @@ function SKC_Main:SimpleListRemove(list_name,element)
 		if list_name == "Bench" then UpdateLiveList() end
 		SyncPushSend(list_name,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		SKC_Main:SimpleListShow(list_name);
-		ActivateSKC(true);
+		SKC_Main:RefreshStatus();
 	end
 	return;
 end
@@ -3810,8 +3928,13 @@ function SKC_Main:SimpleListClear(list_name)
 		if list_name == "Bench" then UpdateLiveList() end
 		SyncPushSend(list_name,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		SKC_Main:SimpleListShow(list_name);
-		ActivateSKC(true);
+		SKC_Main:RefreshStatus();
 	end
+	return;
+end
+
+function SKC_Main:PrintVersion()
+	SKC_Main:Print("NORMAL",ADDON_VERSION);
 	return;
 end
 
@@ -4204,6 +4327,9 @@ function SKC_Main:CreateLootGUI()
 end
 
 function SKC_Main:CreateUIMain()
+	-- creates primary GUI for SKC
+	if GUI_VERBOSE then SKC_Main:Print("NORMAL","CreateUIMain() start") end
+
 	-- If addon not yet loaded, reject
 	if not event_states.AddonLoaded then return end
 
@@ -4231,24 +4357,24 @@ function SKC_Main:CreateUIMain()
 	-- set position
 	SKC_UIMain[status_border_key]:SetPoint("TOPLEFT", SKC_UIMainTitleBG, "TOPLEFT", UI_DIMENSIONS.MAIN_BORDER_PADDING+5, UI_DIMENSIONS.MAIN_BORDER_Y_TOP);
 	-- create status fields
-	local status_fields = {"Status","Control","Synchronization","Loot Prio Items","Loot Officers","Activity Threshold"};
+	local status_fields = {"Status","Synchronization","Loot Prio Items","Loot Officers","Activity Threshold"};
 	for idx,value in ipairs(status_fields) do
 		-- fields
 		SKC_UIMain[status_border_key][value] = CreateFrame("Frame",SKC_UIMain[status_border_key])
 		SKC_UIMain[status_border_key][value].Field = SKC_UIMain[status_border_key]:CreateFontString(nil,"ARTWORK");
 		SKC_UIMain[status_border_key][value].Field:SetFontObject("GameFontNormal");
-		SKC_UIMain[status_border_key][value].Field:SetPoint("RIGHT",SKC_UIMain[status_border_key],"TOPLEFT",130,-20*idx-8);
+		SKC_UIMain[status_border_key][value].Field:SetPoint("RIGHT",SKC_UIMain[status_border_key],"TOPLEFT",130,-20*idx-10);
 		SKC_UIMain[status_border_key][value].Field:SetText(value..":");
 		-- data
 		SKC_UIMain[status_border_key][value].Data = SKC_UIMain[status_border_key]:CreateFontString(nil,"ARTWORK");
 		SKC_UIMain[status_border_key][value].Data:SetFontObject("GameFontHighlight");
-		SKC_UIMain[status_border_key][value].Data:SetPoint("CENTER",SKC_UIMain[status_border_key][value].Field,"RIGHT",45,0);
+		SKC_UIMain[status_border_key][value].Data:SetPoint("CENTER",SKC_UIMain[status_border_key][value].Field,"RIGHT",55,0);
 	end
 
 	-- Create filter panel
 	local filter_border_key = CreateUIBorder("Filters",UI_DIMENSIONS.SK_FILTER_WIDTH,UI_DIMENSIONS.SK_FILTER_HEIGHT)
 	-- set position
-	SKC_UIMain[filter_border_key]:SetPoint("TOPLEFT", SKC_UIMain[status_border_key],"BOTTOMLEFT", 0, -22);
+	SKC_UIMain[filter_border_key]:SetPoint("TOPLEFT", SKC_UIMain[status_border_key],"BOTTOMLEFT", 0, UI_DIMENSIONS.SK_FILTER_Y_OFFST);
 	-- create details fields
 	local faction_class;
 	if UnitFactionGroup("player") == "Horde" then faction_class="Shaman" else faction_class="Paladin" end
@@ -4413,6 +4539,8 @@ function SKC_Main:CreateUIMain()
 	table.insert(UISpecialFrames, "SKC_UIMain");
     
 	SKC_UIMain:Hide();
+
+	if GUI_VERBOSE then SKC_Main:Print("NORMAL","CreateUIMain() complete") end
 	return SKC_UIMain;
 end
 
@@ -4425,9 +4553,8 @@ local function EventHandler(self,event,...)
 	elseif event == "ADDON_LOADED" then
 		OnAddonLoad(...);
 	elseif event == "GUILD_ROSTER_UPDATE" then
-		-- Kick off timer to perform guild update and send sync request
+		-- Kick off timer to perform guild update and send sync requests
 		C_Timer.After(1.0,SyncGuildData);
-		C_Timer.After(1.1,LoginSyncCheckSend);
 	elseif event == "GROUP_ROSTER_UPDATE" or event == "PARTY_LOOT_METHOD_CHANGED" then
 		UpdateLiveList();
 	elseif event == "OPEN_MASTER_LOOT_LIST" then
