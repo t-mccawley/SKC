@@ -1,5 +1,5 @@
 # SKC (Suicide Kings Classic)
-A World of Warcraft Classic addon for the [suicide kings loot system](https://wowwiki.fandom.com/wiki/Suicide_Kings). This addon was designed based on the specific variant of SK used by the guild Whiteclaw Clan on Grobbulus [H]. Compared to a standard SK system, the primary differences of this variant is the use of two separate lists, Main SK and Tier SK, as well as a loot prioritization system. SKC fully automates this system. SKC will manage the SK lists in game, synchronize data between all members of a guild, and upon looting of an item, will automatically determine the elligible characters in the raid for that item, query for their decision (SK, roll, or pass), and award the loot based on a configurable loot prioritization.
+A World of Warcraft Classic addon for the [suicide kings loot system](https://wowwiki.fandom.com/wiki/Suicide_Kings). This addon was designed based on the specific variant of SK used by the guild Whiteclaw Clan on Grobbulus [H]. Compared to a standard SK system, the primary differences of this variant is the use of a loot prioritization system as well as utilizing two separate lists, Main SK and Tier SK. SKC fully automates this system. SKC will manage the SK lists in game, synchronize data between all members of a guild, and upon looting of an item, will automatically determine the elligible characters in the raid for that item, query for their decision (SK, roll, or pass), and award the loot based on a configurable loot prioritization.
 
 ![SKC GUI](/media/SKC_GUI.png)
 
@@ -44,16 +44,17 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
     - **Disenchant** (TRUE or FALSE): In the event that everyone passes on this item, TRUE will cause SKC to give the item to the Disenchanter, otherwise given to Guild Banker
     - **Open Roll** (TRUE or FALSE): TRUE enables the "Roll" loot decision option to be selected for the given item, otherwise it is disabled.
 ### Automatic Loot Distribution
+- Once SKC is **Active**, loot may be distributed automatically by SKC (see Addon Status Display below).
 - Sequence of automatic loot distribution:
     1. Master looter of a raid (with SKC installed) opens the master looter GUI for an item
     2. SKC uses the Loot Prio to determine which characters are elligible for the given loot
     3. SKC prompts elligible characters with the possible loot decisions (SK, Roll, or Pass)
-    4. Characters have **10 seconds** to make a decision
+    4. Characters have **30 seconds** to make a decision
     5. SKC collects the decisions and arbitrates the winner based on loot prio
     6. SKC sends the loot to the winner and executes the SK (if necessary)
-    7. SKC logs the SK event
-### Automatic SK Activity Log
-- SKC automatically records all SK changes (manual or automatic) made during a raid
+    7. SKC logs the loot distribution event
+### Automatic Loot Activity Log
+- SKC automatically records all loot distribution events made by the addon during a raid
 - The log is saved until the start of next raid
 - The log is exportable as a CSV (see slash commands)
 ### SK Usage Control
@@ -61,6 +62,15 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
     - **Loot Officers**: In order for SKC to be enabled, a Loot Officer must be a member of the raid. To manage the Loot Officer list, see slash commands.
     - **Active Raids**: In order for SKC to be enabled, the given instance must be found in the Active Raids list. Possible Active Raids can be found in the Appendix.
 ### Addon Status Display
+- The GUI displays a status message to describe the state of SKC. The possible enumerations are:
+    - **Active**: SKC will distribute loot automatically.
+    - **Disabled**: SKC has been manually disabled by the Master Looter
+    - **Inactive (GL)**: SKC is inactive due to either the Guild Leader not yet having installed the addon or not yet logging on to synchronize their data
+    - **Inactive (VER)**: SKC is inactive due to your version of the addon not matching the version of the Guild Leader's
+    - **Inactive (RAID)**: SKC is inactive due to not being a member of a raid
+    - **Inactive (ML)**: SKC is inactive due to not being in a raid with the Master Looter loot distribution method
+    - **Inactive (INS)**: SKC is inactive due to not being in a raid instance specified in the Active Raids list
+    - **Inactive (LO)**: SKC is inactive due to there not being a Loot Officer in the raid
 
 ## FAQ
 ### Why Isn't SKC Active?
