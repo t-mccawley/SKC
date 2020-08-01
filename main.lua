@@ -32,8 +32,8 @@ local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer
 -- verbosity
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
-local COMM_VERBOSE = false; -- prints messages relating to addon communication
-local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
+local COMM_VERBOSE = true; -- prints messages relating to addon communication
+local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
 local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
@@ -2757,7 +2757,6 @@ end
 
 local function ActivateSKC()
 	-- master control for wheter or not loot is managed with SKC
-	local active_prev = SKC_Status;
 	if not SKC_DB.SKC_Enable then
 		SKC_Status = SKC_STATUS_ENUM.DISABLED;
 	elseif SKC_DB.GuildData:CheckAddonVer() == nil then
@@ -2846,6 +2845,7 @@ local function OnAddonLoad(addon_name)
 		if HARD_DB_RESET then SKC_Main:Print("IMPORTANT","HARD_DB_RESET") end
 		InitGuildSync = true;
 		SKC_DB = {};
+		SKC_DB.SKC_Enable = true;
 	end
 	if SKC_DB.Bench == nil or HARD_DB_RESET then
 		SKC_DB.Bench = SimpleMap:new(nil);
@@ -2865,10 +2865,6 @@ local function OnAddonLoad(addon_name)
 	if SKC_DB.LootOfficers == nil or HARD_DB_RESET then
 		SKC_DB.LootOfficers = SimpleMap:new(nil);
 		SKC_Main:Print("WARN","Initialized LootOfficers");
-	end
-	if SKC_DB == nil or HARD_DB_RESET then
-		SKC_DB.SKC_Enable = nil;
-		SKC_DB.SKC_Enable = true;
 	end
 	if SKC_DB.GuildData == nil or HARD_DB_RESET then
 		SKC_DB.GuildData = nil;
@@ -2930,8 +2926,6 @@ local function OnAddonLoad(addon_name)
 	SKC_DB.LootOfficers = SimpleMap:new(SKC_DB.LootOfficers);
 	-- Addon loaded
 	event_states.AddonLoaded = true;
-	-- Enable / Disable SKC
-	SKC_Main:Enable(SKC_DB.SKC_Enable);
 	-- Update live list
 	UpdateLiveList();
 	return;
@@ -3477,7 +3471,7 @@ local function SyncPushRead(msg)
 	-- Write data to tmp_sync_var first, then given datbase
 	local part, db_name, msg_rem = strsplit(",",msg,3);
 	if db_name ~= "GuildData" and not SKC_DB.GuildData:CheckAddonVer() then
-		if COMM_VERBOSE then 
+		if COMM_VERBOSE and part == "INIT" then 
 			SKC_Main:Print("ERROR","Rejected SyncPushRead due to addon version");
 		end
 		event_states.SyncCompleted[db_name] = true;
@@ -3804,8 +3798,10 @@ function SKC_Main:ToggleUIMain(force_show)
 end
 
 function SKC_Main:Enable(enable_flag)
+	-- primary manual control over SKC
+	-- only can be changed my ML
+	if not SKC_Main:isML() then return end
 	SKC_DB.SKC_Enable = enable_flag;
-	SKC_Main:RefreshStatus();
 	SKC_Main:RefreshStatus();
 	return;
 end
