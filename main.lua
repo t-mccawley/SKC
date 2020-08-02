@@ -18,7 +18,7 @@ local SKC_LootGUI; -- Loot GUI
 --------------------------------------
 local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = nil; -- name of faux ML override master looter permissions
-local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
+local GL_OVRD = nil; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
@@ -37,7 +37,7 @@ local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
-local ADDON_VERSION = "v0.3-beta";
+local ADDON_VERSION = "v0.4-beta";
 local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
 local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
