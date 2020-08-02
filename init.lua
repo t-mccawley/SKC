@@ -1,4 +1,6 @@
 local _, core = ...; -- Namespace
+local not_gl_error_msg = "You must be Guild Leader to do that";
+local not_ml_error_msg = "You must be Master Looter to do that";
 --------------------------------------
 -- Custom Slash Command
 --------------------------------------
@@ -12,41 +14,41 @@ core.commands = {
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - Lists all available slash commands");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - Toggles GUI");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ver|r - Shows addon version");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item link/name>|r - Displays loot prio for given item");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio|r - Displays the number of items in saved loot prio");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - Displays bench");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid show|r - Display list of raids for which SKC is active");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer show|r - Display list of guild members who enable SKC");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export sk log (CSV) for most recent raid");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export current sk lists (CSV)");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets SKC data");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc at|r - Displays the current Activity Threshold in days");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lp|r - Displays the number of items in the Loot Prio database");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lp <item link/name>|r - Displays Loot Prio for given item");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc b show|r - Displays the Bench");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ai show|r - Displays Active Instances");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lo show|r - Displays Loot Officers");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export (CSV) sk log for most recent raid");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export (CSV) current sk lists");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets local SKC data");
     if core.SKC_Main:isML() then
       core.SKC_Main:Print("NORMAL","|cff"..title_color.."Master Looter Only:|r");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench add <character name>|r - Adds character to bench");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench remove <character name>|r - Removes character from bench");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench clear|r - Clears bench");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc b add <character name>|r - Adds character to the Bench");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc b remove <character name>|r - Removes character from the Bench");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc b clear|r - Clears the Bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - Enables loot distribution with SKC");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - Disables loot distribution with SKC");
     end
     if core.SKC_Main:isGL() then
       core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader Only:|r");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity|r - Displays the current inactivity threshold in days");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - Sets inactivity threshold to # days");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio init|r - Initialze loot prio with a CSV");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc <MSK/TSK> init|r - Initialze sk list with a CSV");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid add <raid acro>|r - Adds raid to Active Raids list");      
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid remove <raid acro>|r - Removes raid from Active Raids list");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid clear|r - Clears Active Raids list");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer add <name>|r - Adds name to Loot Officers list");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer remove <name>|r - Removes name from Loot Officers list");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer clear|r - Clears Loot Officers list");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc at <#>|r - Sets Activity Threshold to # days");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lp init|r - Initialze Loot Prio with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc <msk/tsk> init|r - Initialze SK List with a CSV");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ai add <acro>|r - Adds instance to Active Instances");      
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ai remove <acro>|r - Removes instance from Active Instances");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ai clear|r - Clears Active Instances");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lo add <name>|r - Adds name to Loot Officers");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lo remove <name>|r - Removes name from Loot Officers");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lo clear|r - Clears Loot Officers");
     end
 		print(" ");
   end,
   ["ver"] = function()
     core.SKC_Main:PrintVersion(); 
   end,
-  ["prio"] = function(...)
+  ["lp"] = function(...)
     local itemName = nil;
     for idx,arg in ipairs({...}) do
       if idx == 1 then
@@ -57,7 +59,10 @@ core.commands = {
     end
     -- check if want to init
     if itemName == "init" then
-      if not core.SKC_Main:isGL() then return end
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+        return;
+      end
       -- Initializes the loot prio with a CSV pasted into a window
       core.SKC_Main:CSVImport("Loot Priority Import"); 
       return;
@@ -89,87 +94,132 @@ core.commands = {
     -- resets and re-syncs data
     core.SKC_Main:ResetData();
   end,
-  ["bench"] = {
+  ["b"] = {
     ["show"] = function()
       core.SKC_Main:SimpleListShow("Bench");
     end,
     ["add"] = function(element)
-      if not core.SKC_Main:isML() then return end
+      if not core.SKC_Main:isML() then
+        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+        return;
+      end
       core.SKC_Main:SimpleListAdd("Bench",element);
     end,
     ["remove"] = function(element)
-      if not core.SKC_Main:isML() then return end
+      if not core.SKC_Main:isML() then
+        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+        return;
+      end
       core.SKC_Main:SimpleListRemove("Bench",element);
     end,
     ["clear"] = function()
-      if not core.SKC_Main:isML() then return end
+      if not core.SKC_Main:isML() then
+        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+        return;
+      end
       core.SKC_Main:SimpleListClear("Bench");
     end,
   },
-  ["raid"] = {
+  ["ai"] = {
     ["show"] = function()
       core.SKC_Main:SimpleListShow("ActiveRaids");
     end,
     ["add"] = function(element)
-      if not core.SKC_Main:isGL() then return end
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+        return;
+      end
       core.SKC_Main:SimpleListAdd("ActiveRaids",element);
     end,
     ["remove"] = function(element)
-      if not core.SKC_Main:isGL() then return end
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+        return;
+      end
       core.SKC_Main:SimpleListRemove("ActiveRaids",element);
     end,
     ["clear"] = function()
-      if not core.SKC_Main:isGL() then return end
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+        return;
+      end
       core.SKC_Main:SimpleListClear("ActiveRaids");
     end,
   },
-  ["officer"] = {
+  ["lo"] = {
     ["show"] = function()
       core.SKC_Main:SimpleListShow("LootOfficers");
     end,
     ["add"] = function(element)
-      if not core.SKC_Main:isGL() then return end
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+        return;
+      end
       core.SKC_Main:SimpleListAdd("LootOfficers",element);
     end,
     ["remove"] = function(element)
-      if not core.SKC_Main:isGL() then return end
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+        return;
+      end
       core.SKC_Main:SimpleListRemove("LootOfficers",element);
     end,
     ["clear"] = function()
-      if not core.SKC_Main:isGL() then return end
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+        return;
+      end
       core.SKC_Main:SimpleListClear("LootOfficers");
     end,
   },
   ["enable"] = function()
-    if not core.SKC_Main:isML() then return end
+    if not core.SKC_Main:isML() then
+      core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+      return;
+    end
     core.SKC_Main:Enable(true);
   end,
   ["disable"] = function()
-    if not core.SKC_Main:isML() then return end
+    if not core.SKC_Main:isML() then
+      core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+      return;
+    end
     core.SKC_Main:Enable(false);
   end,
-  ["activity"] = function(new_thresh)
-    if not core.SKC_Main:isGL() then return end
+  ["at"] = function(new_thresh)
     new_thresh = tonumber(new_thresh);
     if new_thresh == nil then
       core.SKC_Main:Print("NORMAL","Activity threshold is "..SKC_DB.GuildData:GetActivityThreshold().." days")
-    elseif new_thresh <= 90 then
+      return;
+    end
+    if not core.SKC_Main:isGL() then
+      core.SKC_Main:Print("ERROR",not_gl_error_msg);
+      return;
+    end
+    if new_thresh <= 90 then
       SKC_DB.GuildData:SetActivityThreshold(new_thresh);
       core.SKC_Main:Print("NORMAL","Activity threshold set to "..new_thresh.." days")
     else
       core.SKC_Main:Print("ERROR","Must input a number less than 90 days")
     end
+    return;
   end,
-  ["MSK"] = {
+  ["msk"] = {
     ["init"] = function()
-      if not core.SKC_Main:isGL() then return end
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+        return;
+      end
       -- Initializes the specified SK list with a CSV pasted into a window
       core.SKC_Main:CSVImport("SK List Import","MSK");
     end,
   },
-  ["TSK"] = {
+  ["tsk"] = {
     ["init"] = function()
-      if not core.SKC_Main:isGL() then return end
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+        return;
+      end
       -- Initializes the specified SK list with a CSV pasted into a window
       core.SKC_Main:CSVImport("SK List Import","TSK");
     end,

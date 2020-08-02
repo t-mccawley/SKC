@@ -18,7 +18,7 @@ local SKC_LootGUI; -- Loot GUI
 --------------------------------------
 local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = nil; -- name of faux ML override master looter permissions
-local GL_OVRD = nil; -- name of faux GL to override guild leader permissions
+local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
@@ -726,6 +726,8 @@ local LOG_OPTIONS = {
 
 local RAID_NAME_MAP = {
 	RFC = "Ragefire Chasm",
+	WC = "Wailing Caverns",
+	VC = "The Deadmines",
 	ONY = "Onyxia's Lair",
 	MC = "Molten Core",
 	BWL = "Blackwing Lair",
@@ -768,7 +770,7 @@ local SKC_STATUS_ENUM = {
 	},
 	INACTIVE_INS = {
 		val = 6,
-		text = "Inactive (INS)",
+		text = "Inactive (AI)",
 		color = {1,0,0},
 	},
 	INACTIVE_LO = {
@@ -3559,9 +3561,6 @@ local function CreateUICSV(name,import_btn)
 	-- set framel level and hide
 	SKC_UICSV[name]:SetFrameLevel(4);
 	SKC_UICSV[name]:Hide();
-
-	-- make closable with esc
-	table.insert(UISpecialFrames, name);
 
 	return SKC_UICSV[name];
 end

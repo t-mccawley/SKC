@@ -60,7 +60,7 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
 ### SK Usage Control
 - The guild leader can control the usage of SKC as a loot distribution system through the following means:
     - **Loot Officers**: In order for SKC to be enabled, a Loot Officer must be a member of the raid. To manage the Loot Officer list, see slash commands.
-    - **Active Raids**: In order for SKC to be enabled, the given instance must be found in the Active Raids list. Possible Active Raids can be found in the Appendix.
+    - **Active Instances**: In order for SKC to be enabled, the given instance must be found in the Active Instances list. Possible Active Instances can be found in the Appendix.
 ### Addon Status Display
 - The GUI displays a status message to describe the state of SKC. The possible enumerations are:
     - **Active**: SKC will distribute loot automatically.
@@ -69,8 +69,8 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
     - **Inactive (VER)**: SKC is inactive due to your version of the addon not matching the version of the Guild Leader's
     - **Inactive (RAID)**: SKC is inactive due to not being a member of a raid
     - **Inactive (ML)**: SKC is inactive due to not being in a raid with the Master Looter loot distribution method
-    - **Inactive (INS)**: SKC is inactive due to not being in a raid instance specified in the Active Raids list
-    - **Inactive (LO)**: SKC is inactive due to there not being a Loot Officer in the raid
+    - **Inactive (AI)**: SKC is inactive due to not being in an instance specified in the Active Instances
+    - **Inactive (LO)**: SKC is inactive due to the Master Looter not being a Loot Officer
 
 ## FAQ
 ### Why Isn't SKC Active?
@@ -92,33 +92,33 @@ Some slash commands are protected by character privelages, see the available sla
 - `/skc help`: Lists all available slash commands
 - `/skc`: Toggles GUI
 - `/skc ver`: Shows addon version
-- `/skc prio <item link/name>`: Displays loot prio for given item
-- `/skc prio`: Displays the number of items in saved loot prio
-- `/skc bench show`: Displays bench
-- `/skc export log`: Export sk log (CSV) for most recent raid
-- `/skc export sk`: Export current sk lists (CSV)
-- `/skc reset`: Resets SKC data
+- `/skc at`: Displays the current Activity Threshold in days
+- `/skc lp`: Displays the number of items in the Loot Prio database
+- `/skc lp <item link/name>`: Displays Loot Prio for given item
+- `/skc b show`: Displays the Bench
+- `/skc ai show`: Displays Active Instances
+- `/skc lo show`: Displays Loot Officers
+- `/skc export log`: Export (CSV) sk log for most recent raid
+- `/skc export sk`: Export (CSV) current sk lists
+- `/skc reset`: Resets local SKC data
 
-### Master Looter Only
-- `/skc bench add <character name>`: Adds character to bench
-- `/skc bench remove <character name>`: Removes character from bench
-- `/skc bench clear`: Clears bench
+### Master Looter Only      
+- `/skc b add <character name>`: Adds character to the Bench
+- `/skc b remove <character name>`: Removes character from the Bench
+- `/skc b clear`: Clears the Bench
 - `/skc enable`: Enables loot distribution with SKC
 - `/skc disable`: Disables loot distribution with SKC
     
 ### Guild Leader Only
-- `/skc activity`: Displays the current inactivity threshold in days
-- `/skc activity <#>`: Sets inactivity threshold to # days
-- `/skc prio init`: Initialze loot prio with a CSV ([link](schema/loot_prio_import_schema.txt) to schema)
-- `/skc <MSK/TSK> init`: Initialze sk list with a CSV (vertical list of names)
-- `/skc raid show`: Display list of raids for which SKC is active
-- `/skc raid add <raid acro>`: Adds raid to Active Raids list
-- `/skc raid remove <raid acro>`: Removes raid from Active Raids list
-- `/skc raid clear`: Clears Active Raids list
-- `/skc officer show`: Display list of guild members who enable SKC
-- `/skc officer add <name>`: Adds name to Loot Officers list
-- `/skc officer remove <name>`: Removes name from Loot Officers list
-- `/skc officer clear`: Clears Loot Officers list
+- `/skc at <#>`: Sets Activity Threshold to # days
+- `/skc lp init`: Initialze Loot Prio with a CSV ([link](schema/loot_prio_import_schema.txt) to schema)
+- `/skc <msk/tsk> init`: Initialze SK List with a CSV (vertical list of names)
+- `/skc ai add <acro>`: Adds instance to Active Instances
+- `/skc ai remove <acro>`: Removes instance from Active Instances
+- `/skc ai clear`: Clears Active Instances
+- `/skc lo add <name>`: Adds name to Loot Officers
+- `/skc lo remove <name>`: Removes name from Loot Officers
+- `/skc lo clear`: Clears Loot Officers
 
 ## Appendix
 Supported Class / Specs:
@@ -155,9 +155,12 @@ Loot Prio Tiers (Prio 1 is highest priority):
 |  16  |   Roll (Alt)  |     OS    |
 |  17  |      Pass     |     -     |
 
-Supported Active Raids:
+Supported Instances:
 |         Raid        | Acronym |
 |:-------------------:|:-------:|
+|    Ragefire Chasm   |   RFC   |
+|   Wailing Caverns   |    WC   |
+|    The Deadmines    |    VC   |
 |    Onyxia's Lair    |   ONY   |
 |     Molten Core     |    MC   |
 |    Blackwing Lair   |   BWL   |
