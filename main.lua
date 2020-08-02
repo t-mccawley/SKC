@@ -39,7 +39,7 @@ local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
-local ADDON_VERSION = "v0.1-beta";
+local ADDON_VERSION = "v0.2-beta";
 local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
 local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
