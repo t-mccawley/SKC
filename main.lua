@@ -2929,9 +2929,10 @@ local function OnAddonLoad(addon_name)
 	if addon_name ~= "SKC" then return end
 	-- Initialize DBs
 	-- first check if databases are only partially created
-	if (SKC_DB.GuildData == nil and (SKC_DB.MSK ~= nil or SKC_DB.TSK ~= nil))
+	if SKC_DB ~= nil 
+	and ((SKC_DB.GuildData == nil and (SKC_DB.MSK ~= nil or SKC_DB.TSK ~= nil))
 	or (SKC_DB.MSK == nil and (SKC_DB.GuildData ~= nil or SKC_DB.TSK ~= nil))
-	or (SKC_DB.TSK == nil and (SKC_DB.MSK ~= nil or SKC_DB.GuildData ~= nil)) then
+	or (SKC_DB.TSK == nil and (SKC_DB.MSK ~= nil or SKC_DB.GuildData ~= nil))) then
 		-- partial sync
 		-- reset
 		SKC_DB = nil;
@@ -3025,6 +3026,8 @@ local function OnAddonLoad(addon_name)
 	event_states.AddonLoaded = true;
 	-- Update live list
 	UpdateLiveList();
+	-- Populate data
+	SKC_Main:PopulateData();
 	return;
 end
 
@@ -3116,7 +3119,7 @@ function SKC_Main:RefreshStatus()
 	elseif CheckIfReadInProgress() then
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Read");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
-	elseif not event_states.LoginSyncCheckTicker:IsCancelled() then
+	elseif event_states.LoginSyncCheckTicker ~= nil and not event_states.LoginSyncCheckTicker:IsCancelled() then
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Waiting ("..event_states.LoginSyncCheckTicker_Ticks..") ...");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	else
@@ -3923,10 +3926,12 @@ end
 --------------------------------------
 function SKC_Main:ToggleUIMain(force_show)
 	if GUI_VERBOSE then SKC_Main:Print("NORMAL","ToggleUIMain()") end
-	local menu = SKC_UIMain or SKC_Main:CreateUIMain();
+	-- create (does nothing if already created)
+	SKC_Main:CreateUIMain();
 	-- Refresh Data
 	SKC_Main:PopulateData();
-	menu:SetShown(force_show or not menu:IsShown());
+	-- make shown
+	SKC_UIMain:SetShown(force_show or not SKC_UIMain:IsShown());
 end
 
 function SKC_Main:Enable(enable_flag)
@@ -4458,9 +4463,10 @@ function SKC_Main:CreateUIMain()
 	-- creates primary GUI for SKC
 	if GUI_VERBOSE then SKC_Main:Print("NORMAL","CreateUIMain() start") end
 
-	-- If addon not yet loaded, reject
-	if not event_states.AddonLoaded then return end
+	-- check if SKC_UIMain already exists
+	if SKC_UIMain ~= nil then return SKC_UIMain end
 
+	-- create main frame and make moveable
     SKC_UIMain = CreateFrame("Frame", "SKC_UIMain", UIParent, "UIPanelDialogTemplate");
 	SKC_UIMain:SetSize(UI_DIMENSIONS.MAIN_WIDTH,UI_DIMENSIONS.MAIN_HEIGHT);
 	SKC_UIMain:SetPoint("CENTER");
@@ -4471,11 +4477,14 @@ function SKC_Main:CreateUIMain()
 	SKC_UIMain:SetScript("OnDragStop", SKC_UIMain.StopMovingOrSizing)
 	SKC_UIMain:SetAlpha(0.8);
 	SKC_UIMain:SetFrameLevel(0);
+
+	-- Make frame closable with esc
+	table.insert(UISpecialFrames, "SKC_UIMain");
 	
 	-- Add title
     SKC_UIMain.Title:ClearAllPoints();
 	SKC_UIMain.Title:SetPoint("LEFT", SKC_UIMainTitleBG, "LEFT", 6, 0);
-	SKC_UIMain.Title:SetText("SKC");
+	SKC_UIMain.Title:SetText("SKC ("..ADDON_VERSION..")");
 
 	-- Create status panel
 	local status_border_key = CreateUIBorder("Status",UI_DIMENSIONS.SKC_STATUS_WIDTH,UI_DIMENSIONS.SKC_STATUS_HEIGHT)
@@ -4659,9 +4668,6 @@ function SKC_Main:CreateUIMain()
 
 	-- Populate Data
 	SKC_Main:PopulateData();
-
-	-- Make frame closable with esc
-	table.insert(UISpecialFrames, "SKC_UIMain");
     
 	SKC_UIMain:Hide();
 
