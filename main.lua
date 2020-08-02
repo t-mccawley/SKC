@@ -3172,6 +3172,8 @@ function SKC_Main:PopulateData(name)
 	SKC_Main:RefreshDetails(name);
 	-- Update SK cards
 	SKC_Main:UpdateSKUI();
+	-- Reset Set SK Flag
+	SetSK_Flag = false;
 	return;
 end
 
