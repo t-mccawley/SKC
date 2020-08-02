@@ -15,6 +15,8 @@ core.commands = {
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio <item link/name>|r - Displays loot prio for given item");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio|r - Displays the number of items in saved loot prio");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc bench show|r - Displays bench");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid show|r - Display list of raids for which SKC is active");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer show|r - Display list of guild members who enable SKC");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export sk log (CSV) for most recent raid");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export current sk lists (CSV)");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets SKC data");
@@ -32,11 +34,9 @@ core.commands = {
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc activity <#>|r - Sets inactivity threshold to # days");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc prio init|r - Initialze loot prio with a CSV");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc <MSK/TSK> init|r - Initialze sk list with a CSV");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid show|r - Display list of raids for which SKC is active");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid add <raid acro>|r - Adds raid to Active Raids list");      
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid remove <raid acro>|r - Removes raid from Active Raids list");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc raid clear|r - Clears Active Raids list");
-      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer show|r - Display list of guild members who enable SKC");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer add <name>|r - Adds name to Loot Officers list");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer remove <name>|r - Removes name from Loot Officers list");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc officer clear|r - Clears Loot Officers list");
@@ -108,7 +108,6 @@ core.commands = {
   },
   ["raid"] = {
     ["show"] = function()
-      if not core.SKC_Main:isGL() then return end
       core.SKC_Main:SimpleListShow("ActiveRaids");
     end,
     ["add"] = function(element)
@@ -126,7 +125,6 @@ core.commands = {
   },
   ["officer"] = {
     ["show"] = function()
-      if not core.SKC_Main:isGL() then return end
       core.SKC_Main:SimpleListShow("LootOfficers");
     end,
     ["add"] = function(element)
