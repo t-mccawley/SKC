@@ -23,8 +23,6 @@ local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
 local CHARS_OVRD = { -- characters which are pushed into GuildData
-	-- Duarte = true,
-	-- Skc = true,
 	-- Freznic = true,
 };
 local ACTIVE_RAID_OVRD = false; -- true if SKC can be used outside of active raids
@@ -727,6 +725,7 @@ local LOG_OPTIONS = {
 };
 
 local RAID_NAME_MAP = {
+	RFC = "Ragefire Chasm",
 	ONY = "Onyxia's Lair",
 	MC = "Molten Core",
 	BWL = "Blackwing Lair",
