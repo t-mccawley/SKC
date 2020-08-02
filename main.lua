@@ -37,7 +37,7 @@ local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
-local ADDON_VERSION = "v0.2-beta";
+local ADDON_VERSION = "v0.3-beta";
 local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
 local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
@@ -2750,7 +2750,7 @@ local function LoginSyncCheckSend()
 	event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_Ticks - 1;
 	if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","LoginSyncCheckSend()") end
 	local db_lsit = {"GuildData","LootPrio","MSK","TSK","Bench","ActiveRaids","LootOfficers"}; -- important that they are requested in this order
-	local msg = "";
+	local msg = ADDON_VERSION;
 	for _,db_name in ipairs(db_lsit) do
 		msg = msg..","..db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
 	end
@@ -2874,15 +2874,10 @@ local function ActivateSKC()
 		if not instance_check then
 			SKC_Status = SKC_STATUS_ENUM.INACTIVE_INS;
 		else
-			-- 6. Loot Officer is in raid
-			local loot_officer_check = LOOT_OFFICER_OVRD;
-			for raidIndex = 1, 40 do
-				local char_name = GetRaidRosterInfo(raidIndex);
-				if SKC_DB.LootOfficers.data[char_name] then
-					loot_officer_check = true;
-					break;
-				end
-			end
+			-- 6. Master Looter is Loot Officer
+			local _, _, masterlooterRaidIndex = GetLootMethod();
+			local master_looter_full_name = GetRaidRosterInfo(masterlooterRaidIndex);
+			local loot_officer_check = LOOT_OFFICER_OVRD or SKC_DB.LootOfficers.data[StripRealmName(master_looter_full_name)];
 			if not loot_officer_check then
 				SKC_Status = SKC_STATUS_ENUM.INACTIVE_LO;
 			else
@@ -3712,11 +3707,16 @@ local function LoginSyncCheckRead(msg,sender)
 		GuildRoster();
 		return;
 	end
-	-- cancel self timer
-	LoginSyncCheckAnswered();
 	-- parse message
 	local db_name, their_edit_ts_raid, their_edit_ts_generic, msg_rem;
-	_, msg_rem = strsplit(",",msg,2);
+	their_addon_ver, msg_rem = strsplit(",",msg,2);
+	-- first check that addon version is valid
+	if their_addon_ver ~= ADDON_VERSION then
+		if COMM_VERBOSE then SKC_Main:Print("ERROR","Rejected LoginSyncCheckRead from "..sender.." due to addon version. Theirs: "..their_addon_ver.." Mine: "..ADDON_VERSION) end
+		return;
+	end
+	-- cancel self timer
+	LoginSyncCheckAnswered();
 	while msg_rem ~= nil do
 		db_name, their_edit_ts_raid, their_edit_ts_generic, msg_rem = strsplit(",",msg_rem,4);
 		their_edit_ts_raid = NumOut(their_edit_ts_raid);
