@@ -806,9 +806,10 @@ local event_states = { -- tracks if certain events have fired
 	AddonLoaded = false,
 	RaidLoggingActive = LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
 	LoginSyncCheckTicker = nil, -- ticker that requests sync each iteration until over or cancelled
-	LoginSyncCheckTicker_Intvl = 1, -- seconds
-	LoginSyncCheckTicker_MaxTicks = 10,
-	LoginSyncCheckTicker_Ticks = 10,
+	LoginSyncCheckTicker_InitDelay = 5, -- seconds
+	LoginSyncCheckTicker_Intvl = 30, -- seconds
+	LoginSyncCheckTicker_MaxTicks = 2,
+	LoginSyncCheckTicker_Ticks = nil,
 	LoginSyncPartner = nil, -- name of sender who answered LoginSyncCheck first
 	ReadInProgress = {
 		MSK = false,
@@ -829,6 +830,7 @@ local event_states = { -- tracks if certain events have fired
 		LootOfficers = false,
 	},
 };
+event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_MaxTicks + 1;
 local loot_manager = { -- collection of temporary variables used by ML to manage loot
 	loot_msg_cnt = {}, -- map of item to count of messages sent to elligible player
 	loot_decision_rcvd = {}, -- map of item to count of loot decisions received
@@ -840,6 +842,26 @@ local DD_State = 0; -- used to track state of drop down menu
 local SetSK_Flag = false; -- true when SK position is being set
 local SKC_Status = SKC_STATUS_ENUM.ACTIVE; -- true when loot distribution is handled by SKC
 local InitGuildSync = false; -- used to control for first time setup
+local DEBUG = {
+	ReadTime = {
+		GuildData = nil,
+		MSK = nil,
+		TSK = nil,
+		LootPrio = nil,
+		Bench = nil,
+		ActiveRaids = nil,
+		LootOfficers = nil,
+	},
+	PushTime = {
+		GuildData = nil,
+		MSK = nil,
+		TSK = nil,
+		LootPrio = nil,
+		Bench = nil,
+		ActiveRaids = nil,
+		LootOfficers = nil,
+	},
+};
 --------------------------------------
 -- CLASS DEFINITIONS / CONSTRUCTORS
 --------------------------------------
@@ -1277,10 +1299,12 @@ end
 
 local function PrintSyncMsgStart(db_name,push)
 	if COMM_VERBOSE then 
-		if push then 
-			SKC_Main:Print("IMPORTANT","Pushing "..db_name.."...");
+		if push then
+			DEBUG.PushTime[db_name] = time();
+			SKC_Main:Print("IMPORTANT","["..DEBUG.PushTime[db_name].."] Pushing "..db_name.."...");
 		else
-			SKC_Main:Print("IMPORTANT","Reading "..db_name.."...");
+			DEBUG.ReadTime[db_name] = time();
+			SKC_Main:Print("IMPORTANT","["..DEBUG.ReadTime[db_name].."] Reading "..db_name.."...");
 		end
 	end
 	if push then
@@ -1294,10 +1318,12 @@ end
 
 local function PrintSyncMsgEnd(db_name,push)
 	if COMM_VERBOSE then 
-		if push then 
-			SKC_Main:Print("IMPORTANT",db_name.." push complete!");
+		if push then
+			DEBUG.PushTime[db_name] = time() - DEBUG.PushTime[db_name];
+			SKC_Main:Print("IMPORTANT","["..DEBUG.PushTime[db_name].."] "..db_name.." push complete!");
 		else
-			SKC_Main:Print("IMPORTANT",db_name.." read complete!");
+			DEBUG.ReadTime[db_name] = time() - DEBUG.ReadTime[db_name];
+			SKC_Main:Print("IMPORTANT","["..DEBUG.ReadTime[db_name].."] "..db_name.." read complete!");
 		end
 	end
 	if push then
@@ -2790,7 +2816,9 @@ local function StartSyncCheckTimer()
 	if event_states.LoginSyncCheckTicker == nil then
 		-- only create ticker if one doesnt exist
 		event_states.LoginSyncCheckTicker = C_Timer.NewTicker(event_states.LoginSyncCheckTicker_Intvl,LoginSyncCheckSend,event_states.LoginSyncCheckTicker_MaxTicks);
-		if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL", "LoginSyncCheckTicker created") end
+		if COMM_VERBOSE then SKC_Main:Print("NORMAL", "LoginSyncCheckTicker created") end
+		-- call function immediately
+		LoginSyncCheckSend();
 	end
 	return;
 end
@@ -2863,7 +2891,9 @@ local function SyncGuildData()
 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL","SyncGuildData success!") end
 	end
 	-- sync with guild
-	StartSyncCheckTimer();
+	if event_states.LoginSyncCheckTicker == nil then
+		C_Timer.After(event_states.LoginSyncCheckTicker_InitDelay,StartSyncCheckTimer);
+	end
 	return;
 end
 
@@ -3146,7 +3176,7 @@ function SKC_Main:RefreshStatus()
 	elseif CheckIfReadInProgress() then
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Reading");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
-	elseif event_states.LoginSyncCheckTicker ~= nil and not event_states.LoginSyncCheckTicker:IsCancelled() then
+	elseif event_states.LoginSyncCheckTicker == nil or not event_states.LoginSyncCheckTicker:IsCancelled() then
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Waiting ("..event_states.LoginSyncCheckTicker_Ticks..") ...");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	else
@@ -3601,8 +3631,8 @@ local function GetLootIdx(lootName)
 end
 
 local function LoginSyncCheckTickerActive()
-	-- returns true of login sync check is still active
-	return(event_states.LoginSyncCheckTicker ~= nil and not event_states.LoginSyncCheckTicker:IsCancelled());
+	-- returns true of login sync check is still active (or hasn't started yet)
+	return(event_states.LoginSyncCheckTicker == nil or not event_states.LoginSyncCheckTicker:IsCancelled());
 end
 
 local function SyncPushRead(msg)
@@ -3718,10 +3748,10 @@ local function SyncPushRead(msg)
 	return;
 end
 
-local function LoginSyncCheckAnswered()
+local function LoginSyncCheckAnswered(savior)
 	-- cancels the LoginSyncCheckTicker
 	if COMM_VERBOSE and LoginSyncCheckTickerActive() then
-		SKC_Main:Print("IMPORTANT","Login Sync Check Answered!");
+		SKC_Main:Print("IMPORTANT","Login Sync Check Answered by "..savior.."!");
 	end
 	if event_states.LoginSyncCheckTicker ~= nil then event_states.LoginSyncCheckTicker:Cancel() end
 	-- update status
@@ -3740,14 +3770,14 @@ local function LoginSyncCheckRead(msg,sender)
 	if sender == UnitName("player") then return end
 	-- check if sender has confirmed that databses are sync'd
 	if msg == "DONE" then
-		LoginSyncCheckAnswered();
+		LoginSyncCheckAnswered(sender);
 		return;
 	end
 	-- ignore checks if self check ticker is still active
 	if LoginSyncCheckTickerActive() then return end
 	-- Check if any read or push is in progress
-	if CheckIfReadInProgress() or CheckIfPushInProgress() then
-		if COMM_VERBOSE then SKC_Main:Print("WARN","Reject LoginSyncCheckRead(), sync already in progress") end
+	if CheckIfReadInProgress() then
+		if COMM_VERBOSE then SKC_Main:Print("WARN","Reject LoginSyncCheckRead(), read already in progress") end
 		return;
 	end
 	-- because wow online status API sucks, need to confirm that we see that the sender is online before responding
@@ -3787,6 +3817,7 @@ local function LoginSyncCheckRead(msg,sender)
 			if COMM_VERBOSE then SKC_Main:Print("WARN","Requesting "..db_name.." from "..sender) end
 			ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",sender,"main_queue");
 			-- important! immediately mark that database as being read in progress to prevent responding to other client before receiving actual data
+			event_states.ReadInProgress[db_name] = true;
 		else
 			-- alert them that already sync'd
 			if COMM_VERBOSE then SKC_Main:Print("NORMAL","Already synchronized "..db_name.." with "..sender) end
@@ -3812,7 +3843,7 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		local part, db_name, msg_rem = strsplit(",",msg,3);
 		if sender ~= UnitName("player") and (event_states.LoginSyncPartner == nil or event_states.LoginSyncPartner == sender) then
 			event_states.LoginSyncPartner = sender;
-			LoginSyncCheckAnswered();
+			LoginSyncCheckAnswered(sender);
 			SyncPushRead(msg);
 		end
 	elseif prefix == CHANNELS.LOGIN_SYNC_PUSH_RQST then
@@ -3820,7 +3851,7 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 			Send (LoginSyncCheckRead): Request a push for given database from target player
 			Read (SyncPushSend - SYNC_PUSH): Respond with push for given database
 		--]]
-		LoginSyncCheckAnswered();
+		LoginSyncCheckAnswered(sender);
 		-- send data out to entire guild (if one person needed it, everyone needs it)
 		SyncPushSend(msg,CHANNELS.SYNC_PUSH,"GUILD",nil);
 	elseif prefix == CHANNELS.SYNC_PUSH then
