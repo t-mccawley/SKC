@@ -18,7 +18,7 @@ local SKC_LootGUI; -- Loot GUI
 --------------------------------------
 local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = nil; -- name of faux ML override master looter permissions
-local GL_OVRD = nil; -- name of faux GL to override guild leader permissions
+local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
@@ -30,14 +30,14 @@ local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer
 -- verbosity
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
-local COMM_VERBOSE = false; -- prints messages relating to addon communication
+local COMM_VERBOSE = true; -- prints messages relating to addon communication
 local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
 local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
 -- LOCAL CONSTANTS
 --------------------------------------
-local ADDON_VERSION = "v0.4-beta";
+local ADDON_VERSION = "v0.5-beta";
 local DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
 local DAYS_TO_SECS = 86400;
 local UI_DIMENSIONS = { -- ui dimensions
@@ -768,14 +768,14 @@ local SKC_STATUS_ENUM = {
 		text = "Inactive (ML)",
 		color = {1,0,0},
 	},
-	INACTIVE_INS = {
+	INACTIVE_LO = {
 		val = 6,
-		text = "Inactive (AI)",
+		text = "Inactive (LO)",
 		color = {1,0,0},
 	},
-	INACTIVE_LO = {
+	INACTIVE_AI = {
 		val = 7,
-		text = "Inactive (LO)",
+		text = "Inactive (AI)",
 		color = {1,0,0},
 	},
 };
@@ -809,15 +809,7 @@ local event_states = { -- tracks if certain events have fired
 	LoginSyncCheckTicker_Intvl = 1, -- seconds
 	LoginSyncCheckTicker_MaxTicks = 10,
 	LoginSyncCheckTicker_Ticks = 10,
-	LoginSyncStatus = { -- map from database name to name of sender who sync'd at login
-		MSK = nil,
-		TSK = nil,
-		GuildData = nil,
-		LootPrio = nil,
-		Bench = nil,
-		ActiveRaids = nil,
-		LootOfficers = nil,
-	},
+	LoginSyncPartner = nil, -- name of sender who answered LoginSyncCheck first
 	ReadInProgress = {
 		MSK = false,
 		TSK = false,
@@ -1116,6 +1108,33 @@ local function CheckActive()
 	return(SKC_Status.val == SKC_STATUS_ENUM.ACTIVE.val);
 end
 
+local function CheckAddonLoaded(verbose)
+	-- checks that addon database has loaded
+	if event_states.AddonLoaded then
+		return true;
+	else
+		if verbose then SKC_Main:Print("ERROR","Addon databases not yet loaded") end
+		return false;
+	end
+end
+
+local function CheckAddonVerMatch()
+	-- returns true if client addon version matches required version
+	-- returns nil if addon version does not yet exist in GuildData
+	if SKC_DB == nil or SKC_DB.GuildData == nil or SKC_DB.AddonVersion == nil then
+		return false;
+	else
+		local gl_addon_ver = SKC_DB.GuildData:GetGLAddonVer();
+		if gl_addon_ver == nil then
+			return false;
+		elseif gl_addon_ver == SKC_DB.AddonVersion then
+			return true;
+		else
+			return false;
+		end
+	end
+end
+
 local function CheckIfReadInProgress()
 	-- return true of any database is currently being read from
 	for db_name,read in pairs(event_states.ReadInProgress) do
@@ -1292,17 +1311,12 @@ end
 
 local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_callback_fn)
 	-- send target database to name
-	if not SKC_DB.GuildData:CheckAddonVer() then
+	if not CheckAddonLoaded() then return end
+	if not CheckAddonVerMatch() then
 		if COMM_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncPushSend due to addon version") end
 		return;
 	end
 	PrintSyncMsgStart(db_name,true);
-	-- if COMM_VERBOSE and game_channel == "WHISPER" then 
-	-- 	local online_target = CheckIfGuildMemberOnline(name);
-	-- 	local online_str = "offline";
-	-- 	if online_target then online_str = "ONLINE" end
-	-- 	SKC_Main:Print("NORMAL",name.." is "..online_str);
-	-- end
 	local db_msg = nil;
 	if db_name == "MSK" or db_name == "TSK" then
 		db_msg = "INIT,"..
@@ -1484,13 +1498,9 @@ function GuildData:SetReqVer(req_ver)
 	return;
 end
 
-function GuildData:CheckAddonVer()
-	-- returns true of client addon version matches required version
-	if self.required_ver == nil then
-		return nil;
-	else
-		return(ADDON_VERSION == self.required_ver);
-	end
+function GuildData:GetGLAddonVer()
+	-- returns guild leader addon version
+	return self.required_ver;
 end
 
 function GuildData:GetFirstGuildRoles()
@@ -2739,24 +2749,26 @@ local function ResetRaidLogging()
 end
 
 local function LoginSyncCheckSend()
-	-- Send timestamps of each database to each online member of GuildData (will sync with first response)
-	-- check if ticker has completed entire duration
-	if event_states.LoginSyncCheckTicker:IsCancelled() or (event_states.LoginSyncCheckTicker_Ticks <= 1) then
-		-- cancel
-		event_states.LoginSyncCheckTicker:Cancel();
-		-- update status
-		SKC_Main:RefreshStatus();
+	-- Send timestamps of each database to each online member of guild (will sync with first response)
+	-- decrement ticker
+	event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_Ticks - 1;
+	-- Reject if addon database has not yet loaded
+	if not CheckAddonLoaded(COMM_VERBOSE) then
+		if COMM_VERBOSE then SKC_Main:Print("WARN","Reject LoginSyncCheckSend()") end
 		return;
 	end
-	-- increment ticker
-	event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_Ticks - 1;
 	if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","LoginSyncCheckSend()") end
 	local db_lsit = {"GuildData","LootPrio","MSK","TSK","Bench","ActiveRaids","LootOfficers"}; -- important that they are requested in this order
-	local msg = ADDON_VERSION;
+	local msg = SKC_DB.AddonVersion;
 	for _,db_name in ipairs(db_lsit) do
 		msg = msg..","..db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
 	end
 	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD",nil,"main_queue");
+	-- check if ticker has completed entire duration
+	if event_states.LoginSyncCheckTicker_Ticks <= 0 then
+		-- cancel
+		event_states.LoginSyncCheckTicker:Cancel();
+	end
 	-- update status
 	SKC_Main:RefreshStatus();
 	return;
@@ -2785,6 +2797,10 @@ end
 
 local function SyncGuildData()
 	-- synchronize GuildData with guild roster
+	if not CheckAddonLoaded(COMM_VERBOSE) then
+		if COMM_VERBOSE then SKC_Main:Print("WARN","Reject SyncGuildData()") end
+		return;
+	end
 	if event_states.ReadInProgress.GuildData or event_states.PushInProgress.GuildData then
 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, sync in progress") end
 		return;
@@ -2843,7 +2859,7 @@ local function SyncGuildData()
 			InitGuildSync = false;
 		end
 		-- set required version to current version
-		SKC_DB.GuildData:SetReqVer(ADDON_VERSION);
+		SKC_DB.GuildData:SetReqVer(SKC_DB.AddonVersion);
 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL","SyncGuildData success!") end
 	end
 	-- sync with guild
@@ -2853,35 +2869,36 @@ end
 
 local function ActivateSKC()
 	-- master control for wheter or not loot is managed with SKC
+	if not CheckAddonLoaded() then return end
 	if not SKC_DB.SKC_Enable then
 		SKC_Status = SKC_STATUS_ENUM.DISABLED;
-	elseif SKC_DB.GuildData:CheckAddonVer() == nil then
+	elseif SKC_DB.GuildData:GetGLAddonVer() == nil then
 		SKC_Status = SKC_STATUS_ENUM.INACTIVE_GL;
-	elseif not SKC_DB.GuildData:CheckAddonVer() then
+	elseif not CheckAddonVerMatch() then
 		SKC_Status = SKC_STATUS_ENUM.INACTIVE_VER;
 	elseif not UnitInRaid("player") then
 		SKC_Status = SKC_STATUS_ENUM.INACTIVE_RAID;
 	elseif GetLootMethod() ~= "master" then
 		SKC_Status = SKC_STATUS_ENUM.INACTIVE_ML;
 	else
-		-- 5. Elligible instance
-		local instance_check = ACTIVE_RAID_OVRD;
-		local raid_name = GetInstanceInfo();
-		for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
-			if raid_name == RAID_NAME_MAP[active_raid_acro] then
-				instance_check = true;
-				break;
-			end
-		end
-		if not instance_check then
-			SKC_Status = SKC_STATUS_ENUM.INACTIVE_INS;
+		-- Master Looter is Loot Officer
+		local _, _, masterlooterRaidIndex = GetLootMethod();
+		local master_looter_full_name = GetRaidRosterInfo(masterlooterRaidIndex);
+		local loot_officer_check = LOOT_OFFICER_OVRD or SKC_DB.LootOfficers.data[StripRealmName(master_looter_full_name)];
+		if not loot_officer_check then
+			SKC_Status = SKC_STATUS_ENUM.INACTIVE_LO;
 		else
-			-- 6. Master Looter is Loot Officer
-			local _, _, masterlooterRaidIndex = GetLootMethod();
-			local master_looter_full_name = GetRaidRosterInfo(masterlooterRaidIndex);
-			local loot_officer_check = LOOT_OFFICER_OVRD or SKC_DB.LootOfficers.data[StripRealmName(master_looter_full_name)];
-			if not loot_officer_check then
-				SKC_Status = SKC_STATUS_ENUM.INACTIVE_LO;
+			-- Elligible instance
+			local instance_check = ACTIVE_RAID_OVRD;
+			local raid_name = GetInstanceInfo();
+			for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
+				if raid_name == RAID_NAME_MAP[active_raid_acro] then
+					instance_check = true;
+					break;
+				end
+			end
+			if not instance_check then
+				SKC_Status = SKC_STATUS_ENUM.INACTIVE_AI;
 			else
 				SKC_Status = SKC_STATUS_ENUM.ACTIVE;
 			end
@@ -2907,6 +2924,7 @@ end
 local function UpdateLiveList()
 	-- Adds every player in raid to live list
 	-- All players update their own local live lists
+	if not CheckAddonLoaded() then return end
 	if RAID_VERBOSE then SKC_Main:Print("IMPORTANT","Updating live list") end
 
 	-- Activate SKC
@@ -2927,31 +2945,38 @@ local function UpdateLiveList()
 	return;
 end
 
+local function HardReset()
+	-- resets the saved variables completely
+	SKC_DB = {};
+	SKC_DB.SKC_Enable = true;
+	SKC_DB.AddonVersion = ADDON_VERSION;
+	InitGuildSync = true;
+	return;
+end
+
 local function OnAddonLoad(addon_name)
 	if addon_name ~= "SKC" then return end
-	-- Initialize DBs
-	-- first check if databases are only partially created
-	if SKC_DB ~= nil 
-	and ((SKC_DB.GuildData == nil and (SKC_DB.MSK ~= nil or SKC_DB.TSK ~= nil))
-	or (SKC_DB.MSK == nil and (SKC_DB.GuildData ~= nil or SKC_DB.TSK ~= nil))
-	or (SKC_DB.TSK == nil and (SKC_DB.MSK ~= nil or SKC_DB.GuildData ~= nil))) then
-		-- partial sync
-		-- reset
-		SKC_DB = nil;
-		SKC_Main:Print("WARN","Partial Sync. Reset data.");
-	end
 	InitGuildSync = false; -- only initialize if hard reset or new install
+	-- Initialize DBs
 	if SKC_DB == nil or HARD_DB_RESET then
-		if HARD_DB_RESET then SKC_Main:Print("IMPORTANT","HARD_DB_RESET") end
-		InitGuildSync = true;
-		SKC_DB = {};
-		SKC_DB.SKC_Enable = true;
+		HardReset();
+		if HARD_DB_RESET then 
+			SKC_Main:Print("IMPORTANT","Hard Reset: Manual reset");
+		else
+			SKC_Main:Print("IMPORTANT","Welcome to SKC!");
+		end
 	end
-	if SKC_DB.Bench == nil or HARD_DB_RESET then
+	-- TODO, remove this once more stable
+	if SKC_DB.AddonVersion == nil or SKC_DB.AddonVersion ~= ADDON_VERSION then
+		-- addon version never set
+		HardReset();
+		SKC_Main:Print("IMPORTANT","Hard Reset: New addon version "..SKC_DB.AddonVersion);
+	end
+	if SKC_DB.Bench == nil then
 		SKC_DB.Bench = SimpleMap:new(nil);
 		SKC_Main:Print("WARN","Initialized Bench");
 	end
-	if SKC_DB.ActiveRaids == nil or HARD_DB_RESET then
+	if SKC_DB.ActiveRaids == nil then
 		SKC_DB.ActiveRaids = SimpleMap:new(nil);
 		-- add defaults
 		for raid_acro_tmp,_ in pairs(RAID_NAME_MAP) do
@@ -2962,38 +2987,38 @@ local function OnAddonLoad(addon_name)
 		SKC_DB.ActiveRaids.raid_ts_generic = 0;
 		SKC_Main:Print("WARN","Initialized ActiveRaids");
 	end
-	if SKC_DB.LootOfficers == nil or HARD_DB_RESET then
+	if SKC_DB.LootOfficers == nil then
 		SKC_DB.LootOfficers = SimpleMap:new(nil);
 		SKC_Main:Print("WARN","Initialized LootOfficers");
 	end
-	if SKC_DB.GuildData == nil or HARD_DB_RESET then
+	if SKC_DB.GuildData == nil then
 		SKC_DB.GuildData = nil;
 		SKC_Main:Print("WARN","Initialized GuildData");
 	end
-	if SKC_DB.LootPrio == nil or HARD_DB_RESET then 
+	if SKC_DB.LootPrio == nil then 
 		SKC_DB.LootPrio = nil;
 		SKC_Main:Print("WARN","Initialized LootPrio");
 	end
-	if SKC_DB.MSK == nil or HARD_DB_RESET then 
+	if SKC_DB.MSK == nil then 
 		SKC_DB.MSK = nil;
 		SKC_Main:Print("WARN","Initialized MSK");
 	end
-	if SKC_DB.TSK == nil or HARD_DB_RESET then 
+	if SKC_DB.TSK == nil then 
 		SKC_DB.TSK = nil;
 		SKC_Main:Print("WARN","Initialized TSK");
 	end
-	if SKC_DB.RaidLog == nil or HARD_DB_RESET then
+	if SKC_DB.RaidLog == nil then
 		SKC_DB.RaidLog = {};
 		SKC_Main:Print("WARN","Initialized RaidLog");
 	end
 	if LOG_ACTIVE_OVRD then
 		ResetRaidLogging();
 	end
-	if SKC_DB.LootManager == nil or HARD_DB_RESET then
+	if SKC_DB.LootManager == nil then
 		SKC_DB.LootManager = nil
 		SKC_Main:Print("WARN","Initialized LootManager");
 	end
-	if SKC_DB.FilterStates == nil or HARD_DB_RESET then
+	if SKC_DB.FilterStates == nil then
 		SKC_DB.FilterStates = {
 			DPS = true,
 			Healer = true,
@@ -3063,7 +3088,7 @@ function SKC_Main:UpdateSKUI()
 	-- populates the SK list
 	if GUI_VERBOSE then SKC_Main:Print("NORMAL","UpdateSKUI() start") end
 	if SKC_UIMain == nil then return end
-	if not event_states.AddonLoaded then return end
+	if not CheckAddonLoaded(COMM_VERBOSE) then return end
 	
 	SKC_Main:HideSKCards();
 
@@ -3116,10 +3141,10 @@ function SKC_Main:RefreshStatus()
 	SKC_UIMain["Status_border"]["Status"].Data:SetText(SKC_Status.text);
 	SKC_UIMain["Status_border"]["Status"].Data:SetTextColor(unpack(SKC_Status.color));
 	if CheckIfPushInProgress() then
-		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Push");
+		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Pushing");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	elseif CheckIfReadInProgress() then
-		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Read");
+		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Reading");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	elseif event_states.LoginSyncCheckTicker ~= nil and not event_states.LoginSyncCheckTicker:IsCancelled() then
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Waiting ("..event_states.LoginSyncCheckTicker_Ticks..") ...");
@@ -3166,8 +3191,9 @@ end
 
 function SKC_Main:PopulateData(name)
 	-- Populates GUI with data if it already exists
-	if SKC_UIMain == nil then return end
 	if GUI_VERBOSE then SKC_Main:Print("NORMAL","PopulateData()") end
+	if not CheckAddonLoaded() then return end
+	if SKC_UIMain == nil then return end
 	-- Update Status
 	SKC_Main:RefreshStatus();
 	-- Refresh details
@@ -3574,10 +3600,18 @@ local function GetLootIdx(lootName)
 	return nil;
 end
 
+local function LoginSyncCheckTickerActive()
+	-- returns true of login sync check is still active
+	return(event_states.LoginSyncCheckTicker ~= nil and not event_states.LoginSyncCheckTicker:IsCancelled());
+end
+
 local function SyncPushRead(msg)
 	-- Write data to tmp_sync_var first, then given datbase
+	if not CheckAddonLoaded() then return end
+	if LoginSyncCheckTickerActive() then return end
 	local part, db_name, msg_rem = strsplit(",",msg,3);
-	if db_name ~= "GuildData" and not SKC_DB.GuildData:CheckAddonVer() then
+	if db_name ~= "GuildData" and not CheckAddonVerMatch() then
+		-- reject any out of date database that isn't GuildData
 		if COMM_VERBOSE and part == "INIT" then 
 			SKC_Main:Print("ERROR","Rejected SyncPushRead due to addon version");
 		end
@@ -3686,7 +3720,7 @@ end
 
 local function LoginSyncCheckAnswered()
 	-- cancels the LoginSyncCheckTicker
-	if COMM_VERBOSE and (event_states.LoginSyncCheckTicker == nil or not event_states.LoginSyncCheckTicker:IsCancelled()) then
+	if COMM_VERBOSE and LoginSyncCheckTickerActive() then
 		SKC_Main:Print("IMPORTANT","Login Sync Check Answered!");
 	end
 	if event_states.LoginSyncCheckTicker ~= nil then event_states.LoginSyncCheckTicker:Cancel() end
@@ -3697,11 +3731,23 @@ end
 
 local function LoginSyncCheckRead(msg,sender)
 	-- Arbitrate based on timestamp to push or pull database
+	-- reject if addon not yet loaded
+	if not CheckAddonLoaded(COMM_VERBOSE) then
+		if COMM_VERBOSE then SKC_Main:Print("WARN","Reject LoginSyncCheckRead()") end
+		return;
+	end
 	-- ignore messages from self
 	if sender == UnitName("player") then return end
-	-- check if databases already sync
+	-- check if sender has confirmed that databses are sync'd
 	if msg == "DONE" then
 		LoginSyncCheckAnswered();
+		return;
+	end
+	-- ignore checks if self check ticker is still active
+	if LoginSyncCheckTickerActive() then return end
+	-- Check if any read or push is in progress
+	if CheckIfReadInProgress() or CheckIfPushInProgress() then
+		if COMM_VERBOSE then SKC_Main:Print("WARN","Reject LoginSyncCheckRead(), sync already in progress") end
 		return;
 	end
 	-- because wow online status API sucks, need to confirm that we see that the sender is online before responding
@@ -3715,20 +3761,19 @@ local function LoginSyncCheckRead(msg,sender)
 	local db_name, their_edit_ts_raid, their_edit_ts_generic, msg_rem;
 	their_addon_ver, msg_rem = strsplit(",",msg,2);
 	-- first check that addon version is valid
-	if their_addon_ver ~= ADDON_VERSION then
-		if COMM_VERBOSE then SKC_Main:Print("ERROR","Rejected LoginSyncCheckRead from "..sender.." due to addon version. Theirs: "..their_addon_ver.." Mine: "..ADDON_VERSION) end
+	if their_addon_ver ~= SKC_DB.AddonVersion then
+		if COMM_VERBOSE then SKC_Main:Print("ERROR","Rejected LoginSyncCheckRead from "..sender.." due to addon version. Theirs: "..their_addon_ver.." Mine: "..SKC_DB.AddonVersion) end
 		return;
 	end
-	-- cancel self timer
-	LoginSyncCheckAnswered();
+	if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","LoginSyncCheckRead() from "..sender) end
 	while msg_rem ~= nil do
+		-- iteratively parse out each db and arbitrate how to sync
 		db_name, their_edit_ts_raid, their_edit_ts_generic, msg_rem = strsplit(",",msg_rem,4);
 		their_edit_ts_raid = NumOut(their_edit_ts_raid);
 		their_edit_ts_generic = NumOut(their_edit_ts_generic);
 		-- get self edit time stamps
 		local my_edit_ts_raid = SKC_DB[db_name].edit_ts_raid;
 		local my_edit_ts_generic = SKC_DB[db_name].edit_ts_generic;
-		if COMM_VERBOSE then SKC_Main:Print("WARN","LoginSyncCheckRead for "..db_name.." from "..sender) end
 		if (my_edit_ts_raid > their_edit_ts_raid) or ( (my_edit_ts_raid == their_edit_ts_raid) and (my_edit_ts_generic > their_edit_ts_generic) ) then
 			-- I have newer RAID data
 			-- OR I have the same RAID data but newer generic data
@@ -3738,10 +3783,12 @@ local function LoginSyncCheckRead(msg,sender)
 		elseif (my_edit_ts_raid < their_edit_ts_raid) or ( (my_edit_ts_raid == their_edit_ts_raid) and (my_edit_ts_generic < their_edit_ts_generic) ) then
 			-- I have older RAID data
 			-- OR I have the same RAID data but older generic data
-			-- --> request their data
+			-- --> request their data (for the whole guild)
 			if COMM_VERBOSE then SKC_Main:Print("WARN","Requesting "..db_name.." from "..sender) end
 			ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",sender,"main_queue");
+			-- important! immediately mark that database as being read in progress to prevent responding to other client before receiving actual data
 		else
+			-- alert them that already sync'd
 			if COMM_VERBOSE then SKC_Main:Print("NORMAL","Already synchronized "..db_name.." with "..sender) end
 			ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,"DONE","WHISPER",sender,"main_queue");
 		end
@@ -3763,9 +3810,9 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 			Read (SyncPushRead): Write given database to player (only accept first push)
 		--]]
 		local part, db_name, msg_rem = strsplit(",",msg,3);
-		if sender ~= UnitName("player") and (event_states.LoginSyncStatus[db_name] == nil or event_states.LoginSyncStatus[db_name] == sender) then
+		if sender ~= UnitName("player") and (event_states.LoginSyncPartner == nil or event_states.LoginSyncPartner == sender) then
+			event_states.LoginSyncPartner = sender;
 			LoginSyncCheckAnswered();
-			event_states.LoginSyncStatus[db_name] = sender;
 			SyncPushRead(msg);
 		end
 	elseif prefix == CHANNELS.LOGIN_SYNC_PUSH_RQST then
@@ -3774,7 +3821,8 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 			Read (SyncPushSend - SYNC_PUSH): Respond with push for given database
 		--]]
 		LoginSyncCheckAnswered();
-		SyncPushSend(msg,CHANNELS.SYNC_PUSH,"WHISPER",sender);
+		-- send data out to entire guild (if one person needed it, everyone needs it)
+		SyncPushSend(msg,CHANNELS.SYNC_PUSH,"GUILD",nil);
 	elseif prefix == CHANNELS.SYNC_PUSH then
 		--[[ 
 			Send (SyncPushSend - SYNC_PUSH): Push given database to target player
@@ -4068,7 +4116,9 @@ function SKC_Main:SimpleListClear(list_name)
 end
 
 function SKC_Main:PrintVersion()
-	SKC_Main:Print("NORMAL",ADDON_VERSION);
+	if SKC_DB.AddonVersion ~= nil then
+		SKC_Main:Print("NORMAL",SKC_DB.AddonVersion);
+	end
 	return;
 end
 
@@ -4685,7 +4735,7 @@ local function EventHandler(self,event,...)
 	elseif event == "ADDON_LOADED" then
 		OnAddonLoad(...);
 	elseif event == "GUILD_ROSTER_UPDATE" then
-		-- Kick off timer to perform guild update and send sync requests
+		-- Sync GuildData (if GL) and create ticker to send sync requests
 		SyncGuildData();
 	elseif event == "GROUP_ROSTER_UPDATE" or event == "PARTY_LOOT_METHOD_CHANGED" then
 		UpdateLiveList();
