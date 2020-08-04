@@ -18,7 +18,7 @@ local SKC_LootGUI; -- Loot GUI
 --------------------------------------
 local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = nil; -- name of faux ML override master looter permissions
-local GL_OVRD = nil; -- name of faux GL to override guild leader permissions
+local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
@@ -30,8 +30,8 @@ local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer
 -- verbosity
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
-local COMM_VERBOSE = false; -- prints messages relating to addon communication
-local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
+local COMM_VERBOSE = true; -- prints messages relating to addon communication
+local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
 local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
@@ -4195,6 +4195,18 @@ end
 
 local function OnClick_ImportLootPrio()
 	-- imports loot prio CSV to database
+	if SKC_UIMain == nil then
+		SKC_Main:Print("ERROR","Waiting for GUI to be created");
+		return;
+	end
+	if not CheckAddonLoaded() then 
+		SKC_Main:Print("ERROR","Waiting for addon data to fully load");
+		return;
+	end
+	if CheckIfReadInProgress() or CheckIfPushInProgress() then
+		SKC_Main:Print("ERROR","Waiting for sync to complete");
+		return;
+	end
 	-- reset database
 	SKC_DB.LootPrio = LootPrio:new(nil);
 	-- get text
@@ -4315,6 +4327,19 @@ end
 
 local function OnClick_ImportSKList(sk_list)
 	-- imports SK list CSV into database
+	-- confirm that addon loaded and ui created
+	if SKC_UIMain == nil then
+		SKC_Main:Print("ERROR","Waiting for GUI to be created");
+		return;
+	end
+	if not CheckAddonLoaded() then 
+		SKC_Main:Print("ERROR","Waiting for addon data to fully load");
+		return;
+	end
+	if CheckIfReadInProgress() or CheckIfPushInProgress() then
+		SKC_Main:Print("ERROR","Waiting for sync to complete");
+		return;
+	end
 	-- get text
 	local name = "SK List Import";
 	local txt = SKC_UICSV[name].EditBox:GetText();
@@ -4371,6 +4396,10 @@ local function OnClick_ImportSKList(sk_list)
 	SKC_DB[sk_list].edit_ts_generic = 0;
 	SKC_DB[sk_list].edit_ts_raid = 0;
 	SKC_Main:Print("NORMAL",sk_list.." imported");
+	-- Set GUI to given SK list
+	SKC_UIMain["sk_list_border"].Title.Text:SetText(sk_list);
+	-- Refresh data
+	SKC_Main:PopulateData();
 	-- push new sk list to guild
 	SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
 	SKC_UICSV[name]:Hide();
