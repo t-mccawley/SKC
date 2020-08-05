@@ -18,7 +18,7 @@ local SKC_LootGUI; -- Loot GUI
 --------------------------------------
 local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = nil; -- name of faux ML override master looter permissions
-local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
+local GL_OVRD = nil; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
@@ -807,8 +807,8 @@ local event_states = { -- tracks if certain events have fired
 	RaidLoggingActive = LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
 	LoginSyncCheckTicker = nil, -- ticker that requests sync each iteration until over or cancelled
 	LoginSyncCheckTicker_InitDelay = 5, -- seconds
-	LoginSyncCheckTicker_Intvl = 30, -- seconds
-	LoginSyncCheckTicker_MaxTicks = 2,
+	LoginSyncCheckTicker_Intvl = 10, -- seconds between function calls
+	LoginSyncCheckTicker_MaxTicks = 99, -- 1 tick = 1 sec
 	LoginSyncCheckTicker_Ticks = nil,
 	LoginSyncPartner = nil, -- name of sender who answered LoginSyncCheck first
 	ReadInProgress = {
@@ -2774,18 +2774,21 @@ local function LoginSyncCheckSend()
 	-- Send timestamps of each database to each online member of guild (will sync with first response)
 	-- decrement ticker
 	event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_Ticks - 1;
-	-- Reject if addon database has not yet loaded
-	if not CheckAddonLoaded(COMM_VERBOSE) then
-		if COMM_VERBOSE then SKC_Main:Print("WARN","Reject LoginSyncCheckSend()") end
-		return;
+	-- check if interval met
+	if event_states.LoginSyncCheckTicker_Ticks % event_states.LoginSyncCheckTicker_Intvl == 0 then
+		-- Reject if addon database has not yet loaded
+		if not CheckAddonLoaded(COMM_VERBOSE) then
+			if COMM_VERBOSE then SKC_Main:Print("WARN","Reject LoginSyncCheckSend()") end
+			return;
+		end
+		if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","LoginSyncCheckSend()") end
+		local db_lsit = {"GuildData","LootPrio","MSK","TSK","Bench","ActiveRaids","LootOfficers"}; -- important that they are requested in this order
+		local msg = SKC_DB.AddonVersion;
+		for _,db_name in ipairs(db_lsit) do
+			msg = msg..","..db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
+		end
+		ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD",nil,"main_queue");
 	end
-	if COMM_VERBOSE then SKC_Main:Print("IMPORTANT","LoginSyncCheckSend()") end
-	local db_lsit = {"GuildData","LootPrio","MSK","TSK","Bench","ActiveRaids","LootOfficers"}; -- important that they are requested in this order
-	local msg = SKC_DB.AddonVersion;
-	for _,db_name in ipairs(db_lsit) do
-		msg = msg..","..db_name..","..NilToStr(SKC_DB[db_name].edit_ts_raid)..","..NilToStr(SKC_DB[db_name].edit_ts_generic);
-	end
-	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_CHECK,msg,"GUILD",nil,"main_queue");
 	-- check if ticker has completed entire duration
 	if event_states.LoginSyncCheckTicker_Ticks <= 0 then
 		-- cancel
@@ -2796,7 +2799,7 @@ local function LoginSyncCheckSend()
 	return;
 end
 
-local function UpdatedActivity(name)
+local function UpdateActivity(name)
 	-- check if activity exceeds threshold and updates if different
 	local activity = "Inactive";
 	if SKC_DB.GuildData:CheckActivity(name) then activity = "Active" end
@@ -2811,7 +2814,7 @@ local function StartSyncCheckTimer()
 	-- once responded to, ticker is cancelled
 	if event_states.LoginSyncCheckTicker == nil then
 		-- only create ticker if one doesnt exist
-		event_states.LoginSyncCheckTicker = C_Timer.NewTicker(event_states.LoginSyncCheckTicker_Intvl,LoginSyncCheckSend,event_states.LoginSyncCheckTicker_MaxTicks);
+		event_states.LoginSyncCheckTicker = C_Timer.NewTicker(1,LoginSyncCheckSend,event_states.LoginSyncCheckTicker_MaxTicks);
 		if COMM_VERBOSE then SKC_Main:Print("NORMAL", "LoginSyncCheckTicker created") end
 		-- call function immediately
 		LoginSyncCheckSend();
@@ -2861,7 +2864,7 @@ local function SyncGuildData()
 					if not InitGuildSync then SKC_Main:Print("NORMAL",name.." added to databases") end
 				end
 				-- check activity level and update
-				UpdatedActivity(name);
+				UpdateActivity(name);
 			end
 		end
 		-- Scan guild data and remove players
@@ -3103,6 +3106,20 @@ local function OnMouseWheel_ScrollFrame(self,delta)
     return
 end
 
+local function CheckSKinGuildData(sk_list,sk_list_data)
+	-- Check that every character in SK list is also in GuildData
+	if sk_list_data == nil then
+		sk_list_data = SKC_DB[sk_list]:ReturnList();
+	end
+	for pos,name in ipairs(sk_list_data) do
+		if not SKC_DB.GuildData:Exists(name) then
+			if COMM_VERBOSE then SKC_Main:Print("WARN",name.." in "..sk_list.." but not in GuildData") end
+			return false;
+		end
+	end
+	return true;
+end
+
 function SKC_Main:HideSKCards()
 	-- Hide all cards
 	if SKC_UIMain == nil then return end
@@ -3122,11 +3139,16 @@ function SKC_Main:UpdateSKUI()
 	
 	SKC_Main:HideSKCards();
 
-	-- Populate non filtered cards
+	-- Fetch SK list
 	local sk_list = SKC_UIMain["sk_list_border"].Title.Text:GetText();
 	local print_order = SKC_DB[sk_list]:ReturnList();
+
+	-- Confirm that every character in SK list is also in GuildData
+	if not CheckSKinGuildData(sk_list,print_order) then return end
+
+	-- Populate non filtered cards
 	local idx = 1;
-	for key,name in ipairs(print_order) do
+	for pos,name in ipairs(print_order) do
 		local class_tmp = SKC_DB.GuildData:GetData(name,"Class");
 		local raid_role_tmp = SKC_DB.GuildData:GetData(name,"Raid Role");
 		local status_tmp = SKC_DB.GuildData:GetData(name,"Status");
@@ -3138,8 +3160,8 @@ function SKC_Main:UpdateSKUI()
 		   SKC_DB.FilterStates[status_tmp] and
 		   SKC_DB.FilterStates[activity_tmp] and
 		   (live_tmp or (not live_tmp and not SKC_DB.FilterStates.Live)) then
-			-- Add number text
-			SKC_UIMain.sk_list.NumberFrame[idx].Text:SetText(SKC_DB[sk_list]:GetPos(name));
+			-- Add position number text
+			SKC_UIMain.sk_list.NumberFrame[idx].Text:SetText(pos);
 			SKC_UIMain.sk_list.NumberFrame[idx]:Show();
 			-- Add name text
 			SKC_UIMain.sk_list.NameFrame[idx].Text:SetText(name)
@@ -3177,7 +3199,7 @@ function SKC_Main:RefreshStatus()
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Reading");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	elseif event_states.LoginSyncCheckTicker == nil or not event_states.LoginSyncCheckTicker:IsCancelled() then
-		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Waiting ("..event_states.LoginSyncCheckTicker_Ticks..") ...");
+		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Waiting ("..event_states.LoginSyncCheckTicker_Ticks.."s) ...");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	else
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Complete");
@@ -3211,10 +3233,10 @@ function SKC_Main:RefreshDetails(name)
 			end
 		end
 		-- updated class color
-		local class_color = CLASSES[SKC_DB.GuildData:GetData(name,"Class")].color
+		local class_color = CLASSES[SKC_DB.GuildData:GetData(name,"Class")].color;
 		SKC_UIMain["Details_border"]["Class"].Data:SetTextColor(class_color.r,class_color.g,class_color.b,1.0);
 		-- update last raid time
-		UpdatedActivity(name);
+		UpdateActivity(name);
 	end
 	return;
 end

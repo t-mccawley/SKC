@@ -68,7 +68,7 @@ core.commands = {
       return;
     end
 
-    if SKC_DB == nil SKC_DB.LootPrio == nil then
+    if SKC_DB == nil or SKC_DB.LootPrio == nil then
       SKC_Main:Print("ERROR","LootPrio does not exist");
       return;
     end
