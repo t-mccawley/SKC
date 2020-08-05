@@ -31,7 +31,7 @@ local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
 local COMM_VERBOSE = true; -- prints messages relating to addon communication
-local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
+local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
 local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
@@ -251,10 +251,10 @@ local CLASSES = { -- wow classes
 	Shaman = {
 		text = "",
 		color = {
-			r = 0.96, 
-			g = 0.55,
-			b = 0.73,
-			hex = "F58CBA"
+			r = 0.0, 
+			g = 0.44,
+			b = 0.87,
+			hex = "0070DE"
 		},
 		Specs = {
 			Ele = {
@@ -831,12 +831,7 @@ local event_states = { -- tracks if certain events have fired
 	},
 };
 event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_MaxTicks + 1;
-local loot_manager = { -- collection of temporary variables used by ML to manage loot
-	loot_msg_cnt = {}, -- map of item to count of messages sent to elligible player
-	loot_decision_rcvd = {}, -- map of item to count of loot decisions received
-	loot_distributed = {}, -- map of item to boolean if that item was distributed
-};
-local pending_loot = {}; -- array of item names and links to make loot decision about
+local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due to addon version or malformed messages)
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
 local SetSK_Flag = false; -- true when SK position is being set
@@ -1142,7 +1137,6 @@ end
 
 local function CheckAddonVerMatch()
 	-- returns true if client addon version matches required version
-	-- returns nil if addon version does not yet exist in GuildData
 	if SKC_DB == nil or SKC_DB.GuildData == nil or SKC_DB.AddonVersion == nil then
 		return false;
 	else
@@ -1339,9 +1333,14 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_call
 	-- send target database to name
 	if not CheckAddonLoaded() then return end
 	if not CheckAddonVerMatch() then
-		if COMM_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncPushSend due to addon version") end
+		if COMM_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncPushSend, addon version mismatch from GL") end
 		return;
 	end
+	-- confirm that database is valid to send
+	if SKC_DB[db_name].edit_ts_generic == nil or SKC_DB[db_name].edit_ts_raid == nil then
+		if COMM_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncPushSend, edit timestamp(s) are nil for "..db_name) end
+	end
+	-- initiate send
 	PrintSyncMsgStart(db_name,true);
 	local db_msg = nil;
 	if db_name == "MSK" or db_name == "TSK" then
@@ -1423,6 +1422,7 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_call
 	-- construct callback message
 	local func = function()
 		if end_msg_callback_fn then end_msg_callback_fn() end
+		-- complete send
 		PrintSyncMsgEnd(db_name,true);
 	end
 	ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue",func);
@@ -2725,17 +2725,13 @@ function LootManager:ReadLootDecision(msg,sender)
 	local char_name = StripRealmName(sender);
 	local loot_name, loot_decision = strsplit(",",msg,2);
 	loot_decision = tonumber(loot_decision);
-	-- save decision
-	if LOOT_VERBOSE then 
-		SKC_Main:Print("IMPORTANT","Reading Loot Decision");
-		SKC_Main:Print("WARN","char_name: "..char_name);
-		SKC_Main:Print("WARN","loot_name: "..loot_name);
-		SKC_Main:Print("WARN","loot_decision: "..LOOT_DECISION.TEXT_MAP[loot_decision]);
-	end
+	-- confirm that loot decision is for current loot
 	if self:GetCurrentLootName() ~= loot_name then
 		SKC_Main:Print("ERROR","Received decision for item other than Current Loot");
 		return;
 	end
+	-- print loot decision
+	SKC_Main:Print("NORMAL",char_name.." wants to "..LOOT_DECISION.TEXT_MAP[loot_decision].." for "..loot_name);
 	self.current_loot.decisions[char_name] = loot_decision;
 	-- save current position in corresponding sk list
 	local sk_list = self.current_loot.sk_list;
@@ -2882,6 +2878,7 @@ local function SyncGuildData()
 		if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
 			-- init sync completed
 			SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")");
+			if COMM_VERBOSE then SKC_Main:Print("NORMAL","Generic TS: "..SKC_DB.GuildData.edit_ts_generic..", Raid TS: "..SKC_DB.GuildData.edit_ts_raid) end
 			-- add self (GL) to loot officers by default
 			SKC_DB.LootOfficers:Add(UnitName("player"));
 			InitGuildSync = false;
@@ -2991,10 +2988,11 @@ local function OnAddonLoad(addon_name)
 	if SKC_DB == nil or HARD_DB_RESET then
 		HardReset();
 		if HARD_DB_RESET then 
-			SKC_Main:Print("IMPORTANT","Hard Reset: Manual reset");
-		else
-			SKC_Main:Print("IMPORTANT","Welcome to SKC!");
+			SKC_Main:Print("IMPORTANT","Hard Reset: Manual");
 		end
+		SKC_Main:Print("IMPORTANT","Welcome (/skc help)");
+	else
+		SKC_Main:Print("IMPORTANT","Welcome back (/skc)");
 	end
 	-- TODO, remove this once more stable
 	if SKC_DB.AddonVersion == nil or SKC_DB.AddonVersion ~= ADDON_VERSION then
@@ -3070,6 +3068,8 @@ local function OnAddonLoad(addon_name)
 		};
 		SKC_Main:Print("WARN","Initialized FilterStates");
 	end
+	-- always reset live filter state because its confusing to see a blank list
+	SKC_DB.FilterStates.Live = false;
 	-- Initialize or refresh metatables
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
 	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
@@ -3635,20 +3635,50 @@ local function LoginSyncCheckTickerActive()
 	return(event_states.LoginSyncCheckTicker == nil or not event_states.LoginSyncCheckTicker:IsCancelled());
 end
 
-local function SyncPushRead(msg)
+local function SyncPushRead(msg,sender)
 	-- Write data to tmp_sync_var first, then given datbase
-	if not CheckAddonLoaded() then return end
-	if LoginSyncCheckTickerActive() then return end
+	if not CheckAddonLoaded() then return end -- reject if addon not loaded yet
+	if LoginSyncCheckTickerActive() then return end -- reject if still waiting for login sync
+	-- parse first part of message
 	local part, db_name, msg_rem = strsplit(",",msg,3);
 	if db_name ~= "GuildData" and not CheckAddonVerMatch() then
 		-- reject any out of date database that isn't GuildData
 		if COMM_VERBOSE and part == "INIT" then 
-			SKC_Main:Print("ERROR","Rejected SyncPushRead due to addon version");
+			SKC_Main:Print("ERROR","Rejected SyncPushRead, addon version does not match GL version from "..sender);
 		end
 		return;
 	end
 	if part == "INIT" then
+		-- first check to ensure that incoming data is actually fresher
+		-- get self edit time stamps
+		local my_edit_ts_raid = SKC_DB[db_name].edit_ts_raid;
+		local my_edit_ts_generic = SKC_DB[db_name].edit_ts_generic;
+		-- parse out timestamps
+		local their_edit_ts_generic, their_edit_ts_raid, _ = strsplit(",",msg_rem,3);
+		their_edit_ts_generic = NumOut(their_edit_ts_generic);
+		their_edit_ts_raid = NumOut(their_edit_ts_raid);
+		if their_edit_ts_generic == nil or their_edit_ts_raid == nil then
+			if COMM_VERBOSE then SKC_Main:Print("ERROR","Reject SyncPushRead, got nil timestamp(s) for "..db_name.." from "..sender) end
+			-- blacklist
+			blacklist[sender] = true;
+			return;
+		elseif (my_edit_ts_raid > their_edit_ts_raid) or ( (my_edit_ts_raid == their_edit_ts_raid) and (my_edit_ts_generic > their_edit_ts_generic) ) then
+			-- I have newer RAID data
+			-- OR I have the same RAID data but newer generic data
+			-- --> I have fresher data
+			if COMM_VERBOSE then SKC_Main:Print("ERROR","Reject SyncPushRead, incoming stale data for "..db_name.." from "..sender) end
+			-- blacklist
+			blacklist[sender] = true;
+			return;
+		end
+		-- cleanse blacklist
+		blacklist[sender] = nil;
+		-- data is fresh, begin read
 		PrintSyncMsgStart(db_name,false);
+	elseif blacklist[sender] then
+		-- check if already blacklisted
+		if COMM_VERBOSE and part == "END" then SKC_Main:Print("ERROR","Reject SyncPushRead,"..sender.." was blacklisted for "..db_name) end
+		return;
 	end
 	-- If last part, deep copy to actual database
 	if part == "END" then
@@ -3816,8 +3846,6 @@ local function LoginSyncCheckRead(msg,sender)
 			-- --> request their data (for the whole guild)
 			if COMM_VERBOSE then SKC_Main:Print("WARN","Requesting "..db_name.." from "..sender) end
 			ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOGIN_SYNC_PUSH_RQST,db_name,"WHISPER",sender,"main_queue");
-			-- important! immediately mark that database as being read in progress to prevent responding to other client before receiving actual data
-			event_states.ReadInProgress[db_name] = true;
 		else
 			-- alert them that already sync'd
 			if COMM_VERBOSE then SKC_Main:Print("NORMAL","Already synchronized "..db_name.." with "..sender) end
@@ -3844,7 +3872,7 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		if sender ~= UnitName("player") and (event_states.LoginSyncPartner == nil or event_states.LoginSyncPartner == sender) then
 			event_states.LoginSyncPartner = sender;
 			LoginSyncCheckAnswered(sender);
-			SyncPushRead(msg);
+			SyncPushRead(msg,sender);
 		end
 	elseif prefix == CHANNELS.LOGIN_SYNC_PUSH_RQST then
 		--[[ 
@@ -3861,7 +3889,7 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		--]]
 		-- Reject if message was from self
 		if sender ~= UnitName("player") then
-			SyncPushRead(msg);
+			SyncPushRead(msg,sender);
 		end
 	elseif prefix == CHANNELS.LOOT then
 		--[[ 
@@ -4147,8 +4175,10 @@ function SKC_Main:SimpleListClear(list_name)
 end
 
 function SKC_Main:PrintVersion()
-	if SKC_DB.AddonVersion ~= nil then
+	if SKC_DB ~= nil and SKC_DB.AddonVersion ~= nil then
 		SKC_Main:Print("NORMAL",SKC_DB.AddonVersion);
+	else
+		SKC_Main:Print("ERROR","Addon version missing");
 	end
 	return;
 end
@@ -4195,18 +4225,6 @@ end
 
 local function OnClick_ImportLootPrio()
 	-- imports loot prio CSV to database
-	if SKC_UIMain == nil then
-		SKC_Main:Print("ERROR","Waiting for GUI to be created");
-		return;
-	end
-	if not CheckAddonLoaded() then 
-		SKC_Main:Print("ERROR","Waiting for addon data to fully load");
-		return;
-	end
-	if CheckIfReadInProgress() or CheckIfPushInProgress() then
-		SKC_Main:Print("ERROR","Waiting for sync to complete");
-		return;
-	end
 	-- reset database
 	SKC_DB.LootPrio = LootPrio:new(nil);
 	-- get text
@@ -4327,19 +4345,6 @@ end
 
 local function OnClick_ImportSKList(sk_list)
 	-- imports SK list CSV into database
-	-- confirm that addon loaded and ui created
-	if SKC_UIMain == nil then
-		SKC_Main:Print("ERROR","Waiting for GUI to be created");
-		return;
-	end
-	if not CheckAddonLoaded() then 
-		SKC_Main:Print("ERROR","Waiting for addon data to fully load");
-		return;
-	end
-	if CheckIfReadInProgress() or CheckIfPushInProgress() then
-		SKC_Main:Print("ERROR","Waiting for sync to complete");
-		return;
-	end
 	-- get text
 	local name = "SK List Import";
 	local txt = SKC_UICSV[name].EditBox:GetText();
@@ -4408,6 +4413,23 @@ end
 
 function SKC_Main:CSVImport(name,sk_list)
 	-- error checking + bind function for import button
+	-- confirm that addon loaded and ui created
+	if LoginSyncCheckTickerActive() then
+		SKC_Main:Print("ERROR","Please wait for login sync to complete");
+		return;
+	end
+	if SKC_UIMain == nil then
+		SKC_Main:Print("ERROR","Please wait for GUI to be created");
+		return;
+	end
+	if not CheckAddonLoaded() then 
+		SKC_Main:Print("ERROR","Please wait for addon data to fully load");
+		return;
+	end
+	if CheckIfReadInProgress() then
+		SKC_Main:Print("ERROR","Please wait for read to complete");
+		return;
+	end
 	if name == "Loot Priority Import" then
 		-- instantiate frame
 		local menu = SKC_UICSV[name] or CreateUICSV(name,true);

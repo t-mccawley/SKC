@@ -66,7 +66,14 @@ core.commands = {
       -- Initializes the loot prio with a CSV pasted into a window
       core.SKC_Main:CSVImport("Loot Priority Import"); 
       return;
-    elseif itemName == nil then
+    end
+
+    if SKC_DB == nil SKC_DB.LootPrio == nil then
+      SKC_Main:Print("ERROR","LootPrio does not exist");
+      return;
+    end
+
+    if itemName == nil then
       -- print item count
       SKC_DB.LootPrio:PrintPrio(itemName);
     elseif string.sub(itemName,1,1) == "|" then
