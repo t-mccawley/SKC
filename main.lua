@@ -3199,7 +3199,7 @@ function SKC_Main:RefreshStatus()
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Reading");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	elseif event_states.LoginSyncCheckTicker == nil or not event_states.LoginSyncCheckTicker:IsCancelled() then
-		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Waiting ("..event_states.LoginSyncCheckTicker_Ticks.."s) ...");
+		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Waiting ("..event_states.LoginSyncCheckTicker_Ticks.."s)");
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	else
 		SKC_UIMain["Status_border"]["Synchronization"].Data:SetText("Complete");
