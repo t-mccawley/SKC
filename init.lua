@@ -1,6 +1,8 @@
 local _, core = ...; -- Namespace
 local not_gl_error_msg = "You must be Guild Leader to do that";
 local not_ml_error_msg = "You must be Master Looter to do that";
+local not_valid_slash_msg = "That is not a valid slash command";
+local too_many_inpts_msg = "Too many inputs";
 --------------------------------------
 -- Custom Slash Command
 --------------------------------------
@@ -14,13 +16,13 @@ core.commands = {
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc help|r - Lists all available slash commands");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc|r - Toggles GUI");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ver|r - Shows addon version");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc at|r - Displays the current Activity Threshold in days");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lp|r - Displays the number of items in the Loot Prio database");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lp <item link/name>|r - Displays Loot Prio for given item");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc b show|r - Displays the Bench");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ai show|r - Displays Active Instances");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lo show|r - Displays Loot Officers");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export (CSV) sk log for most recent raid");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc b|r - Displays the Bench");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ai|r - Displays Active Instances");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lo|r - Displays Loot Officers");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc at|r - Displays the current Activity Threshold in days");
+    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export (CSV) loot log for most recent raid");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export (CSV) current sk lists");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets local SKC data");
     if core.SKC_Main:isML() then
@@ -87,98 +89,138 @@ core.commands = {
     end
     return;
   end,
-  ["export"] = {
-    ["log"] = function() 
+  ["export"] = function(inpt)
+    if inpt == "log" then
       -- opens UI to export log
       core.SKC_Main:ExportLog(); 
-    end,
-    ["sk"] = function() 
+    elseif inpt == "sk" then
       -- opens UI to export log
       core.SKC_Main:ExportSK(); 
-    end,
-  },
+    else
+      core.SKC_Main:Print("ERROR",not_valid_slash_msg);
+    end
+  end,
   ["reset"] = function() 
     -- resets and re-syncs data
     core.SKC_Main:ResetData();
   end,
-  ["b"] = {
-    ["show"] = function()
+  ["b"] = function(...)
+    -- parse input
+    local cmd, element;
+    for idx,arg in ipairs({...}) do
+      if idx == 1 then
+        cmd = arg;
+      elseif idx == 2 then
+        element = arg;
+      else
+        core.SKC_Main:Print("ERROR",too_many_inpts_msg); 
+        return;
+      end
+    end
+    -- perform command
+    if cmd == nil then
       core.SKC_Main:SimpleListShow("Bench");
-    end,
-    ["add"] = function(element)
+    elseif cmd == "add" then
       if not core.SKC_Main:isML() then
         core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListAdd("Bench",element);
-    end,
-    ["remove"] = function(element)
+    elseif cmd == "remove" then
       if not core.SKC_Main:isML() then
         core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListRemove("Bench",element);
-    end,
-    ["clear"] = function()
+    elseif cmd == "clear" then
       if not core.SKC_Main:isML() then
         core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListClear("Bench");
-    end,
-  },
-  ["ai"] = {
-    ["show"] = function()
+    else
+      core.SKC_Main:Print("ERROR",not_valid_slash_msg);
+    end
+    return;
+  end,
+  ["ai"] = function(...)
+    -- parse input
+    local cmd, element;
+    for idx,arg in ipairs({...}) do
+      if idx == 1 then
+        cmd = arg;
+      elseif idx == 2 then
+        element = arg;
+      else
+        core.SKC_Main:Print("ERROR",too_many_inpts_msg); 
+        return;
+      end
+    end
+    -- perform command
+    if cmd == nil then
       core.SKC_Main:SimpleListShow("ActiveRaids");
-    end,
-    ["add"] = function(element)
-      if not core.SKC_Main:isGL() then
-        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+    elseif cmd == "add" then
+      if not core.SKC_Main:isML() then
+        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListAdd("ActiveRaids",element);
-    end,
-    ["remove"] = function(element)
-      if not core.SKC_Main:isGL() then
-        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+    elseif cmd == "remove" then
+      if not core.SKC_Main:isML() then
+        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListRemove("ActiveRaids",element);
-    end,
-    ["clear"] = function()
-      if not core.SKC_Main:isGL() then
-        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+    elseif cmd == "clear" then
+      if not core.SKC_Main:isML() then
+        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListClear("ActiveRaids");
-    end,
-  },
-  ["lo"] = {
-    ["show"] = function()
+    else
+      core.SKC_Main:Print("ERROR",not_valid_slash_msg);
+    end
+    return;
+  end,
+  ["lo"] = function(...)
+    -- parse input
+    local cmd, element;
+    for idx,arg in ipairs({...}) do
+      if idx == 1 then
+        cmd = arg;
+      elseif idx == 2 then
+        element = arg;
+      else
+        core.SKC_Main:Print("ERROR",too_many_inpts_msg); 
+        return;
+      end
+    end
+    -- perform command
+    if cmd == nil then
       core.SKC_Main:SimpleListShow("LootOfficers");
-    end,
-    ["add"] = function(element)
-      if not core.SKC_Main:isGL() then
-        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+    elseif cmd == "add" then
+      if not core.SKC_Main:isML() then
+        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListAdd("LootOfficers",element);
-    end,
-    ["remove"] = function(element)
-      if not core.SKC_Main:isGL() then
-        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+    elseif cmd == "remove" then
+      if not core.SKC_Main:isML() then
+        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListRemove("LootOfficers",element);
-    end,
-    ["clear"] = function()
-      if not core.SKC_Main:isGL() then
-        core.SKC_Main:Print("ERROR",not_gl_error_msg);
+    elseif cmd == "clear" then
+      if not core.SKC_Main:isML() then
+        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListClear("LootOfficers");
-    end,
-  },
+    else
+      core.SKC_Main:Print("ERROR",not_valid_slash_msg);
+    end
+    return;
+  end,
   ["enable"] = function()
     if not core.SKC_Main:isML() then
       core.SKC_Main:Print("ERROR",not_ml_error_msg); 
