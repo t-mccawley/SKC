@@ -1120,8 +1120,9 @@ end
 --------------------------------------
 -- HELPER METHODS
 --------------------------------------
-local function CheckActive()
+local function CheckActive(verbose)
 	-- returns true of SKC is active
+	if verbose then SKC_Main:Print("NORMAL","SKC Status: "..SKC_Status.text) end
 	return(SKC_Status.val == SKC_STATUS_ENUM.ACTIVE.val);
 end
 
@@ -2751,7 +2752,7 @@ end
 --------------------------------------
 -- LOCAL FUNCTIONS
 --------------------------------------
-local function ResetRaidLogging()
+local function ResetLootLog()
 	SKC_DB.RaidLog = {};
 	-- Initialize with header
 	WriteToLog(
@@ -2767,7 +2768,26 @@ local function ResetRaidLogging()
 		LOG_OPTIONS["New SK Position"].Text,
 		LOG_OPTIONS["Roll"].Text
 	);
-	SKC_Main:Print("WARN","Initialized RaidLog");
+	return;
+end
+
+local function ManageLootLogging()
+	-- determines if loot loging should be on or off
+	-- activate SKC / update GUI
+	SKC_Main:RefreshStatus();
+	-- check if SKC is active, if so start loot logging
+	local prev_log_state = event_states.RaidLoggingActive;
+	if LOG_ACTIVE_OVRD or CheckActive() then
+		event_states.RaidLoggingActive = true;
+		if not prev_log_state then
+			ResetLootLog();
+			SKC_Main:Print("WARN","Loot logging turned on");
+		end
+	else
+		event_states.RaidLoggingActive = false;
+		if prev_log_state then SKC_Main:Print("WARN","Loot logging turned off") end
+	end
+	return;
 end
 
 local function LoginSyncCheckSend()
@@ -2897,6 +2917,19 @@ local function SyncGuildData()
 	return;
 end
 
+local function CheckActiveInstance()
+	-- returns true of current instance is in ActiveRaids
+	if ACTIVE_RAID_OVRD then return true end
+	if SKC_DB == nil or SKC_DB.ActiveRaids == nil or SKC_DB.ActiveRaids.data == nil then return false end
+	local raid_name = GetInstanceInfo();
+	for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
+		if raid_name == RAID_NAME_MAP[active_raid_acro] then
+			return true;
+		end
+	end
+	return false;
+end
+
 local function ActivateSKC()
 	-- master control for wheter or not loot is managed with SKC
 	if not CheckAddonLoaded() then return end
@@ -2919,15 +2952,7 @@ local function ActivateSKC()
 			SKC_Status = SKC_STATUS_ENUM.INACTIVE_LO;
 		else
 			-- Elligible instance
-			local instance_check = ACTIVE_RAID_OVRD;
-			local raid_name = GetInstanceInfo();
-			for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
-				if raid_name == RAID_NAME_MAP[active_raid_acro] then
-					instance_check = true;
-					break;
-				end
-			end
-			if not instance_check then
+			if not CheckActiveInstance() then
 				SKC_Status = SKC_STATUS_ENUM.INACTIVE_AI;
 			else
 				SKC_Status = SKC_STATUS_ENUM.ACTIVE;
@@ -3042,9 +3067,6 @@ local function OnAddonLoad(addon_name)
 		SKC_DB.RaidLog = {};
 		SKC_Main:Print("WARN","Initialized RaidLog");
 	end
-	if LOG_ACTIVE_OVRD then
-		ResetRaidLogging();
-	end
 	if SKC_DB.LootManager == nil then
 		SKC_DB.LootManager = nil
 		SKC_Main:Print("WARN","Initialized LootManager");
@@ -3082,6 +3104,8 @@ local function OnAddonLoad(addon_name)
 	SKC_DB.Bench = SimpleMap:new(SKC_DB.Bench);
 	SKC_DB.ActiveRaids = SimpleMap:new(SKC_DB.ActiveRaids);
 	SKC_DB.LootOfficers = SimpleMap:new(SKC_DB.LootOfficers);
+	-- Manage loot logging
+	ManageLootLogging();
 	-- Addon loaded
 	event_states.AddonLoaded = true;
 	-- Update live list
@@ -4845,11 +4869,9 @@ local function EventHandler(self,event,...)
 		UpdateLiveList();
 	elseif event == "OPEN_MASTER_LOOT_LIST" then
 		SaveLoot();
-	elseif event == "RAID_INSTANCE_WELCOME" then
-		if not event_states.RaidLoggingActive then
-			event_states.RaidLoggingActive = true;
-			ResetRaidLogging();
-		end
+	elseif event == "PLAYER_ENTERING_WORLD" then
+		if COMM_VERBOSE then SKC_Main:Print("NORMAL","Firing PLAYER_ENTERING_WORLD") end
+		ManageLootLogging();
 	end
 	
 	return;
@@ -4862,5 +4884,5 @@ events:RegisterEvent("GUILD_ROSTER_UPDATE");
 events:RegisterEvent("GROUP_ROSTER_UPDATE");
 events:RegisterEvent("PARTY_LOOT_METHOD_CHANGED");
 events:RegisterEvent("OPEN_MASTER_LOOT_LIST");
-events:RegisterEvent("RAID_INSTANCE_WELCOME");
+events:RegisterEvent("PLAYER_ENTERING_WORLD");
 events:SetScript("OnEvent", EventHandler);
