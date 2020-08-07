@@ -1,9 +1,16 @@
 # SKC (Suicide Kings Classic)
 A World of Warcraft Classic addon for the [suicide kings loot system](https://wowwiki.fandom.com/wiki/Suicide_Kings). This addon was designed based on the specific variant of SK used by the guild Whiteclaw Clan on Grobbulus [H]. Compared to a standard SK system, the primary differences of this variant is the use of a loot prioritization system as well as utilizing two separate lists, Main SK and Tier SK. SKC fully automates this system. SKC will manage the SK lists in game, synchronize data between all members of a guild, and upon looting of an item, will automatically determine the elligible characters in the raid for that item, query for their decision (SK, roll, or pass), and award the loot based on a configurable loot prioritization.
 
+You can download SKC on [CurseForge]((https://www.curseforge.com/wow/addons/skc) and Twitch.
+
 ![SKC GUI](/media/SKC_GUI.png)
 
 ![SKC Loot](/media/SKC_Loot.png)
+
+## TLDR
+- [Guild Member Video Tutorial (TODO)](TODO)
+- [Master Looter Video Tutorial (TODO)](TODO)
+- [Guild Leader Video Tutorial (TODO)](TODO)
 
 ## Features
 ### Simple GUI interface
@@ -11,6 +18,11 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
 - Loot decision GUI opens automatically
 ### Automatic Synchronization
 - SKC automatically synchronizes data in game within guild to ensure that every member has the most up to date SK list, guild data, and loot prio.
+- The Status portion of the main GUI describes the synchronization status. The possible enumeraions are:
+    - **Waiting (#s)**: SKC is waiting for a synchronization response from a guild member. The (#s) is the number of seconds remaining.
+    - **Reading**: SKC is reading data into your addon from another guild member.
+    - **Pushing**: SKC is sending data from your addon to another guild member.
+    - **Complete**: SKC is synchronized with all online guild members.
 ### Two Separate SK Lists 
 - Main SK (MSK): Intended as the primary SK list. More generally can be used for rare items or those that offer a significant upgrade.
 - Tier SK (TSK): Intended for tier set items or those usable by only a speicifc class / role. More generally can be used for common items or those that offer a relatively small upgrade.
@@ -19,14 +31,14 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
 - SKC provides an in game GUI for the Guild Leader to manage details about the guild members
 - Some of these details are used in the automatic loot distribution process.
 - The character specific details are:
-   - **Name**: Character name
-   - **Class**: Character class
-   - **Spec**: Character main raiding spec (available options found in the Appendix) **Editable by Guild Leader**
-   - **Raid Role** (DPS, Healer, Tank): Automatically determined by Spec. Used for filtering of SK list
-   - **Guild Role** (None, Disenchanter, Banker): In the event that everyone passes on a parituclar item, a person with the approriate role would instead be awarded the loot. **Editable by Guild Leader**
-   - **Status** (Main or Alt): Main characters receive prio over Alts if the given item is marked as Reserved **Editable by Guild Leader**
-   - **Activity** (Active or Inactive): Indicates if the character has been to a raid within a given amount of days. The activity threshold is configurable by the guild leader (see more in slash commands seciton) **Editable by Guild Leader**
-   - **Last Raid** (days): Number of days since character was last added to a live list (either by being in a raid or added to bench)
+    - **Name**: Character name
+    - **Class**: Character class
+    - **Spec**: Character main raiding spec (available options found in the Appendix) **Editable by Guild Leader**
+    - **Raid Role** (DPS, Healer, Tank): Automatically determined by Spec. Used for filtering of SK list
+    - **Guild Role** (None, Disenchanter, Banker): In the event that everyone passes on a parituclar item, a person with the approriate role would instead be awarded the loot. **Editable by Guild Leader**
+    - **Status** (Main or Alt): Main characters receive prio over Alts if the given item is marked as Reserved **Editable by Guild Leader**
+    - **Activity** (Active or Inactive): Indicates if the character has been to a raid within a given amount of days. The activity threshold is configurable by the guild leader (see more in  slash commands seciton) **Editable by Guild Leader**
+    - **Last Raid** (days): Number of days since character was last added to a live list (either by being in a raid or added to bench)
 ### Bench / Live List Support
 - Members of a raid are automatically added to the live list
 - Any automatic SKs performed during the raid will drop the character to a position below that of the bottom of the **live** list.
@@ -69,8 +81,8 @@ A World of Warcraft Classic addon for the [suicide kings loot system](https://wo
     - **Inactive (VER)**: SKC is inactive due to your version of the addon not matching the version of the Guild Leader's
     - **Inactive (RAID)**: SKC is inactive due to not being a member of a raid
     - **Inactive (ML)**: SKC is inactive due to not being in a raid with the Master Looter loot distribution method
-    - **Inactive (AI)**: SKC is inactive due to not being in an instance specified in the Active Instances
     - **Inactive (LO)**: SKC is inactive due to the Master Looter not being a Loot Officer
+    - **Inactive (AI)**: SKC is inactive due to not being in an instance specified in the Active Instances
 
 ## FAQ
 ### Why Isn't SKC Active?
@@ -80,8 +92,8 @@ In order for SKC to be active, the following conditions must be met:
 3. Your addon version must match your Guild Leader's addon version.
 4. You must be in a raid.
 5. Your raid must be using the Master Looter distribution method.
-6. You must be in an Active Raid (see SK Usage Control).
-7. Your raid must have a Loot Officer as a member (see SK Usage Control).
+6. Your raid must have a Loot Officer as a member (see SK Usage Control).
+7. You must be in an Active Raid (see SK Usage Control).
 ### Why Isn't the Loot Distribution GUI Appearing?
 SKC automatically synchronizes data between guild members. First check the main GUI to see if SKC is currently synchronizing. Loot distribution will be delayed until synchronization is complete, so just wait a few seconds.
 If loot distribution never starts, it is likely because the item is not in your Loot Prio database, or the elligible class / spec combinations are not members of the raid.
@@ -92,12 +104,12 @@ Some slash commands are protected by character privelages, see the available sla
 - `/skc help`: Lists all available slash commands
 - `/skc`: Toggles GUI
 - `/skc ver`: Shows addon version
-- `/skc at`: Displays the current Activity Threshold in days
 - `/skc lp`: Displays the number of items in the Loot Prio database
 - `/skc lp <item link/name>`: Displays Loot Prio for given item
-- `/skc b show`: Displays the Bench
-- `/skc ai show`: Displays Active Instances
-- `/skc lo show`: Displays Loot Officers
+- `/skc b`: Displays the Bench
+- `/skc ai`: Displays Active Instances
+- `/skc lo`: Displays Loot Officers
+- `/skc at`: Displays the current Activity Threshold in days
 - `/skc export log`: Export (CSV) sk log for most recent raid
 - `/skc export sk`: Export (CSV) current sk lists
 - `/skc reset`: Resets local SKC data

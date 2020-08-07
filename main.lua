@@ -808,7 +808,7 @@ local event_states = { -- tracks if certain events have fired
 	LoginSyncCheckTicker = nil, -- ticker that requests sync each iteration until over or cancelled
 	LoginSyncCheckTicker_InitDelay = 5, -- seconds
 	LoginSyncCheckTicker_Intvl = 10, -- seconds between function calls
-	LoginSyncCheckTicker_MaxTicks = 99, -- 1 tick = 1 sec
+	LoginSyncCheckTicker_MaxTicks = 59, -- 1 tick = 1 sec
 	LoginSyncCheckTicker_Ticks = nil,
 	LoginSyncPartner = nil, -- name of sender who answered LoginSyncCheck first
 	ReadInProgress = {
