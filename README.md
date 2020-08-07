@@ -8,9 +8,9 @@ You can download SKC on [CurseForge]((https://www.curseforge.com/wow/addons/skc)
 ![SKC Loot](/media/SKC_Loot.png)
 
 ## TLDR
-- [Guild Member Video Tutorial (TODO)](TODO)
-- [Master Looter Video Tutorial (TODO)](TODO)
-- [Guild Leader Video Tutorial (TODO)](TODO)
+1. [Introduction + General User Video Tutorial (TODO)](TODO)
+2. [Loot GUI + Master Looter Video Tutorial (TODO)](TODO)
+3. [Guild Leader Video Tutorial (TODO)](TODO)
 
 ## Features
 ### Simple GUI interface
