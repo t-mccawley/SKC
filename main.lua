@@ -835,7 +835,7 @@ local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due 
 local LootTimer = nil; -- current loot timer
 local DD_State = 0; -- used to track state of drop down menu
 local SetSK_Flag = false; -- true when SK position is being set
-local SKC_Status = SKC_STATUS_ENUM.ACTIVE; -- true when loot distribution is handled by SKC
+local SKC_Status = SKC_STATUS_ENUM.INACTIVE_GL; -- SKC status state enumeration
 local InitGuildSync = false; -- used to control for first time setup
 local DEBUG = {
 	ReadTime = {
@@ -2930,7 +2930,7 @@ local function CheckActiveInstance()
 	return false;
 end
 
-local function isLO(name)
+function SKC_Main:isLO(name)
 	-- returns true if given name (current player if nil) is a loot officer
 	if name == nil then name = UnitName("player") end
 	return LOOT_OFFICER_OVRD or SKC_DB.LootOfficers.data[StripRealmName(name)];
@@ -2953,7 +2953,7 @@ local function ActivateSKC()
 		-- Master Looter is Loot Officer
 		local _, _, masterlooterRaidIndex = GetLootMethod();
 		local master_looter_full_name = GetRaidRosterInfo(masterlooterRaidIndex);
-		local loot_officer_check = isLO(master_looter_full_name);
+		local loot_officer_check = SKC_Main:isLO(master_looter_full_name);
 		if not loot_officer_check then
 			SKC_Status = SKC_STATUS_ENUM.INACTIVE_LO;
 		else
@@ -3365,7 +3365,7 @@ local function OnClick_EditDetails(self, button)
 	return;
 end
 
-local function EnableDetailsButtons(disable)
+local function UpdateDetailsButtons(disable)
 	-- disable / enable buttons in details frame appropriately for player privileges
 	-- Enable edit buttons
 	if disable then
@@ -3382,11 +3382,20 @@ local function EnableDetailsButtons(disable)
 			SKC_UIMain["Details_border"]["Guild Role"].Btn:Enable();
 			SKC_UIMain["Details_border"]["Status"].Btn:Enable();
 			SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
+		else
+			SKC_UIMain["Details_border"]["Spec"].Btn:Disable();
+			SKC_UIMain["Details_border"]["Guild Role"].Btn:Disable();
+			SKC_UIMain["Details_border"]["Status"].Btn:Disable();
+			SKC_UIMain["Details_border"]["Activity"].Btn:Disable();
 		end
-		if SKC_Main:isGL() or (SKC_Main:isML() and isLO()) then
+		if SKC_Main:isGL() or (SKC_Main:isML() and SKC_Main:isLO()) then
 			SKC_UIMain["Details_border"].manual_single_sk_btn:Enable();
 			SKC_UIMain["Details_border"].manual_full_sk_btn:Enable();
 			SKC_UIMain["Details_border"].manual_set_sk_btn:Enable();
+		else
+			SKC_UIMain["Details_border"].manual_single_sk_btn:Disable();
+			SKC_UIMain["Details_border"].manual_full_sk_btn:Disable();
+			SKC_UIMain["Details_border"].manual_set_sk_btn:Disable();
 		end
 	end
 	return
@@ -3398,7 +3407,7 @@ local function OnClick_SK_Card(self, button)
 		-- Populate data
 		SKC_Main:RefreshDetails(self.Text:GetText());
 		-- Enable edit buttons
-		EnableDetailsButtons();
+		UpdateDetailsButtons();
 	end
 	return;
 end
@@ -3820,7 +3829,11 @@ local function SyncPushRead(msg,sender)
 				tmp_sync_var.data[val] = true;
 			end
 		elseif part == "END" then
-			if db_name == "Bench" then UpdateLiveList() end
+			if db_name == "Bench" then 
+				UpdateLiveList();
+			elseif db_name == "LootOfficers" then 
+				UpdateDetailsButtons();
+			end
 		end
 	end
 	if part == "END" then
@@ -4079,7 +4092,7 @@ local function OnClick_SKListCycle()
 	-- populate data
 	SKC_Main:PopulateData();
 	-- enable / disable details buttons
-	EnableDetailsButtons(true);
+	UpdateDetailsButtons(true);
 end
 --------------------------------------
 -- SHARED FUNCTIONS
@@ -4179,8 +4192,12 @@ function SKC_Main:SimpleListAdd(list_name,element)
 	local success = SKC_DB[list_name]:Add(element);
 	if success then
 		SKC_Main:Print("NORMAL",element.." added to "..list_name);
-		-- sync
-		if list_name == "Bench" then UpdateLiveList() end
+		-- sync / update GUI
+		if list_name == "Bench" then 
+			UpdateLiveList();
+		elseif list_name == "LootOfficers" then 
+			UpdateDetailsButtons();
+		end
 		SyncPushSend(list_name,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		SKC_Main:SimpleListShow(list_name);
 		SKC_Main:RefreshStatus();
@@ -4199,7 +4216,12 @@ function SKC_Main:SimpleListRemove(list_name,element)
 	if success then
 		SKC_Main:Print("NORMAL",element.." removed from "..list_name);
 		-- sync
-		if list_name == "Bench" then UpdateLiveList() end
+		-- sync / update GUI
+		if list_name == "Bench" then 
+			UpdateLiveList();
+		elseif list_name == "LootOfficers" then 
+			UpdateDetailsButtons();
+		end
 		SyncPushSend(list_name,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		SKC_Main:SimpleListShow(list_name);
 		SKC_Main:RefreshStatus();
@@ -4218,7 +4240,11 @@ function SKC_Main:SimpleListClear(list_name)
 	if success then
 		SKC_Main:Print("NORMAL",list_name.." cleared");
 		-- sync
-		if list_name == "Bench" then UpdateLiveList() end
+		if list_name == "Bench" then 
+			UpdateLiveList();
+		elseif list_name == "LootOfficers" then 
+			UpdateDetailsButtons();
+		end
 		SyncPushSend(list_name,CHANNELS.SYNC_PUSH,"GUILD",nil);
 		SKC_Main:SimpleListShow(list_name);
 		SKC_Main:RefreshStatus();
@@ -4873,6 +4899,7 @@ local function EventHandler(self,event,...)
 		SyncGuildData();
 	elseif event == "GROUP_ROSTER_UPDATE" or event == "PARTY_LOOT_METHOD_CHANGED" then
 		UpdateLiveList();
+		UpdateDetailsButtons();
 	elseif event == "OPEN_MASTER_LOOT_LIST" then
 		SaveLoot();
 	elseif event == "PLAYER_ENTERING_WORLD" then

@@ -121,19 +121,19 @@ core.commands = {
     if cmd == nil then
       core.SKC_Main:SimpleListShow("Bench");
     elseif cmd == "add" then
-      if not core.SKC_Main:isML() then
+      if not (core.SKC_Main:isML() and core.SKC_Main:isLO()) then
         core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListAdd("Bench",element);
     elseif cmd == "remove" then
-      if not core.SKC_Main:isML() then
+      if not (core.SKC_Main:isML() and core.SKC_Main:isLO()) then
         core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListRemove("Bench",element);
     elseif cmd == "clear" then
-      if not core.SKC_Main:isML() then
+      if not (core.SKC_Main:isML() and core.SKC_Main:isLO()) then
         core.SKC_Main:Print("ERROR",not_ml_error_msg); 
         return;
       end
@@ -222,14 +222,14 @@ core.commands = {
     return;
   end,
   ["enable"] = function()
-    if not core.SKC_Main:isML() then
+    if not (core.SKC_Main:isML() and core.SKC_Main:isLO()) then
       core.SKC_Main:Print("ERROR",not_ml_error_msg); 
       return;
     end
     core.SKC_Main:Enable(true);
   end,
   ["disable"] = function()
-    if not core.SKC_Main:isML() then
+    if not (core.SKC_Main:isML() and core.SKC_Main:isLO()) then
       core.SKC_Main:Print("ERROR",not_ml_error_msg); 
       return;
     end
