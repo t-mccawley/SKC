@@ -30,7 +30,7 @@ local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer
 -- verbosity
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
-local COMM_VERBOSE = true; -- prints messages relating to addon communication
+local COMM_VERBOSE = false; -- prints messages relating to addon communication
 local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
 local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
@@ -2178,7 +2178,7 @@ end
 
 function LootManager:SetCurrentLootByIdx(loot_idx)
 	-- sets current loot by index of loot already in pending_loot
-	-- only usable my loot master
+	-- only usable by loot master
 	if not SKC_Main:isML() then
 		SKC_Main:Print("ERROR","Cannot SetCurrentLootByIdx, not loot master");
 		return 
@@ -2930,6 +2930,12 @@ local function CheckActiveInstance()
 	return false;
 end
 
+local function isLO(name)
+	-- returns true if given name (current player if nil) is a loot officer
+	if name == nil then name = UnitName("player") end
+	return LOOT_OFFICER_OVRD or SKC_DB.LootOfficers.data[StripRealmName(name)];
+end
+
 local function ActivateSKC()
 	-- master control for wheter or not loot is managed with SKC
 	if not CheckAddonLoaded() then return end
@@ -2947,7 +2953,7 @@ local function ActivateSKC()
 		-- Master Looter is Loot Officer
 		local _, _, masterlooterRaidIndex = GetLootMethod();
 		local master_looter_full_name = GetRaidRosterInfo(masterlooterRaidIndex);
-		local loot_officer_check = LOOT_OFFICER_OVRD or SKC_DB.LootOfficers.data[StripRealmName(master_looter_full_name)];
+		local loot_officer_check = isLO(master_looter_full_name);
 		if not loot_officer_check then
 			SKC_Status = SKC_STATUS_ENUM.INACTIVE_LO;
 		else
@@ -3377,7 +3383,7 @@ local function EnableDetailsButtons(disable)
 			SKC_UIMain["Details_border"]["Status"].Btn:Enable();
 			SKC_UIMain["Details_border"]["Activity"].Btn:Enable();
 		end
-		if SKC_Main:isGL() or SKC_Main:isML() then
+		if SKC_Main:isGL() or (SKC_Main:isML() and isLO()) then
 			SKC_UIMain["Details_border"].manual_single_sk_btn:Enable();
 			SKC_UIMain["Details_border"].manual_full_sk_btn:Enable();
 			SKC_UIMain["Details_border"].manual_set_sk_btn:Enable();

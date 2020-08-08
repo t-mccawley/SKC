@@ -22,7 +22,6 @@ core.commands = {
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc ai|r - Displays Active Instances");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc lo|r - Displays Loot Officers");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc at|r - Displays the current Activity Threshold in days");
-    core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export (CSV) loot log for most recent raid");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export sk|r - Export (CSV) current sk lists");
     core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc reset|r - Resets local SKC data");
     if core.SKC_Main:isML() then
@@ -32,6 +31,7 @@ core.commands = {
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc b clear|r - Clears the Bench");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc enable|r - Enables loot distribution with SKC");
       core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc disable|r - Disables loot distribution with SKC");
+      core.SKC_Main:Print("NORMAL","|cff"..help_color.."/skc export log|r - Export (CSV) loot log for most recent raid");
     end
     if core.SKC_Main:isGL() then
       core.SKC_Main:Print("NORMAL","|cff"..title_color.."Guild Leader Only:|r");
@@ -160,20 +160,20 @@ core.commands = {
     if cmd == nil then
       core.SKC_Main:SimpleListShow("ActiveRaids");
     elseif cmd == "add" then
-      if not core.SKC_Main:isML() then
-        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListAdd("ActiveRaids",element);
     elseif cmd == "remove" then
-      if not core.SKC_Main:isML() then
-        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListRemove("ActiveRaids",element);
     elseif cmd == "clear" then
-      if not core.SKC_Main:isML() then
-        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListClear("ActiveRaids");
@@ -199,20 +199,20 @@ core.commands = {
     if cmd == nil then
       core.SKC_Main:SimpleListShow("LootOfficers");
     elseif cmd == "add" then
-      if not core.SKC_Main:isML() then
-        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListAdd("LootOfficers",element);
     elseif cmd == "remove" then
-      if not core.SKC_Main:isML() then
-        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListRemove("LootOfficers",element);
     elseif cmd == "clear" then
-      if not core.SKC_Main:isML() then
-        core.SKC_Main:Print("ERROR",not_ml_error_msg); 
+      if not core.SKC_Main:isGL() then
+        core.SKC_Main:Print("ERROR",not_gl_error_msg); 
         return;
       end
       core.SKC_Main:SimpleListClear("LootOfficers");
