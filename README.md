@@ -1,7 +1,7 @@
 # SKC (Suicide Kings Classic)
 A World of Warcraft Classic addon for the [suicide kings loot system](https://wowwiki.fandom.com/wiki/Suicide_Kings). This addon was designed based on the specific variant of SK used by the guild Whiteclaw Clan on Grobbulus [H]. Compared to a standard SK system, the primary differences of this variant is the use of a loot prioritization system as well as utilizing two separate lists, Main SK and Tier SK. SKC fully automates this system. SKC will manage the SK lists in game, synchronize data between all members of a guild, and upon looting of an item, will automatically determine the elligible characters in the raid for that item, query for their decision (SK, roll, or pass), and award the loot based on a configurable loot prioritization.
 
-You can download SKC on [CurseForge]((https://www.curseforge.com/wow/addons/skc) and Twitch.
+You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) and Twitch.
 
 ![SKC GUI](/media/SKC_GUI.png)
 
