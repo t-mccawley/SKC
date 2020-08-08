@@ -3028,12 +3028,11 @@ local function OnAddonLoad(addon_name)
 	else
 		SKC_Main:Print("IMPORTANT","Welcome back (/skc)");
 	end
-	-- TODO, remove this once more stable
-	if SKC_DB.AddonVersion == nil or SKC_DB.AddonVersion ~= ADDON_VERSION then
-		-- addon version never set
-		HardReset();
-		SKC_Main:Print("IMPORTANT","Hard Reset: New addon version "..SKC_DB.AddonVersion);
-	end
+	-- if SKC_DB.AddonVersion == nil or SKC_DB.AddonVersion ~= ADDON_VERSION then
+	-- 	-- addon version never set
+	-- 	HardReset();
+	-- 	SKC_Main:Print("IMPORTANT","Hard Reset: New addon version "..SKC_DB.AddonVersion);
+	-- end
 	if SKC_DB.Bench == nil then
 		SKC_DB.Bench = SimpleMap:new(nil);
 		SKC_Main:Print("WARN","Initialized Bench");
