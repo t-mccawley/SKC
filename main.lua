@@ -3367,6 +3367,7 @@ end
 
 local function UpdateDetailsButtons(disable)
 	-- disable / enable buttons in details frame appropriately for player privileges
+	if SKC_UIMain == nil then return end
 	-- Enable edit buttons
 	if disable then
 		SKC_UIMain["Details_border"]["Spec"].Btn:Disable();
