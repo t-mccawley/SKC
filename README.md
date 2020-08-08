@@ -8,9 +8,7 @@ You can download SKC on [CurseForge]((https://www.curseforge.com/wow/addons/skc)
 ![SKC Loot](/media/SKC_Loot.png)
 
 ## TLDR
-1. [Introduction + General User Video Tutorial (TODO)](TODO)
-2. [Loot GUI + Master Looter Video Tutorial (TODO)](TODO)
-3. [Guild Leader Video Tutorial (TODO)](TODO)
+[Video Tutorials](https://www.youtube.com/playlist?list=PLde2gp4VU_iNecMuSxlkR1hmU6NPqFekL)
 
 ## Features
 ### Simple GUI interface
@@ -85,6 +83,8 @@ You can download SKC on [CurseForge]((https://www.curseforge.com/wow/addons/skc)
     - **Inactive (AI)**: SKC is inactive due to not being in an instance specified in the Active Instances
 
 ## FAQ
+### Where is the TSK list?
+Click the MSK title on the GUI to cycle between the lists.
 ### Why Isn't SKC Active?
 In order for SKC to be active, the following conditions must be met:
 1. SKC must be enabled (see the slash command `/skc enable`).
@@ -97,6 +97,8 @@ In order for SKC to be active, the following conditions must be met:
 ### Why Isn't the Loot Distribution GUI Appearing?
 SKC automatically synchronizes data between guild members. First check the main GUI to see if SKC is currently synchronizing. Loot distribution will be delayed until synchronization is complete, so just wait a few seconds.
 If loot distribution never starts, it is likely because the item is not in your Loot Prio database, or the elligible class / spec combinations are not members of the raid.
+### Why is the Synchronization Status Stuck on Waiting?
+SKC automatically syncs with online guild members upon login. If there is noone online with whom the addon can synchronize, the timer will simply tick down to 0 and synchronization will be complete.
 
 ## Slash Commands
 Some slash commands are protected by character privelages, see the available slash commands for each member below:
@@ -110,7 +112,6 @@ Some slash commands are protected by character privelages, see the available sla
 - `/skc ai`: Displays Active Instances
 - `/skc lo`: Displays Loot Officers
 - `/skc at`: Displays the current Activity Threshold in days
-- `/skc export log`: Export (CSV) sk log for most recent raid
 - `/skc export sk`: Export (CSV) current sk lists
 - `/skc reset`: Resets local SKC data
 
@@ -120,6 +121,7 @@ Some slash commands are protected by character privelages, see the available sla
 - `/skc b clear`: Clears the Bench
 - `/skc enable`: Enables loot distribution with SKC
 - `/skc disable`: Disables loot distribution with SKC
+- `/skc export log`: Export (CSV) sk log for most recent raid
     
 ### Guild Leader Only
 - `/skc at <#>`: Sets Activity Threshold to # days
