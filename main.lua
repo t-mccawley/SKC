@@ -4494,10 +4494,6 @@ function SKC_Main:CSVImport(name,sk_list)
 		SKC_Main:Print("ERROR","Please wait for login sync to complete");
 		return;
 	end
-	if SKC_UIMain == nil then
-		SKC_Main:Print("ERROR","Please wait for GUI to be created");
-		return;
-	end
 	if not CheckAddonLoaded() then 
 		SKC_Main:Print("ERROR","Please wait for addon data to fully load");
 		return;
@@ -4505,6 +4501,10 @@ function SKC_Main:CSVImport(name,sk_list)
 	if CheckIfReadInProgress() then
 		SKC_Main:Print("ERROR","Please wait for read to complete");
 		return;
+	end
+	if SKC_UIMain == nil then
+		-- create GUI
+		SKC_Main:CreateUIMain();
 	end
 	if name == "Loot Priority Import" then
 		-- instantiate frame
