@@ -30,8 +30,8 @@ local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer
 -- verbosity
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
-local COMM_VERBOSE = false; -- prints messages relating to addon communication
-local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
+local COMM_VERBOSE = true; -- prints messages relating to addon communication
+local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
 local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
@@ -4476,8 +4476,6 @@ local function OnClick_ImportSKList(sk_list)
 	for idx,val in ipairs(new_sk_list) do
 		SKC_DB[sk_list]:PushBack(val);
 	end
-	SKC_DB[sk_list].edit_ts_generic = 0;
-	SKC_DB[sk_list].edit_ts_raid = 0;
 	SKC_Main:Print("NORMAL",sk_list.." imported");
 	-- Set GUI to given SK list
 	SKC_UIMain["sk_list_border"].Title.Text:SetText(sk_list);
