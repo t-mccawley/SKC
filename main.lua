@@ -50,10 +50,10 @@ local UI_DIMENSIONS = { -- ui dimensions
 	LOOT_GUI_TITLE_CARD_WIDTH = 80,
 	LOOT_GUI_TITLE_CARD_HEIGHT = 40,
 	SK_FILTER_WIDTH = 255,
-	SK_FILTER_HEIGHT = 180,
+	SK_FILTER_HEIGHT = 205,
 	SK_FILTER_Y_OFFST = -35,
 	SKC_STATUS_WIDTH = 255,
-	SKC_STATUS_HEIGHT = 140,
+	SKC_STATUS_HEIGHT = 115,
 	DECISION_WIDTH = 250,
 	DECISION_HEIGHT = 160,
 	SK_DETAILS_WIDTH = 270,
@@ -3177,6 +3177,7 @@ function SKC_Main:UpdateSKUI()
 
 	-- Populate non filtered cards
 	local idx = 1;
+	local max_cnt = 0;
 	for pos,name in ipairs(print_order) do
 		local class_tmp = SKC_DB.GuildData:GetData(name,"Class");
 		local raid_role_tmp = SKC_DB.GuildData:GetData(name,"Raid Role");
@@ -3200,10 +3201,15 @@ function SKC_Main:UpdateSKUI()
 			-- increment
 			idx = idx + 1;
 		end
+		-- increment
+		max_cnt = max_cnt + 1;
 	end
 	UnFilteredCnt = idx; -- 1 larger than max cards
 	-- update scroll length
 	SKC_UIMain.sk_list.SK_List_SF:GetScrollChild():SetSize(UI_DIMENSIONS.SK_LIST_WIDTH,GetScrollMax());
+	-- update filter status
+	local filter_status_name = "Filter Status";
+	SKC_UIMain["Filters_border"][filter_status_name].Data:SetText((UnFilteredCnt - 1).." / "..max_cnt);
 	if GUI_VERBOSE then SKC_Main:Print("NORMAL","UpdateSKUI() end") end
 	return;
 end
@@ -3236,7 +3242,6 @@ function SKC_Main:RefreshStatus()
 	end
 	SKC_UIMain["Status_border"]["Loot Prio Items"].Data:SetText(SKC_DB.LootPrio:length().." items");
 	SKC_UIMain["Status_border"]["Loot Officers"].Data:SetText(SKC_DB.LootOfficers:length());
-	SKC_UIMain["Status_border"]["Activity Threshold"].Data:SetText(SKC_DB.GuildData:GetActivityThreshold().." days");
 	return;
 end
 
@@ -3745,6 +3750,15 @@ local function SyncPushRead(msg,sender)
 	if part == "END" then
 		SKC_DB[db_name] = DeepCopy(tmp_sync_var)
 	end
+	-- Check if master looter, loot officer, and in active raid
+	if SKC_Main:isML() and SKC_Main:isLO() and CheckActive() then
+		-- reject read for MSK and TSK
+		if part == "MSK" or part == "TSK" then
+			if COMM_VERBOSE and part == "INIT" then SKC_Main:Print("ERROR","Reject SyncPushRead from "..sender.." because I HAVE THE POWER") end
+			return;
+		end
+	end
+	-- Read in data
 	if db_name == "MSK" or db_name == "TSK" then
 		if part == "INIT" then
 			local ts_generic, ts_raid = strsplit(",",msg_rem,2);
@@ -4701,7 +4715,7 @@ function SKC_Main:CreateUIMain()
 	-- set position
 	SKC_UIMain[status_border_key]:SetPoint("TOPLEFT", SKC_UIMainTitleBG, "TOPLEFT", UI_DIMENSIONS.MAIN_BORDER_PADDING+5, UI_DIMENSIONS.MAIN_BORDER_Y_TOP);
 	-- create status fields
-	local status_fields = {"Status","Synchronization","Loot Prio Items","Loot Officers","Activity Threshold"};
+	local status_fields = {"Status","Synchronization","Loot Prio Items","Loot Officers"};
 	for idx,value in ipairs(status_fields) do
 		-- fields
 		SKC_UIMain[status_border_key][value] = CreateFrame("Frame",SKC_UIMain[status_border_key])
@@ -4741,6 +4755,20 @@ function SKC_Main:CreateUIMain()
 			end
 		end
 	end
+	-- create filter status fields
+	-- Shown
+	-- filter
+	local filter_status_name = "Filter Status";
+	SKC_UIMain[filter_border_key][filter_status_name] = CreateFrame("Frame",SKC_UIMain[filter_border_key]);
+	SKC_UIMain[filter_border_key][filter_status_name].Field = SKC_UIMain[filter_border_key]:CreateFontString(nil,"ARTWORK");
+	SKC_UIMain[filter_border_key][filter_status_name].Field:SetFontObject("GameFontNormal");
+	SKC_UIMain[filter_border_key][filter_status_name].Field:SetPoint("BOTTOMLEFT",SKC_UIMain[filter_border_key],"BOTTOMLEFT",25,22);
+	SKC_UIMain[filter_border_key][filter_status_name].Field:SetText(filter_status_name..":");
+	-- data
+	SKC_UIMain[filter_border_key][filter_status_name].Data = SKC_UIMain[filter_border_key]:CreateFontString(nil,"ARTWORK");
+	SKC_UIMain[filter_border_key][filter_status_name].Data:SetFontObject("GameFontHighlight");
+	SKC_UIMain[filter_border_key][filter_status_name].Data:SetPoint("LEFT",SKC_UIMain[filter_border_key][filter_status_name].Field,"RIGHT",10,0);
+
 
 	-- SK List border
 	-- Create Border
