@@ -1292,14 +1292,14 @@ local function WriteToLog(time_txt,action,src,sk_list,decision,character,item,pr
 	return;
 end
 
-local function PrintSyncMsgStart(db_name,push)
+local function PrintSyncMsgStart(db_name,push,sender)
 	if COMM_VERBOSE then 
 		if push then
 			DEBUG.PushTime[db_name] = time();
 			SKC_Main:Print("IMPORTANT","["..DEBUG.PushTime[db_name].."] Pushing "..db_name.."...");
 		else
 			DEBUG.ReadTime[db_name] = time();
-			SKC_Main:Print("IMPORTANT","["..DEBUG.ReadTime[db_name].."] Reading "..db_name.."...");
+			SKC_Main:Print("IMPORTANT","["..DEBUG.ReadTime[db_name].."] Reading "..db_name.." from "..sender"...");
 		end
 	end
 	if push then
@@ -3735,7 +3735,7 @@ local function SyncPushRead(msg,sender)
 		-- cleanse blacklist
 		blacklist[sender] = nil;
 		-- data is fresh, begin read
-		PrintSyncMsgStart(db_name,false);
+		PrintSyncMsgStart(db_name,false,sender);
 	elseif blacklist[sender] then
 		-- check if already blacklisted
 		if COMM_VERBOSE and part == "END" then SKC_Main:Print("ERROR","Reject SyncPushRead,"..sender.." was blacklisted for "..db_name) end
@@ -3896,17 +3896,18 @@ local function LoginSyncCheckRead(msg,sender)
 		db_name, their_edit_ts_raid, their_edit_ts_generic, msg_rem = strsplit(",",msg_rem,4);
 		their_edit_ts_raid = NumOut(their_edit_ts_raid);
 		their_edit_ts_generic = NumOut(their_edit_ts_generic);
-		-- get self edit time stamps
+		-- get self edit time stamps (possible to be nil)
 		local my_edit_ts_raid = SKC_DB[db_name].edit_ts_raid;
 		local my_edit_ts_generic = SKC_DB[db_name].edit_ts_generic;
-		if (my_edit_ts_raid > their_edit_ts_raid) or ( (my_edit_ts_raid == their_edit_ts_raid) and (my_edit_ts_generic > their_edit_ts_generic) ) then
-			-- I have newer RAID data
-			-- OR I have the same RAID data but newer generic data
+		if (my_edit_ts_raid ~= nil and my_edit_ts_generic ~=nil) and ( (my_edit_ts_raid > their_edit_ts_raid) or ( (my_edit_ts_raid == their_edit_ts_raid) and (my_edit_ts_generic > their_edit_ts_generic) ) ) then
+			-- I have an existing version of this database AND
+			-- I have newer RAID data OR I have the same RAID data but newer generic data
 			-- --> send them my data
 			if COMM_VERBOSE then SKC_Main:Print("WARN","Pushing "..db_name.." to "..sender) end
 			SyncPushSend(db_name,CHANNELS.LOGIN_SYNC_PUSH,"WHISPER",sender);
-		elseif (my_edit_ts_raid < their_edit_ts_raid) or ( (my_edit_ts_raid == their_edit_ts_raid) and (my_edit_ts_generic < their_edit_ts_generic) ) then
-			-- I have older RAID data
+		elseif (my_edit_ts_raid == nil or my_edit_ts_generic ==nil) or ( (my_edit_ts_raid < their_edit_ts_raid) or ( (my_edit_ts_raid == their_edit_ts_raid) and (my_edit_ts_generic < their_edit_ts_generic) ) ) then
+			-- I do not have this database at all yet
+			-- OR I have older RAID data
 			-- OR I have the same RAID data but older generic data
 			-- --> request their data (for the whole guild)
 			if COMM_VERBOSE then SKC_Main:Print("WARN","Requesting "..db_name.." from "..sender) end
