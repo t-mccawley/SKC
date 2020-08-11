@@ -1,7 +1,4 @@
 -- TODO:
--- figure out how to construct loot message before removing it from current loot
--- move kick off with delay message until AFTER loot is sent completely
-
 -- make it so ML can do sk init
 -- make sk init just one (not msk / tsk) 
 -- make export of sk lists CSV horizontal
@@ -742,8 +739,8 @@ local LOG_OPTIONS = {
 	["Spec"] = {
 		Text = "Spec",
 	},
-	["Decision"] = {
-		Text = "Decision",
+	["Action"] = {
+		Text = "Action",
 	},
 	["Item"] = {
 		Text = "Item",
@@ -758,8 +755,8 @@ local LOG_OPTIONS = {
 	["Prio"] = {
 		Text = "Prio",
 	},
-	["Previous SK Position"] = {
-		Text = "Previous SK Position",
+	["Current SK Position"] = {
+		Text = "Current SK Position",
 	},
 	["New SK Position"] = {
 		Text = "New SK Position",
@@ -1321,7 +1318,7 @@ local function DeepCopy(obj, seen)
     return setmetatable(res, getmetatable(obj))
 end
 
-local function WriteToLog(event_type,subject,decision,item,sk_list,prio,prev_sk_pos,new_sk_pos,roll,item_rec,time_txt,master_looter_txt,class_txt,spec_txt)
+local function WriteToLog(event_type,subject,action,item,sk_list,prio,current_sk_pos,new_sk_pos,roll,item_rec,time_txt,master_looter_txt,class_txt,spec_txt)
 	-- writes new log entry (if raid logging active)
 	if not event_states.RaidLoggingActive then return end
 	local idx = #SKC_DB.RaidLog + 1;
@@ -1352,11 +1349,11 @@ local function WriteToLog(event_type,subject,decision,item,sk_list,prio,prev_sk_
 	else
 		SKC_DB.RaidLog[idx][6] = spec_txt;
 	end
-	SKC_DB.RaidLog[idx][7] = decision or "";
+	SKC_DB.RaidLog[idx][7] = action or "";
 	SKC_DB.RaidLog[idx][8] = item or "";
 	SKC_DB.RaidLog[idx][9] = sk_list or "";
 	SKC_DB.RaidLog[idx][10] = prio or "";
-	SKC_DB.RaidLog[idx][11] = prev_sk_pos or "";
+	SKC_DB.RaidLog[idx][11] = current_sk_pos or "";
 	SKC_DB.RaidLog[idx][12] = new_sk_pos or "";
 	SKC_DB.RaidLog[idx][13] = roll or "";
 	SKC_DB.RaidLog[idx][14] = item_rec or "";
@@ -2437,8 +2434,8 @@ local function KickOffWithDelay()
 	return;
 end
 
-function LootManager:SendOutcomeMsg(winner,loot_name,loot_link,DE,send_success,receiver)
-	-- constructs and sends outcome message
+function LootManager:ConstructOutcomeMsg(winner,loot_name,loot_link,DE,send_success,receiver)
+	-- constructs outcome message and writes to log
 	local msg = nil;
 	local winner_with_color = FormatWithClassColor(winner,SKC_DB.GuildData:GetClass(winner));
 	local event_type_log = LOG_OPTIONS["Event Type"].Options.Winner;
@@ -2475,7 +2472,10 @@ function LootManager:SendOutcomeMsg(winner,loot_name,loot_link,DE,send_success,r
 		self.current_loot.rolls[winner],
 		receiver
 	);
-	SKC_Main:Print("WARN","receiver: "..receiver)
+	return msg;
+end
+
+function LootManager:SendOutcomeMsg(msg)
 	-- Send Outcome Message
 	-- when message has been sent, kick off next loot (with delay)
 	-- if there are already SK messages in the queue, this will be (correctly) further delayed due to transmission bottleneck
@@ -2494,8 +2494,6 @@ end
 
 function LootManager:MarkLootAwarded(loot_name)
 	-- mark loot awarded
-	-- send outcome message (and write to log)
-	self:SendOutcomeMsg(winner,loot_name,loot_link,DE,send_success,receiver);
 	-- get loot index
 	local loot_idx = self:GetLootIdx(loot_name,true);
 	if loot_idx ~= nil then
@@ -2541,15 +2539,11 @@ function LootManager:GiveLoot(loot_name,loot_link,winner)
 	end
 	if not success then
 		SKC_Main:Print("ERROR","Failed to award "..loot_link.." to "..winner);
-	else
-		-- mark loot awarded
-		self:MarkLootAwarded(loot_name);
 	end
 	return success;
 end
 
 function LootManager:GiveLootToML(loot_name,loot_link)
-	self:MarkLootAwarded(loot_name); -- mark loot awarded regardless of success to avoid getting stuck on loot
 	if not SKC_Main:isML() then 
 		SKC_Main:Print("ERROR","Current player is not Master Looter.");
 		return;
@@ -2600,10 +2594,16 @@ function LootManager:AwardLoot(loot_idx,winner)
 	local send_success = self:GiveLoot(loot_name,loot_link,winner);
 	local receiver = winner;
 	if not send_success then
-		-- looting failed, send item to ML
+		-- GiveLoot failed, send item to ML
 		self:GiveLootToML(loot_name,loot_link);
 		receiver = UnitName("player");
 	end
+	-- construct outcome message
+	local outcome_msg = self:ConstructOutcomeMsg(winner,loot_name,loot_link,DE,send_success,receiver)
+	-- mark loot as awarded
+	self:MarkLootAwarded(loot_name);
+	-- send outcome message (and write to log)
+	self:SendOutcomeMsg(outcome_msg);
 	return;
 end
 
@@ -2842,11 +2842,11 @@ local function ResetLootLog()
 	WriteToLog(
 		LOG_OPTIONS["Event Type"].Text,
 		LOG_OPTIONS["Subject"].Text,
-		LOG_OPTIONS["Decision"].Text,
+		LOG_OPTIONS["Action"].Text,
 		LOG_OPTIONS["Item"].Text,
 		LOG_OPTIONS["SK List"].Text,
 		LOG_OPTIONS["Prio"].Text,
-		LOG_OPTIONS["Previous SK Position"].Text,
+		LOG_OPTIONS["Current SK Position"].Text,
 		LOG_OPTIONS["New SK Position"].Text,
 		LOG_OPTIONS["Roll"].Text,
 		LOG_OPTIONS["Item Receiver"].Text,
@@ -4145,6 +4145,7 @@ local function SaveLoot()
 					if LOOT_VERBOSE then SKC_Main:Print("WARN","No elligible characters in raid. Giving directly to ML.") end
 					-- give directly to ML
 					SKC_DB.LootManager:GiveLootToML(lootName,lootLink);
+					SKC_DB.LootManager:MarkLootAwarded(lootName);
 					WriteToLog( 
 						LOG_OPTIONS["Event Type"].Options.NE,
 						"",
@@ -4162,6 +4163,7 @@ local function SaveLoot()
 				if LOOT_VERBOSE then SKC_Main:Print("WARN","Item not in Loot Prio. Giving directly to ML.") end
 				-- give directly to ML
 				SKC_DB.LootManager:GiveLootToML(lootName,GetLootSlotLink(i_loot));
+				SKC_DB.LootManager:MarkLootAwarded(lootName);
 				WriteToLog( 
 					LOG_OPTIONS["Event Type"].Options.AL,
 					"",
