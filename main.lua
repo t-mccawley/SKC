@@ -1,7 +1,4 @@
 -- TODO:
--- make it so ML can do sk init
--- make sk init just one (not msk / tsk) 
--- make export of sk lists CSV horizontal
 -- Add loot channel output feature
 -- package AI and LO with GuildData instead (GuildData is all data that only GL can send / must be verified to come from GL)
 -- serialize communications
@@ -27,7 +24,7 @@ local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = nil; -- name of faux ML override master looter permissions
 local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
-local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
+local LOOT_DIST_DISABLE = true; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
 local CHARS_OVRD = { -- characters which are pushed into GuildData
 	-- Freznic = true,
@@ -37,8 +34,8 @@ local LOOT_OFFICER_OVRD = false; -- true if SKC can be used without loot officer
 -- verbosity
 local GUI_VERBOSE = false; -- relating to GUI objects
 local GUILD_SYNC_VERBOSE = false; -- relating to guild sync
-local COMM_VERBOSE = true; -- prints messages relating to addon communication
-local LOOT_VERBOSE = true; -- prints lots of messages during loot distribution
+local COMM_VERBOSE = false; -- prints messages relating to addon communication
+local LOOT_VERBOSE = false; -- prints lots of messages during loot distribution
 local RAID_VERBOSE = false; -- relating to raid activity
 local LIVE_MERGE_VERBOSE = false; -- relating to live list merging
 --------------------------------------
@@ -739,6 +736,9 @@ local LOG_OPTIONS = {
 	["Spec"] = {
 		Text = "Spec",
 	},
+	["Status"] = {
+		Text = "Status",
+	},
 	["Action"] = {
 		Text = "Action",
 	},
@@ -835,6 +835,7 @@ CHANNELS = { -- channels for inter addon communication (const)
 	SYNC_PUSH = "8EtTWxyA$r6x53=F",
 	LOOT = "xBPE9,-Fjbc+A#rm",
 	LOOT_DECISION = "ksg(AkE.*/@&+`8Q",
+	LOOT_DECISION_PRINT = "xP@&!9hQxY81K&C4",
 	LOOT_OUTCOME = "aP@yX9hQfU89K&C4",
 };
 for _,channel in pairs(CHANNELS) do
@@ -1201,6 +1202,30 @@ local function CheckAddonVerMatch()
 	end
 end
 
+local function CheckActiveInstance()
+	-- returns true of current instance is in ActiveRaids
+	if ACTIVE_RAID_OVRD then return true end
+	if SKC_DB == nil or SKC_DB.ActiveRaids == nil or SKC_DB.ActiveRaids.data == nil then return false end
+	local raid_name = GetInstanceInfo();
+	for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
+		if raid_name == RAID_NAME_MAP[active_raid_acro] then
+			return true;
+		end
+	end
+	return false;
+end
+
+local function StripRealmName(full_name)
+	local name,_ = strsplit("-",full_name,2);
+	return(name);
+end
+
+function SKC_Main:isLO(name)
+	-- returns true if given name (current player if nil) is a loot officer
+	if name == nil then name = UnitName("player") end
+	return LOOT_OFFICER_OVRD or SKC_DB.LootOfficers.data[StripRealmName(name)];
+end
+
 local function CheckIfReadInProgress()
 	-- return true of any database is currently being read from
 	for db_name,read in pairs(event_states.ReadInProgress) do
@@ -1215,11 +1240,6 @@ local function CheckIfPushInProgress()
 		if push then return true end
 	end
 	return false;
-end
-
-local function StripRealmName(full_name)
-	local name,_ = strsplit("-",full_name,2);
-	return(name);
 end
 
 local function CheckIfGuildMemberOnline(target,verbose)
@@ -1276,11 +1296,13 @@ local function GetGuildLeader()
 	return nil;
 end
 
-local function FormatWithClassColor(str_in,class)
+local function FormatWithClassColor(char_name)
 	-- formats str with class color for class
-	if str_in == nil or class == nil or CLASSES[class] == nil then return str_in end
+	if char_name == nil or not SKC_DB.GuildData:Exists(char_name) then return end
+	local class = SKC_DB.GuildData:GetClass(char_name);
+	if class == nil or CLASSES[class] == nil then return str_in end
 	local class_color = CLASSES[class].color.hex
-	local str_out = "|cff"..class_color..str_in.."|r"
+	local str_out = "|cff"..class_color..char_name.."|r"
 	return str_out;
 end
 
@@ -1318,7 +1340,7 @@ local function DeepCopy(obj, seen)
     return setmetatable(res, getmetatable(obj))
 end
 
-local function WriteToLog(event_type,subject,action,item,sk_list,prio,current_sk_pos,new_sk_pos,roll,item_rec,time_txt,master_looter_txt,class_txt,spec_txt)
+local function WriteToLog(event_type,subject,action,item,sk_list,prio,current_sk_pos,new_sk_pos,roll,item_rec,time_txt,master_looter_txt,class_txt,spec_txt,status_txt)
 	-- writes new log entry (if raid logging active)
 	if not event_states.RaidLoggingActive then return end
 	local idx = #SKC_DB.RaidLog + 1;
@@ -1349,14 +1371,26 @@ local function WriteToLog(event_type,subject,action,item,sk_list,prio,current_sk
 	else
 		SKC_DB.RaidLog[idx][6] = spec_txt;
 	end
-	SKC_DB.RaidLog[idx][7] = action or "";
-	SKC_DB.RaidLog[idx][8] = item or "";
-	SKC_DB.RaidLog[idx][9] = sk_list or "";
-	SKC_DB.RaidLog[idx][10] = prio or "";
-	SKC_DB.RaidLog[idx][11] = current_sk_pos or "";
-	SKC_DB.RaidLog[idx][12] = new_sk_pos or "";
-	SKC_DB.RaidLog[idx][13] = roll or "";
-	SKC_DB.RaidLog[idx][14] = item_rec or "";
+	if status_txt == nil then
+		local status_val = SKC_DB.GuildData:GetData(subject,"Status");
+		local status_str = "";
+		if status_val == 0 then
+			status_str = "Main";
+		elseif status_val == 1 then
+			status_str = "Alt";
+		end
+		SKC_DB.RaidLog[idx][7] = status_str;
+	else
+		SKC_DB.RaidLog[idx][7] = status_txt;
+	end
+	SKC_DB.RaidLog[idx][8] = action or "";
+	SKC_DB.RaidLog[idx][9] = item or "";
+	SKC_DB.RaidLog[idx][10] = sk_list or "";
+	SKC_DB.RaidLog[idx][11] = prio or "";
+	SKC_DB.RaidLog[idx][12] = current_sk_pos or "";
+	SKC_DB.RaidLog[idx][13] = new_sk_pos or "";
+	SKC_DB.RaidLog[idx][14] = roll or "";
+	SKC_DB.RaidLog[idx][15] = item_rec or "";
 	return;
 end
 
@@ -2362,9 +2396,7 @@ function LootManager:StartPersonalLootDecision()
 	local sk_list = self:GetCurrentLootSKList();
 	local open_roll = self:GetCurrentOpenRoll();
 	local alert_msg = "Would you like to "..sk_list.." for "..self:GetCurrentLootLink().."?";
-	print(" ");
 	SKC_Main:Print("IMPORTANT",alert_msg);
-	print(" ");
 	-- Trigger GUI
 	SKC_Main:DisplayLootDecisionGUI(open_roll,sk_list);
 	return;
@@ -2414,9 +2446,7 @@ function LootManager:ReadLootMsg(msg,sender)
 end
 
 function LootManager:SendLootDecision(loot_decision)
-	print(" ");
 	SKC_Main:Print("IMPORTANT","You selected "..LOOT_DECISION.TEXT_MAP[loot_decision].." for "..self:GetCurrentLootLink());
-	print(" ");
 	local msg = self:GetCurrentLootName()..","..loot_decision;
 	ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DECISION,msg,"WHISPER",self.loot_master,"main_queue");
 	return;
@@ -2437,22 +2467,22 @@ end
 function LootManager:ConstructOutcomeMsg(winner,loot_name,loot_link,DE,send_success,receiver)
 	-- constructs outcome message and writes to log
 	local msg = nil;
-	local winner_with_color = FormatWithClassColor(winner,SKC_DB.GuildData:GetClass(winner));
+	local winner_with_color = FormatWithClassColor(winner);
 	local event_type_log = LOG_OPTIONS["Event Type"].Options.Winner;
 	local sk_list = self:GetCurrentLootSKList();
 	local winner_decision = self.current_loot.decisions[winner];
 	if winner_decision == LOOT_DECISION.SK then
 		msg = winner_with_color.." won "..loot_link.." by "..sk_list.." (prio: "..self.current_loot.prios[winner]..", position: "..self.current_loot.sk_pos[winner].." --> "..SKC_DB[sk_list]:GetPos(winner)..")!";
 	elseif winner_decision == LOOT_DECISION.ROLL then
-		msg = winner_with_color.." won "..loot_link.." by roll (prio: "..self.current_loot.prios[winner]..", roll: "..self.current_loot.rolls[winner]..")!";
+		msg = winner_with_color.." won "..loot_link.." by ROLL ("..self.current_loot.rolls[winner]..") [p"..self.current_loot.prios[winner].."]!";
 	else
 		-- Everyone passed
 		msg = "Everyone passed on "..loot_link..", awarded to "..winner_with_color;
 		if DE then
-			msg = msg.." to be disenchanted."
+			msg = msg.." to be DISENCHANTED."
 			event_type_log = LOG_OPTIONS["Event Type"].Options.DE;
 		else
-			msg = msg.." for the guild bank."
+			msg = msg.." for the GUILD BANK."
 			event_type_log = LOG_OPTIONS["Event Type"].Options.GB;
 		end
 	end
@@ -2805,8 +2835,6 @@ function LootManager:ReadLootDecision(msg,sender)
 		SKC_Main:Print("ERROR","Received decision for item other than Current Loot");
 		return;
 	end
-	-- print loot decision
-	SKC_Main:Print("NORMAL",char_name.." wants to "..LOOT_DECISION.TEXT_MAP[loot_decision].." for "..loot_name);
 	self.current_loot.decisions[char_name] = loot_decision;
 	-- calculate / save prio
 	self:DeterminePrio(char_name);
@@ -2823,6 +2851,18 @@ function LootManager:ReadLootDecision(msg,sender)
 		self.current_loot.rolls[char_name],
 		""
 	);
+	-- print loot decision (if not pass)
+	if loot_decision ~= LOOT_DECISION.PASS then
+		local raid_print_msg = FormatWithClassColor(char_name).." wants to ";
+		if loot_decision == LOOT_DECISION.ROLL then
+			raid_print_msg = raid_print_msg.."ROLL ("..self.current_loot.rolls[char_name]..")";
+		elseif loot_decision == LOOT_DECISION.SK then
+			raid_print_msg = raid_print_msg..self:GetCurrentLootSKList().." ("..self.current_loot.sk_pos[char_name]..")";
+		end
+		raid_print_msg = raid_print_msg.." for "..self:GetCurrentLootName().." [p"..self.current_loot.prios[char_name].."]";
+		ChatThrottleLib:SendAddonMessage("NORMAL",CHANNELS.LOOT_DECISION_PRINT,raid_print_msg,"RAID",nil,"main_queue");
+	end
+	-- check if still waiting on another player
 	for char_name_tmp,ld_tmp in pairs(self.current_loot.decisions) do
 		if ld_tmp == LOOT_DECISION.PENDING then 
 			SKC_Main:Print("WARN","Waiting on: "..char_name_tmp);
@@ -2853,7 +2893,8 @@ local function ResetLootLog()
 		LOG_OPTIONS["Timestamp"].Text,
 		LOG_OPTIONS["Master Looter"].Text,
 		LOG_OPTIONS["Class"].Text,
-		LOG_OPTIONS["Spec"].Text
+		LOG_OPTIONS["Spec"].Text,
+		LOG_OPTIONS["Status"].Text
 	);
 	return;
 end
@@ -3002,25 +3043,6 @@ local function SyncGuildData()
 		C_Timer.After(event_states.LoginSyncCheckTicker_InitDelay,StartSyncCheckTimer);
 	end
 	return;
-end
-
-local function CheckActiveInstance()
-	-- returns true of current instance is in ActiveRaids
-	if ACTIVE_RAID_OVRD then return true end
-	if SKC_DB == nil or SKC_DB.ActiveRaids == nil or SKC_DB.ActiveRaids.data == nil then return false end
-	local raid_name = GetInstanceInfo();
-	for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
-		if raid_name == RAID_NAME_MAP[active_raid_acro] then
-			return true;
-		end
-	end
-	return false;
-end
-
-function SKC_Main:isLO(name)
-	-- returns true if given name (current player if nil) is a loot officer
-	if name == nil then name = UnitName("player") end
-	return LOOT_OFFICER_OVRD or SKC_DB.LootOfficers.data[StripRealmName(name)];
 end
 
 local function ActivateSKC()
@@ -4071,11 +4093,13 @@ local function AddonMessageRead(prefix,msg,channel,sender)
 		--]]
 		-- read message, determine winner, award loot, start next loot decision
 		SKC_DB.LootManager:ReadLootDecision(msg,sender);
+	elseif prefix == CHANNELS.LOOT_DECISION_PRINT then
+		if msg ~= nil then
+			SKC_Main:Print("NORMAL",msg);
+		end
 	elseif prefix == CHANNELS.LOOT_OUTCOME then
 		if msg ~= nil then
-			print(" ");
 			SKC_Main:Print("IMPORTANT",msg);
-			print(" ");
 		end
 	end
 	return;
