@@ -1,7 +1,17 @@
 -- TODO:
--- investigate bug regarding multiple loot timers?
--- Queue of items displayed on side of screen to remind players what is upcoming
--- bug with fresh reset where get double sync
+-- figure out how to construct loot message before removing it from current loot
+-- move kick off with delay message until AFTER loot is sent completely
+
+-- make it so ML can do sk init
+-- make sk init just one (not msk / tsk) 
+-- make export of sk lists CSV horizontal
+-- Add loot channel output feature
+-- package AI and LO with GuildData instead (GuildData is all data that only GL can send / must be verified to come from GL)
+-- serialize communications
+-- make loot officers only ones able to push (client checks that sender is loot officer)
+-- make guild leader only one that sends LootOfficers and ActiveRaids (change name) i.e. not auto sync based on time stamps
+-- client chekcs that sender of GuildData is in fact the guild leader
+-- make init slash command for guild data
 
 --------------------------------------
 -- NAMESPACES
@@ -18,7 +28,7 @@ local SKC_LootGUI; -- Loot GUI
 --------------------------------------
 local HARD_DB_RESET = false; -- resets SKC_DB
 local ML_OVRD = nil; -- name of faux ML override master looter permissions
-local GL_OVRD = nil; -- name of faux GL to override guild leader permissions
+local GL_OVRD = "Paskal"; -- name of faux GL to override guild leader permissions
 local LOOT_SAFE_MODE = false; -- true if saving loot is immediately rejected
 local LOOT_DIST_DISABLE = false; -- true if loot distribution is disabled
 local LOG_ACTIVE_OVRD = false; -- true to force logging
@@ -518,7 +528,7 @@ local TIER_ARMOR_SETS = { -- map from armor set name to ordered list of individu
 
 };
 
-local SPEC_CLASS = { -- used to quickly get spec name from value
+local CLASS_SPEC_MAP = { -- used to quickly get class spec name from value
 	"DruidBalance",
 	"DruidResto",
 	"DruidFeralTank",
@@ -541,6 +551,31 @@ local SPEC_CLASS = { -- used to quickly get spec name from value
 	"WarriorProt",
 	"WarriorTwoHanded",
 	"WarriorDualWield",
+};
+
+local SPEC_MAP = { -- used to quickly get spec name from value
+	"Balance",
+	"Resto",
+	"FeralTank",
+	"FeralDPS",
+	"Any",
+	"Any",
+	"Holy",
+	"Prot",
+	"Ret",
+	"Holy",
+	"Shadow",
+	"Any",
+	"Daggers",
+	"Swords",
+	"Ele",
+	"Enh",
+	"Resto",
+	"Any",
+	"DPS",
+	"Prot",
+	"TwoHanded",
+	"DualWield",
 };
 
 local CHARACTER_DATA = { -- fields used to define character
@@ -680,19 +715,38 @@ local LOG_OPTIONS = {
 	["Timestamp"] = {
 		Text = "Timestamp",
 	},
-	["Action"] = {
-		Text = "Action",
+	["Master Looter"] = {
+		Text = "Master Looter",
 		Options = {
-			ALD = "Automatic Loot Distribution",
-			ManSK = "Manual SK List Edit",
-		},
-	},
-	["Source"] = {
-		Text = "Source",
-		Options = {
-			SKC = "SKC",
 			THIS_PLAYER = UnitName("player"),
 		},
+	},
+	["Event Type"] = {
+		Text = "Event Type",
+		Options = {
+			Winner = "Winner",
+			ManEdit = "Manual Edit",
+			Response = "Response",
+			DE = "Disenchant",
+			GB = "Guild Bank",
+			NE = "None Elligible",
+			AL = "Auto Loot",
+		},
+	},
+	["Subject"] = {
+		Text = "Subject",
+	},
+	["Class"] = {
+		Text = "Class",
+	},
+	["Spec"] = {
+		Text = "Spec",
+	},
+	["Decision"] = {
+		Text = "Decision",
+	},
+	["Item"] = {
+		Text = "Item",
 	},
 	["SK List"] = {
 		Text = "SK List",
@@ -700,15 +754,6 @@ local LOG_OPTIONS = {
 			MSK = "MSK",
 			TSK = "TSK",
 		}
-	},
-	["Decision"] = {
-		Text = "Decision",
-	},
-	["Character"] = {
-		Text = "Character",
-	},
-	["Item"] = {
-		Text = "Item",
 	},
 	["Prio"] = {
 		Text = "Prio",
@@ -721,6 +766,9 @@ local LOG_OPTIONS = {
 	},
 	["Roll"] = {
 		Text = "Roll",
+	},
+	["Item Receiver"] = {
+		Text = "Item Receiver",
 	},
 };
 
@@ -1062,6 +1110,8 @@ Loot = {
 	sk_list = "MSK", -- name of associated sk list (MSK TSK)
 	decisions = {}, -- map from character name to LOOT_DECISION
 	prios = {}, -- map from character name to PRIO_TIERS
+	rolls = {}, -- map from character name to roll
+	sk_pos = {}, -- map from character sk positions at time of decision
 	awarded = false, -- true when loot has been awarded
 }; 
 Loot.__index = Loot;
@@ -1076,6 +1126,8 @@ function Loot:new(loot,item_name,item_link,open_roll,sk_list)
 		obj.sk_list = sk_list or "MSK";
 		obj.decisions = {};
 		obj.prios = {};
+		obj.rolls = {};
+		obj.sk_pos = {};
 		obj.awarded = false;
 		setmetatable(obj,Loot);
 		return obj;
@@ -1269,7 +1321,7 @@ local function DeepCopy(obj, seen)
     return setmetatable(res, getmetatable(obj))
 end
 
-local function WriteToLog(time_txt,action,src,sk_list,decision,character,item,prio,prev_sk_pos,new_sk_pos,roll)
+local function WriteToLog(event_type,subject,decision,item,sk_list,prio,prev_sk_pos,new_sk_pos,roll,item_rec,time_txt,master_looter_txt,class_txt,spec_txt)
 	-- writes new log entry (if raid logging active)
 	if not event_states.RaidLoggingActive then return end
 	local idx = #SKC_DB.RaidLog + 1;
@@ -1279,16 +1331,35 @@ local function WriteToLog(time_txt,action,src,sk_list,decision,character,item,pr
 	else
 		SKC_DB.RaidLog[idx][1] = time_txt;
 	end
-	SKC_DB.RaidLog[idx][2] = action;
-	SKC_DB.RaidLog[idx][3] = src;
-	SKC_DB.RaidLog[idx][4] = sk_list;
-	SKC_DB.RaidLog[idx][5] = decision;
-	SKC_DB.RaidLog[idx][6] = character;
-	SKC_DB.RaidLog[idx][7] = item;
-	SKC_DB.RaidLog[idx][8] = prio;
-	SKC_DB.RaidLog[idx][9] = prev_sk_pos;
-	SKC_DB.RaidLog[idx][10] = new_sk_pos;
-	SKC_DB.RaidLog[idx][11] = roll;
+	if master_looter_txt == nil then
+		if SKC_Main:isML() then
+			SKC_DB.RaidLog[idx][2] = UnitName("player");
+		else
+			SKC_DB.RaidLog[idx][2] = "";
+		end
+	else
+		SKC_DB.RaidLog[idx][2] = master_looter_txt;
+	end
+	SKC_DB.RaidLog[idx][3] = event_type or "";
+	SKC_DB.RaidLog[idx][4] = subject or "";
+	if class_txt == nil then
+		SKC_DB.RaidLog[idx][5] = SKC_DB.GuildData:GetClass(subject) or "";
+	else
+		SKC_DB.RaidLog[idx][5] = class_txt;
+	end
+	if spec_txt == nil then
+		SKC_DB.RaidLog[idx][6] = SKC_DB.GuildData:GetSpecName(subject) or "";
+	else
+		SKC_DB.RaidLog[idx][6] = spec_txt;
+	end
+	SKC_DB.RaidLog[idx][7] = decision or "";
+	SKC_DB.RaidLog[idx][8] = item or "";
+	SKC_DB.RaidLog[idx][9] = sk_list or "";
+	SKC_DB.RaidLog[idx][10] = prio or "";
+	SKC_DB.RaidLog[idx][11] = prev_sk_pos or "";
+	SKC_DB.RaidLog[idx][12] = new_sk_pos or "";
+	SKC_DB.RaidLog[idx][13] = roll or "";
+	SKC_DB.RaidLog[idx][14] = item_rec or "";
 	return;
 end
 
@@ -1299,7 +1370,7 @@ local function PrintSyncMsgStart(db_name,push,sender)
 			SKC_Main:Print("IMPORTANT","["..DEBUG.PushTime[db_name].."] Pushing "..db_name.."...");
 		else
 			DEBUG.ReadTime[db_name] = time();
-			SKC_Main:Print("IMPORTANT","["..DEBUG.ReadTime[db_name].."] Reading "..db_name.." from "..sender"...");
+			SKC_Main:Print("IMPORTANT","["..DEBUG.ReadTime[db_name].."] Reading "..db_name.." from "..sender.."...");
 		end
 	end
 	if push then
@@ -1620,16 +1691,16 @@ function GuildData:GetClass(name)
 	return self.data[name].Class;
 end
 
-function GuildData:GetSpec(name)
+function GuildData:GetSpecIdx(name)
 	-- gets spec value of given name
 	if not self:Exists(name) then return nil end
 	return self.data[name].Spec;
 end
 
-function GuildData:GetSpecClass(name)
-	-- gets SpecClass (string) of given name
+function GuildData:GetSpecName(name)
+	-- gets spec value of given name
 	if not self:Exists(name) then return nil end
-	return (self.data[name].Spec..self.data[name].Class);
+	return SPEC_MAP[self:GetSpecIdx(name)];
 end
 
 function GuildData:SetLastLiveTime(name,ts)
@@ -2076,7 +2147,7 @@ end
 
 function LootPrio:IsElligible(lootName,char_name)
 	-- character is elligible if their spec is non null in the loot prio
-	local spec_idx = SKC_DB.GuildData:GetSpec(char_name);
+	local spec_idx = SKC_DB.GuildData:GetSpecIdx(char_name);
 	local elligible = false;
 	if spec_idx == nil then 
 		elligible = false;
@@ -2137,7 +2208,7 @@ function LootPrio:PrintPrio(lootName,lootLink)
 		spec_class_map[i] = {};
 	end
 	for spec_class_idx,plvl in pairs(data.prio) do
-		if plvl ~= PRIO_TIERS.PASS then spec_class_map[plvl][#(spec_class_map[plvl]) + 1] = SPEC_CLASS[spec_class_idx] end
+		if plvl ~= PRIO_TIERS.PASS then spec_class_map[plvl][#(spec_class_map[plvl]) + 1] = CLASS_SPEC_MAP[spec_class_idx] end
 	end
 	for plvl,tbl in ipairs(spec_class_map) do
 		if plvl == 6 then
@@ -2192,9 +2263,11 @@ function LootManager:SetCurrentLootByIdx(loot_idx)
 	local open_roll = self.pending_loot[loot_idx].open_roll;
 	local sk_list = self.pending_loot[loot_idx].sk_list;
 	self:SetCurrentLootDirect(item_name,item_link,open_roll,sk_list);
-	-- add the pending decision status for all elligible players
+	-- copy over all decisions, rolls, and sk positions from pending_loot
 	-- copy pending decisions over from pending_loot (created when item was originally saved to LootManager)
 	self.current_loot.decisions = DeepCopy(self.pending_loot[loot_idx].decisions);
+	self.current_loot.sk_pos = DeepCopy(self.pending_loot[loot_idx].sk_pos);
+	self.current_loot.rolls = DeepCopy(self.pending_loot[loot_idx].rolls);
 	return
 end
 
@@ -2262,6 +2335,10 @@ function LootManager:AddCharacter(char_name,item_idx)
 	end
 	-- set player decision to pending
 	self.pending_loot[item_idx].decisions[char_name] = LOOT_DECISION.PENDING;
+	-- save player position
+	self.pending_loot[item_idx].sk_pos[char_name] = SKC_DB[self.pending_loot[item_idx].sk_list]:GetPos(char_name);
+	-- roll for character
+	self.pending_loot[item_idx].rolls[char_name] = math.random(100); -- random number between 1 and 100
 	return;
 end
 
@@ -2360,50 +2437,45 @@ local function KickOffWithDelay()
 	return;
 end
 
-function LootManager:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_roll,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
+function LootManager:SendOutcomeMsg(winner,loot_name,loot_link,DE,send_success,receiver)
 	-- constructs and sends outcome message
 	local msg = nil;
 	local winner_with_color = FormatWithClassColor(winner,SKC_DB.GuildData:GetClass(winner));
-	local winner_log = winner;
-	local winner_decision_log = nil;
-	local winner_roll_log = "";
+	local event_type_log = LOG_OPTIONS["Event Type"].Options.Winner;
+	local sk_list = self:GetCurrentLootSKList();
+	local winner_decision = self.current_loot.decisions[winner];
 	if winner_decision == LOOT_DECISION.SK then
-		msg = winner_with_color.." won "..loot_link.." by "..sk_list.." (prio: "..winner_prio..", position: "..prev_sk_pos.." --> "..SKC_DB[sk_list]:GetPos(winner)..")!";
-		winner_decision_log = LOOT_DECISION.TEXT_MAP[winner_decision];
+		msg = winner_with_color.." won "..loot_link.." by "..sk_list.." (prio: "..self.current_loot.prios[winner]..", position: "..self.current_loot.sk_pos[winner].." --> "..SKC_DB[sk_list]:GetPos(winner)..")!";
 	elseif winner_decision == LOOT_DECISION.ROLL then
-		msg = winner_with_color.." won "..loot_link.." by roll (prio: "..winner_prio..", roll: "..winner_roll..")!";
-		winner_decision_log = LOOT_DECISION.TEXT_MAP[winner_decision];
-		winner_roll_log = winner_roll;
+		msg = winner_with_color.." won "..loot_link.." by roll (prio: "..self.current_loot.prios[winner]..", roll: "..self.current_loot.rolls[winner]..")!";
 	else
 		-- Everyone passed
 		msg = "Everyone passed on "..loot_link..", awarded to "..winner_with_color;
 		if DE then
 			msg = msg.." to be disenchanted."
-			winner_decision_log = "DE";
+			event_type_log = LOG_OPTIONS["Event Type"].Options.DE;
 		else
 			msg = msg.." for the guild bank."
-			winner_decision_log = "GB";
+			event_type_log = LOG_OPTIONS["Event Type"].Options.GB;
 		end
 	end
 	if not send_success then
 		msg = msg.." Send failed, item given to master looter."
-		winner_decision_log = "ML";
-		winner_log = UnitName("player");
 	end
 	-- Write outcome to log
 	WriteToLog( 
-		nil,
-		LOG_OPTIONS["Action"].Options.ALD,
-		LOG_OPTIONS["Source"].Options.SKC,
-		LOG_OPTIONS["SK List"].Options[sk_list],
-		winner_decision_log,
-		winner_log,
+		event_type_log,
+		winner,
+		LOOT_DECISION.TEXT_MAP[winner_decision],
 		loot_name,
-		winner_prio,
-		prev_sk_pos,
+		sk_list,
+		self.current_loot.prios[winner],
+		self.current_loot.sk_pos[winner],
 		SKC_DB[sk_list]:GetPos(winner),
-		winner_roll_log 
+		self.current_loot.rolls[winner],
+		receiver
 	);
+	SKC_Main:Print("WARN","receiver: "..receiver)
 	-- Send Outcome Message
 	-- when message has been sent, kick off next loot (with delay)
 	-- if there are already SK messages in the queue, this will be (correctly) further delayed due to transmission bottleneck
@@ -2422,6 +2494,8 @@ end
 
 function LootManager:MarkLootAwarded(loot_name)
 	-- mark loot awarded
+	-- send outcome message (and write to log)
+	self:SendOutcomeMsg(winner,loot_name,loot_link,DE,send_success,receiver);
 	-- get loot index
 	local loot_idx = self:GetLootIdx(loot_name,true);
 	if loot_idx ~= nil then
@@ -2484,7 +2558,7 @@ function LootManager:GiveLootToML(loot_name,loot_link)
 	return;
 end
 
-function LootManager:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winner_roll)
+function LootManager:AwardLoot(loot_idx,winner)
 	-- award actual loot to winner, perform SK (if necessary), and send alert message
 	-- initialize
 	local loot_name = self.current_loot.lootName;
@@ -2510,7 +2584,7 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winne
 	end
 	-- perform SK (if necessary) and record SK position before SK
 	local prev_sk_pos = SKC_DB[sk_list]:GetPos(winner);
-	if winner_decision == LOOT_DECISION.SK then
+	if self.current_loot.decisions[winner] == LOOT_DECISION.SK then
 		-- perform SK on winner (below current live bottom)
 		local sk_success = SKC_DB[sk_list]:LiveSK(winner);
 		if not sk_success then
@@ -2522,14 +2596,14 @@ function LootManager:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winne
 		-- populate data
 		SKC_Main:PopulateData();
 	end
-	-- send loot and mark as awarded
+	-- send loot and mark as awarded (removes from current_loot)
 	local send_success = self:GiveLoot(loot_name,loot_link,winner);
+	local receiver = winner;
 	if not send_success then
 		-- looting failed, send item to ML
 		self:GiveLootToML(loot_name,loot_link);
+		receiver = UnitName("player");
 	end
-	-- send outcome message (and write to log)
-	self:SendOutcomeMsg(winner,winner_decision,winner_prio,winner_roll,loot_name,loot_link,DE,sk_list,prev_sk_pos,send_success)
 	return;
 end
 
@@ -2555,8 +2629,8 @@ function LootManager:DetermineWinner()
 		if loot_decision ~= LOOT_DECISION.PASS then
 			local new_winner = false;
 			local prio_tmp = self.current_loot.prios[char_name];
-			local sk_pos_tmp = SKC_DB[sk_list]:GetPos(char_name);
-			local roll_tmp = math.ceil(math.random()*100);
+			local sk_pos_tmp = self.current_loot.sk_pos[char_name];
+			local roll_tmp = self.current_loot.rolls[char_name];
 			if LOOT_VERBOSE then
 				SKC_Main:Print("WARN","Prio: "..prio_tmp);
 				SKC_Main:Print("WARN","SK Position: "..sk_pos_tmp);
@@ -2617,14 +2691,14 @@ function LootManager:DetermineWinner()
 	end
 	-- award loot to winner
 	-- note, winner is nil if everyone passed
-	self:AwardLoot(loot_idx,winner,winner_decision,winner_prio,winner_roll);
+	self:AwardLoot(loot_idx,winner);
 	return;
 end
 
 function LootManager:DeterminePrio(char_name)
 	-- determines loot prio (PRIO_TIERS) of given char for current loot
 	-- get character spec
-	local spec = SKC_DB.GuildData:GetSpec(char_name);
+	local spec = SKC_DB.GuildData:GetSpecIdx(char_name);
 	-- start with base prio of item for given spec, then adjust based on character attributes
 	local prio = SKC_DB.LootPrio:GetPrio(self.current_loot.lootName,spec);
 	local loot_name = self.current_loot.lootName;
@@ -2650,7 +2724,7 @@ function LootManager:DeterminePrio(char_name)
 	self.current_loot.prios[char_name] = prio;
 	if LOOT_VERBOSE then
 		SKC_Main:Print("IMPORTANT","Prio for "..char_name);
-		SKC_Main:Print("WARN","spec: "..SPEC_CLASS[spec]);
+		SKC_Main:Print("WARN","spec: "..CLASS_SPEC_MAP[spec]);
 		SKC_Main:Print("WARN","status: "..status);
 		if reserved then
 			SKC_Main:Print("WARN","reserved: TRUE");
@@ -2734,11 +2808,21 @@ function LootManager:ReadLootDecision(msg,sender)
 	-- print loot decision
 	SKC_Main:Print("NORMAL",char_name.." wants to "..LOOT_DECISION.TEXT_MAP[loot_decision].." for "..loot_name);
 	self.current_loot.decisions[char_name] = loot_decision;
-	-- save current position in corresponding sk list
-	local sk_list = self.current_loot.sk_list;
 	-- calculate / save prio
 	self:DeterminePrio(char_name);
-	-- Determine if all decisions collected
+	-- Write to log
+	WriteToLog(
+		LOG_OPTIONS["Event Type"].Options.Response,
+		char_name,
+		LOOT_DECISION.TEXT_MAP[loot_decision],
+		self:GetCurrentLootName(),
+		self:GetCurrentLootSKList(),
+		self.current_loot.prios[char_name],
+		self.current_loot.sk_pos[char_name],
+		"",
+		self.current_loot.rolls[char_name],
+		""
+	);
 	for char_name_tmp,ld_tmp in pairs(self.current_loot.decisions) do
 		if ld_tmp == LOOT_DECISION.PENDING then 
 			SKC_Main:Print("WARN","Waiting on: "..char_name_tmp);
@@ -2756,17 +2840,20 @@ local function ResetLootLog()
 	SKC_DB.RaidLog = {};
 	-- Initialize with header
 	WriteToLog(
-		LOG_OPTIONS["Timestamp"].Text,
-		LOG_OPTIONS["Action"].Text,
-		LOG_OPTIONS["Source"].Text,
-		LOG_OPTIONS["SK List"].Text,
+		LOG_OPTIONS["Event Type"].Text,
+		LOG_OPTIONS["Subject"].Text,
 		LOG_OPTIONS["Decision"].Text,
-		LOG_OPTIONS["Character"].Text,
 		LOG_OPTIONS["Item"].Text,
+		LOG_OPTIONS["SK List"].Text,
 		LOG_OPTIONS["Prio"].Text,
 		LOG_OPTIONS["Previous SK Position"].Text,
 		LOG_OPTIONS["New SK Position"].Text,
-		LOG_OPTIONS["Roll"].Text
+		LOG_OPTIONS["Roll"].Text,
+		LOG_OPTIONS["Item Receiver"].Text,
+		LOG_OPTIONS["Timestamp"].Text,
+		LOG_OPTIONS["Master Looter"].Text,
+		LOG_OPTIONS["Class"].Text,
+		LOG_OPTIONS["Spec"].Text
 	);
 	return;
 end
@@ -3429,17 +3516,16 @@ local function OnClick_FullSK(self)
 		local success = SKC_DB[sk_list]:PushBack(name);
 		if success then 
 			-- log
-			WriteToLog(
-				nil,
-				LOG_OPTIONS["Action"].Options.ManSK,
-				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
-				LOG_OPTIONS["SK List"].Options[sk_list],
-				"Full SK",
+			WriteToLog( 
+				LOG_OPTIONS["Event Type"].Options.ManEdit,
 				name,
+				"Full SK",
 				"",
+				sk_list,
 				"",
 				prev_pos,
 				SKC_DB[sk_list]:GetPos(name),
+				"",
 				""
 			);
 			SKC_Main:Print("IMPORTANT","Full SK on "..name);
@@ -3467,17 +3553,16 @@ local function OnClick_SingleSK(self)
 		local success = SKC_DB[sk_list]:InsertBelow(name,name_below);
 		if success then 
 			-- log
-			WriteToLog(
-				nil,
-				LOG_OPTIONS["Action"].Options.ManSK,
-				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
-				LOG_OPTIONS["SK List"].Options[sk_list],
-				"Single SK",
+			WriteToLog( 
+				LOG_OPTIONS["Event Type"].Options.ManEdit,
 				name,
+				"Single SK",
 				"",
+				sk_list,
 				"",
 				prev_pos,
 				SKC_DB[sk_list]:GetPos(name),
+				"",
 				""
 			);
 			SKC_Main:Print("IMPORTANT","Single SK on "..name);
@@ -3515,17 +3600,16 @@ local function OnClick_NumberCard(self,button)
 		local success = SKC_DB[sk_list]:SetByPos(name,new_abs_pos);
 		if success then
 			-- log
-			WriteToLog(
-				nil,
-				LOG_OPTIONS["Action"].Options.ManSK,
-				LOG_OPTIONS["Source"].Options.THIS_PLAYER,
-				LOG_OPTIONS["SK List"].Options[sk_list],
-				"Set SK",
+			WriteToLog( 
+				LOG_OPTIONS["Event Type"].Options.ManEdit,
 				name,
+				"Set SK",
 				"",
+				sk_list,
 				"",
 				prev_pos,
 				SKC_DB[sk_list]:GetPos(name),
+				"",
 				""
 			);
 			SKC_Main:Print("IMPORTANT","Set SK position of "..name.." to "..SKC_DB[sk_list]:GetPos(name));
@@ -3824,7 +3908,7 @@ local function SyncPushRead(msg,sender)
 			local item, msg_rem = strsplit(",",msg_rem,2);
 			item = StrOut(item);
 			local plvl = nil;
-			for idx,spec_class in ipairs(SPEC_CLASS) do
+			for idx,_ in ipairs(CLASS_SPEC_MAP) do
 				plvl, msg_rem = strsplit(",",msg_rem,2);
 				tmp_sync_var.items[item].prio[idx] = NumOut(plvl);
 			end
@@ -4061,11 +4145,35 @@ local function SaveLoot()
 					if LOOT_VERBOSE then SKC_Main:Print("WARN","No elligible characters in raid. Giving directly to ML.") end
 					-- give directly to ML
 					SKC_DB.LootManager:GiveLootToML(lootName,lootLink);
+					WriteToLog( 
+						LOG_OPTIONS["Event Type"].Options.NE,
+						"",
+						"ML",
+						lootName,
+						"",
+						"",
+						"",
+						"",
+						"",
+						UnitName("player")
+					);
 				end
 			else
 				if LOOT_VERBOSE then SKC_Main:Print("WARN","Item not in Loot Prio. Giving directly to ML.") end
 				-- give directly to ML
 				SKC_DB.LootManager:GiveLootToML(lootName,GetLootSlotLink(i_loot));
+				WriteToLog( 
+					LOG_OPTIONS["Event Type"].Options.AL,
+					"",
+					"ML",
+					lootName,
+					"",
+					"",
+					"",
+					"",
+					"",
+					UnitName("player")
+				);
 			end
 		end
 	end
@@ -4925,6 +5033,7 @@ local function EventHandler(self,event,...)
 		-- Sync GuildData (if GL) and create ticker to send sync requests
 		SyncGuildData();
 	elseif event == "GROUP_ROSTER_UPDATE" or event == "PARTY_LOOT_METHOD_CHANGED" then
+		ManageLootLogging();
 		UpdateLiveList();
 		UpdateDetailsButtons();
 	elseif event == "OPEN_MASTER_LOOT_LIST" then
