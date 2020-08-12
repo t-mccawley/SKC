@@ -1,5 +1,4 @@
 -- TODO:
--- Add loot channel output feature
 -- package AI and LO with GuildData instead (GuildData is all data that only GL can send / must be verified to come from GL)
 -- serialize communications
 -- make loot officers only ones able to push (client checks that sender is loot officer)
@@ -1098,6 +1097,34 @@ function LootPrio:new(loot_prio)
 		end
 		setmetatable(loot_prio,LootPrio);
 		return loot_prio;
+	end
+end
+
+GuildLeaderProtected = { -- data which is guild leader protected, i.e. this data is only sent by the GL and reading this data requires confirmation that it is coming from the GL
+	addon_ver = nil, -- addon version of the guild leader
+	loot_prio = nil, -- loot prio
+	loot_officers = nil, -- SimpleMap of player names who are loot officers
+	active_instances = nil, -- SimpleMap of instance acronyms which are 
+};
+GuildLeaderProtected.__index = GuildLeaderProtected;
+
+function GuildLeaderProtected:new(glp)
+	if glp == nil then
+		-- initalize fresh
+		local obj = {};
+		obj.addon_ver = nil;
+		obj.loot_prio = LootPrio:new();
+		obj.loot_officers = SimpleMap:new();
+		obj.active_instances = SimpleMap:new();
+		setmetatable(obj,GuildLeaderProtected);
+		return obj;
+	else
+		-- set metatable of existing table and all sub tables
+		glp.loot_prio = LootPrio:new(glp.loot_prio);
+		glp.loot_officers = SimpleMap:new(glp.loot_officers);
+		glp.active_instances = SimpleMap:new(glp.active_instances);
+		setmetatable(glp,GuildLeaderData);
+		return glp;
 	end
 end
 
