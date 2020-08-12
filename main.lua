@@ -966,8 +966,6 @@ GuildData = {
 	data = {}, --a hash table that maps character name to CharacterData
 	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
 	edit_ts_generic = nil, -- timestamp of most recent edit
-	activity_thresh = nil, -- time threshold [days] which changes activity from Active to Inactive
-	required_ver = nil, -- required addon version (determined by GL) in order to be elligible for loot
 };
 GuildData.__index = GuildData;
 
@@ -978,8 +976,6 @@ function GuildData:new(guild_data)
 		obj.data = {};
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
-		obj.activity_thresh = 30;
-		obj.required_ver = nil;
 		setmetatable(obj,GuildData);
 		return obj;
 	else
@@ -1102,9 +1098,12 @@ end
 
 GuildLeaderProtected = { -- data which is guild leader protected, i.e. this data is only sent by the GL and reading this data requires confirmation that it is coming from the GL
 	addon_ver = nil, -- addon version of the guild leader
+	activity_thresh = nil, -- time threshold [days] which changes activity from Active to Inactive
 	loot_prio = nil, -- loot prio
 	loot_officers = nil, -- SimpleMap of player names who are loot officers
-	active_instances = nil, -- SimpleMap of instance acronyms which are 
+	active_instances = nil, -- SimpleMap of instance acronyms which enable the addon
+	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
+	edit_ts_generic = nil, -- timestamp of most recent edit (non-raid)
 };
 GuildLeaderProtected.__index = GuildLeaderProtected;
 
@@ -1113,9 +1112,12 @@ function GuildLeaderProtected:new(glp)
 		-- initalize fresh
 		local obj = {};
 		obj.addon_ver = nil;
+		obj.activity_thresh = nil;
 		obj.loot_prio = LootPrio:new();
 		obj.loot_officers = SimpleMap:new();
 		obj.active_instances = SimpleMap:new();
+		obj.edit_ts_raid = 0;
+		obj.edit_ts_generic = 0;
 		setmetatable(obj,GuildLeaderProtected);
 		return obj;
 	else
@@ -1123,8 +1125,32 @@ function GuildLeaderProtected:new(glp)
 		glp.loot_prio = LootPrio:new(glp.loot_prio);
 		glp.loot_officers = SimpleMap:new(glp.loot_officers);
 		glp.active_instances = SimpleMap:new(glp.active_instances);
-		setmetatable(glp,GuildLeaderData);
+		setmetatable(glp,GuildLeaderProtected);
 		return glp;
+	end
+end
+
+LootOfficerProtected = { -- data which is loot officer protected, i.e. this data is only sent by the LOs and reading this data requires confirmation that it is coming from the LOs
+	bench = nil, -- SimpleMap of player names who are loot officers
+	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
+	edit_ts_generic = nil, -- timestamp of most recent edit (non-raid)
+};
+LootOfficerProtected.__index = LootOfficerProtected;
+
+function LootOfficerProtected:new(lop)
+	if lop == nil then
+		-- initalize fresh
+		local obj = {};
+		obj.bench = SimpleMap:new();
+		obj.edit_ts_raid = 0;
+		obj.edit_ts_generic = 0;
+		setmetatable(obj,LootOfficerProtected);
+		return obj;
+	else
+		-- set metatable of existing table and all sub tables
+		lop.bench = SimpleMap:new(lop.bench);
+		setmetatable(lop,LootOfficerProtected);
+		return lop;
 	end
 end
 
@@ -1215,31 +1241,8 @@ end
 
 local function CheckAddonVerMatch()
 	-- returns true if client addon version matches required version
-	if SKC_DB == nil or SKC_DB.GuildData == nil or SKC_DB.AddonVersion == nil then
-		return false;
-	else
-		local gl_addon_ver = SKC_DB.GuildData:GetGLAddonVer();
-		if gl_addon_ver == nil then
-			return false;
-		elseif gl_addon_ver == SKC_DB.AddonVersion then
-			return true;
-		else
-			return false;
-		end
-	end
-end
-
-local function CheckActiveInstance()
-	-- returns true of current instance is in ActiveRaids
-	if ACTIVE_RAID_OVRD then return true end
-	if SKC_DB == nil or SKC_DB.ActiveRaids == nil or SKC_DB.ActiveRaids.data == nil then return false end
-	local raid_name = GetInstanceInfo();
-	for active_raid_acro,_ in pairs(SKC_DB.ActiveRaids.data) do
-		if raid_name == RAID_NAME_MAP[active_raid_acro] then
-			return true;
-		end
-	end
-	return false;
+	if SKC_DB == nil or SKC_DB.GLP == nil then return false end
+	return(SKC_DB.GLP:IsAddonVerMatch());
 end
 
 local function StripRealmName(full_name)
@@ -1250,7 +1253,7 @@ end
 function SKC_Main:isLO(name)
 	-- returns true if given name (current player if nil) is a loot officer
 	if name == nil then name = UnitName("player") end
-	return LOOT_OFFICER_OVRD or SKC_DB.LootOfficers.data[StripRealmName(name)];
+	return(LOOT_OFFICER_OVRD or (SKC_DB ~= nil and SKC_DB.GLP ~= nil and SKC_DB.GLP:IsLO(name));
 end
 
 local function CheckIfReadInProgress()
@@ -1267,6 +1270,12 @@ local function CheckIfPushInProgress()
 		if push then return true end
 	end
 	return false;
+end
+
+local function CheckActivity(name)
+	-- checks activity level
+	-- returns true if still active
+	return (SKC_DB.GuildData:CalcActivity(name) < SKC_DB.GLP:GetActivityThreshold()*DAYS_TO_SECS);
 end
 
 local function CheckIfGuildMemberOnline(target,verbose)
@@ -1499,8 +1508,7 @@ local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_call
 			db_name..","..
 			NilToStr(SKC_DB.GuildData.edit_ts_generic)..","..
 			NilToStr(SKC_DB.GuildData.edit_ts_raid)..","..
-			NilToStr(SKC_DB.GuildData.activity_thresh)..","..
-			NilToStr(SKC_DB.GuildData.required_ver);
+			NilToStr(SKC_DB.GuildData.activity_thresh);
 		ChatThrottleLib:SendAddonMessage("NORMAL",addon_channel,db_msg,game_channel,name,"main_queue");
 		for guildie_name,c_data in pairs(SKC_DB.GuildData.data) do
 			db_msg = "DATA,"..
@@ -1645,18 +1653,9 @@ function GuildData:length()
 	return count;
 end
 
-function GuildData:SetReqVer(req_ver)
-	-- updates required version if it is different than previous version
-	if self.required_ver ~= req_ver then
-		self.required_ver = req_ver;
-		self:SetEditTime();
-	end
-	return;
-end
-
-function GuildData:GetGLAddonVer()
-	-- returns guild leader addon version
-	return self.required_ver;
+function GuildData:CalcActivity(name)
+	-- calculate time difference (in seconds)
+	return ((time() - self.data[name].last_live_time));
 end
 
 function GuildData:GetFirstGuildRoles()
@@ -1706,7 +1705,7 @@ function GuildData:SetData(name,field,value)
 		local curr_str = self:GetData(name,field);
 		local new_str = CHARACTER_DATA[field].OPTIONS[value].text
 		if curr_str == "Active" and new_str == "Inactive" then
-			SKC_DB.GuildData:SetLastLiveTime(name,time()-SKC_DB.GuildData:GetActivityThreshold()*DAYS_TO_SECS);
+			SKC_DB.GuildData:SetLastLiveTime(name,time()-SKC_DB.GLP:GetActivityThreshold()*DAYS_TO_SECS);
 		elseif curr_str == "Inactive" and new_str == "Active" then
 			SKC_DB.GuildData:SetLastLiveTime(name,time());
 		end
@@ -1766,29 +1765,6 @@ function GuildData:SetLastLiveTime(name,ts)
 	if not self:Exists(name) then return end
 	self.data[name].last_live_time = ts;
 	return;
-end
-
-function GuildData:CalcActivity(name)
-	-- calculate time difference (in seconds)
-	return ((time() - self.data[name].last_live_time));
-end
-
-function GuildData:CheckActivity(name)
-	-- checks activity level
-	-- returns true if still active
-	return (self:CalcActivity(name) < self.activity_thresh*DAYS_TO_SECS);
-end
-
-function GuildData:SetActivityThreshold(new_thresh)
-	-- sets new activity threshold (input days, stored as seconds)
-	self.activity_thresh = new_thresh;
-	SKC_Main:RefreshStatus();
-	return;
-end
-
-function GuildData:GetActivityThreshold()
-	-- returns activity threshold in days
-	return self.activity_thresh;
 end
 
 function SK_List:SetEditTime()
@@ -2281,6 +2257,115 @@ function LootPrio:PrintPrio(lootName,lootLink)
 	end
 	print(" ");
 	return;
+end
+
+
+function GuildLeaderProtected:SetEditTime()
+	local ts = time();
+	self.edit_ts_generic = ts;
+	if CheckActive() then self.edit_ts_raid = ts end
+	return;
+end
+
+function GuildLeaderProtected:GetGLAddonVer()
+	-- returns guild leader addon version
+	return self.addon_ver;
+end
+
+function GuildLeaderProtected:SetGLAddonVer(ver)
+	if not SKC_Main:isGL() then
+		SKC_Main:Print("ERROR","You must be guild leader to do that")
+		return;
+	end
+	-- updates GL version if it is different than previous version
+	if self.addon_ver ~= ver then
+		self.addon_ver = ver;
+		self:SetEditTime();
+	end
+	return;
+end
+
+function GuildLeaderProtected:SetActivityThreshold(new_thresh)
+	if not SKC_Main:isGL() then
+		SKC_Main:Print("ERROR","You must be guild leader to do that")
+		return;
+	end
+	-- sets new activity threshold (input days, stored as seconds)
+	self.activity_thresh = new_thresh;
+	SKC_Main:RefreshStatus();
+	self:SetEditTime();
+	return;
+end
+
+function GuildLeaderProtected:GetActivityThreshold()
+	-- returns activity threshold in days
+	return self.activity_thresh;
+end
+
+function GuildLeaderProtected:AddLO(lo_name)
+	if not SKC_Main:isGL() then
+		SKC_Main:Print("ERROR","You must be guild leader to do that")
+		return;
+	end
+	self.loot_officers:Add(lo_name);
+	self:SetEditTime();
+	return;
+end
+
+function GuildLeaderProtected:RemoveLO(lo_name)
+	if not SKC_Main:isGL() then
+		SKC_Main:Print("ERROR","You must be guild leader to do that");
+		return;
+	end
+	-- first check if removal candidate is guild leader (cannot remove)
+	if lo_name == UnitName("player") then
+		SKC_Main:Print("ERROR","You cannot remove the guild leader as a loot officer");
+		return;
+	end
+	self.loot_officers:Remove(lo_name);
+	self:SetEditTime();
+	return;
+end
+
+function GuildLeaderProtected:ClearLO()
+	if not SKC_Main:isGL() then
+		SKC_Main:Print("ERROR","You must be guild leader to do that");
+		return;
+	end
+	-- clear data
+	self.loot_officers:Clear();
+	-- re-add GL
+	self.loot_officers:Add(UnitName("player"));
+	self:SetEditTime();
+	return;
+end
+
+function GuildLeaderProtected:ShowLO()
+	self.loot_officers:Show();
+	return;
+end
+
+function GuildLeaderProtected:IsActiveInstance()
+	-- returns true of current instance is active_instances
+	if ACTIVE_RAID_OVRD then return true end
+	if self.active_raids == nil or self.active_raids.data == nil then return false end
+	local raid_name = GetInstanceInfo();
+	for active_raid_acro,_ in pairs(self.active_raids.data) do
+		if raid_name == RAID_NAME_MAP[active_raid_acro] then
+			return true;
+		end
+	end
+	return false;
+end
+
+function GuildLeaderProtected:IsAddonVerMatch()
+	-- returns true if this client has addon version that matches guild leader version
+	return(SKC_DB.AddonVersion == self:GetGLAddonVer());
+end
+
+function GuildLeaderProtected:IsLO(full_name)
+	local name = StripRealmName(full_name);
+	return(self.loot_officers.data[name]);
 end
 
 function LootManager:Reset()
@@ -2977,7 +3062,7 @@ end
 local function UpdateActivity(name)
 	-- check if activity exceeds threshold and updates if different
 	local activity = "Inactive";
-	if SKC_DB.GuildData:CheckActivity(name) then activity = "Active" end
+	if CheckActivity(name) then activity = "Active" end
 	if SKC_DB.GuildData:GetData(name,"Activity") ~= activity then
 		if not init then SKC_Main:Print("IMPORTANT",name.." set to "..activity) end
 		SKC_DB.GuildData:SetData(name,"Activity",activity);
@@ -3057,12 +3142,12 @@ local function SyncGuildData()
 			-- init sync completed
 			SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")");
 			if COMM_VERBOSE then SKC_Main:Print("NORMAL","Generic TS: "..SKC_DB.GuildData.edit_ts_generic..", Raid TS: "..SKC_DB.GuildData.edit_ts_raid) end
-			-- add self (GL) to loot officers by default
-			SKC_DB.LootOfficers:Add(UnitName("player"));
+			-- add self (GL) to loot officers
+			SKC_DB.GLP:AddLO(UnitName("player"));
 			InitGuildSync = false;
 		end
 		-- set required version to current version
-		SKC_DB.GuildData:SetReqVer(SKC_DB.AddonVersion);
+		SKC_DB.GLP:SetAddonVer(SKC_DB.AddonVersion);
 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL","SyncGuildData success!") end
 	end
 	-- sync with guild
@@ -3072,12 +3157,17 @@ local function SyncGuildData()
 	return;
 end
 
+local function CheckActiveInstance()
+	if SKC_DB == nil or SKC_DB.GLP == nil then return false end
+	return(SKC_DB.GLP:IsActiveInstance());
+end
+
 local function ActivateSKC()
 	-- master control for wheter or not loot is managed with SKC
 	if not CheckAddonLoaded() then return end
 	if not SKC_DB.SKC_Enable then
 		SKC_Status = SKC_STATUS_ENUM.DISABLED;
-	elseif SKC_DB.GuildData:GetGLAddonVer() == nil then
+	elseif SKC_DB.GLP:GetGLAddonVer() == nil then
 		SKC_Status = SKC_STATUS_ENUM.INACTIVE_GL;
 	elseif not CheckAddonVerMatch() then
 		SKC_Status = SKC_STATUS_ENUM.INACTIVE_VER;
@@ -3169,48 +3259,26 @@ local function OnAddonLoad(addon_name)
 	-- 	HardReset();
 	-- 	SKC_Main:Print("IMPORTANT","Hard Reset: New addon version "..SKC_DB.AddonVersion);
 	-- end
-	if SKC_DB.Bench == nil then
-		SKC_DB.Bench = SimpleMap:new(nil);
-		SKC_Main:Print("WARN","Initialized Bench");
+	if SKC_DB.GLP == nil then
+		SKC_DB.GLP = nil;
 	end
-	if SKC_DB.ActiveRaids == nil then
-		SKC_DB.ActiveRaids = SimpleMap:new(nil);
-		-- add defaults
-		for raid_acro_tmp,_ in pairs(RAID_NAME_MAP) do
-			SKC_DB.ActiveRaids:Add(raid_acro_tmp);
-		end
-		-- reset edit_ts
-		SKC_DB.ActiveRaids.edit_ts_generic = 0;
-		SKC_DB.ActiveRaids.raid_ts_generic = 0;
-		SKC_Main:Print("WARN","Initialized ActiveRaids");
-	end
-	if SKC_DB.LootOfficers == nil then
-		SKC_DB.LootOfficers = SimpleMap:new(nil);
-		SKC_Main:Print("WARN","Initialized LootOfficers");
+	if SKC_DB.LOP == nil then
+		SKC_DB.LOP = nil;
 	end
 	if SKC_DB.GuildData == nil then
 		SKC_DB.GuildData = nil;
-		SKC_Main:Print("WARN","Initialized GuildData");
-	end
-	if SKC_DB.LootPrio == nil then 
-		SKC_DB.LootPrio = nil;
-		SKC_Main:Print("WARN","Initialized LootPrio");
 	end
 	if SKC_DB.MSK == nil then 
 		SKC_DB.MSK = nil;
-		SKC_Main:Print("WARN","Initialized MSK");
 	end
 	if SKC_DB.TSK == nil then 
 		SKC_DB.TSK = nil;
-		SKC_Main:Print("WARN","Initialized TSK");
 	end
 	if SKC_DB.RaidLog == nil then
 		SKC_DB.RaidLog = {};
-		SKC_Main:Print("WARN","Initialized RaidLog");
 	end
 	if SKC_DB.LootManager == nil then
 		SKC_DB.LootManager = nil
-		SKC_Main:Print("WARN","Initialized LootManager");
 	end
 	if SKC_DB.FilterStates == nil then
 		SKC_DB.FilterStates = {
@@ -3232,23 +3300,20 @@ local function OnAddonLoad(addon_name)
 			Warlock = true,
 			Warrior = true,
 		};
-		SKC_Main:Print("WARN","Initialized FilterStates");
 	end
 	-- always reset live filter state because its confusing to see a blank list
 	SKC_DB.FilterStates.Live = false;
 	-- Initialize or refresh metatables
+	SKC_DB.GLP = GuildLeaderProtected:new(SKC_DB.GLP);
+	SKC_DB.LOP = LootOfficerProtected:new(SKC_DB.LOP);
 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
-	SKC_DB.LootPrio = LootPrio:new(SKC_DB.LootPrio);
 	SKC_DB.MSK = SK_List:new(SKC_DB.MSK);
 	SKC_DB.TSK = SK_List:new(SKC_DB.TSK);
 	SKC_DB.LootManager = LootManager:new(SKC_DB.LootManager);
-	SKC_DB.Bench = SimpleMap:new(SKC_DB.Bench);
-	SKC_DB.ActiveRaids = SimpleMap:new(SKC_DB.ActiveRaids);
-	SKC_DB.LootOfficers = SimpleMap:new(SKC_DB.LootOfficers);
-	-- Manage loot logging
-	ManageLootLogging();
 	-- Addon loaded
 	event_states.AddonLoaded = true;
+	-- Manage loot logging
+	ManageLootLogging();
 	-- Update live list
 	UpdateLiveList();
 	-- Populate data
@@ -3915,14 +3980,12 @@ local function SyncPushRead(msg,sender)
 		end
 	elseif db_name == "GuildData" then
 		if part == "INIT" then
-			local ts_generic, ts_raid, activity_thresh, req_ver = strsplit(",",msg_rem,4);
+			local ts_generic, ts_raid = strsplit(",",msg_rem,2);
 			ts_generic = NumOut(ts_generic);
 			ts_raid = NumOut(ts_raid);
 			tmp_sync_var = GuildData:new(nil);
 			tmp_sync_var.edit_ts_generic = ts_generic;
 			tmp_sync_var.edit_ts_raid = ts_raid;
-			tmp_sync_var.activity_thresh = NumOut(activity_thresh);
-			tmp_sync_var.required_ver = req_ver;
 		elseif part == "META" then
 			-- nothing to do
 		elseif part == "DATA" then
