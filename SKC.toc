@@ -3,13 +3,28 @@
 ## Title: SKC
 ## Notes: Suicide Kings Classic
 ## Author: https://github.com/t-mccawley
-## Version: v1.0
+## Version: v1.1
 ## X-Category: Guild
 ## X-Website: https://github.com/t-mccawley/SKC
 ## DefaultState: enabled
-## SavedVariablesPerCharacter: SKC_DB
+## SavedVariables: SKC_DB
 
-ChatThrottleLib.lua
-main.lua
-init.lua
-
+# external libraries
+embeds.xml
+# classes
+cSimpleMap.lua
+cSK_Node.lua
+cSK_List.lua
+cCharacterData.lua
+cGuildData.lua
+cPrio.lua
+cLootPrio.lua
+cGuildLeaderProtected.lua
+cLootOfficerProtected.lua
+cLoot.lua
+cLootManager.lua
+# main SKC files
+SKC.lua
+SKCUtils.lua
+SKCSlashCommands.lua
+SKCInit.lua
