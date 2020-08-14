@@ -12,19 +12,23 @@
 # external libraries
 embeds.xml
 # classes
-cSimpleMap.lua
-cSK_Node.lua
-cSK_List.lua
-cCharacterData.lua
-cGuildData.lua
-cPrio.lua
-cLootPrio.lua
-cGuildLeaderProtected.lua
-cLootOfficerProtected.lua
-cLoot.lua
-cLootManager.lua
+classes/SimpleMap.lua
+classes/SK_Node.lua
+classes/SK_List.lua
+classes/CharacterData.lua
+classes/GuildData.lua
+classes/Prio.lua
+classes/LootPrio.lua
+classes/GuildLeaderProtected.lua
+classes/LootOfficerProtected.lua
+classes/Loot.lua
+classes/LootManager.lua
 # main SKC files
 SKC.lua
-SKCUtils.lua
-SKCSlashCommands.lua
-SKCInit.lua
+main/gui_main.lua
+main/gui_loot.lua
+main/sync.lua
+main/loot.lua
+main/slash.lua
+main/utils.lua
+main/init.lua

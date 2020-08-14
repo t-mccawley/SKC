@@ -1,12 +1,44 @@
 --------------------------------------
--- SKC ADDON
+-- SKC
+--------------------------------------
+-- TODO:
+-- package AI and LO with GuildData instead (GuildData is all data that only GL can send / must be verified to come from GL)
+-- serialize communications
+-- make loot officers only ones able to push (client checks that sender is loot officer)
+-- make guild leader only one that sends LootOfficers and ActiveRaids (change name) i.e. not auto sync based on time stamps
+-- client chekcs that sender of GuildData is in fact the guild leader
+-- make init slash command for guild data
+--------------------------------------
+-- ADDON CONSTRUCTOR
 --------------------------------------
 SKC = LibStub("AceAddon-3.0"):NewAddon("SKC","AceComm-3.0","AceConsole-3.0");
 SKC.lib_ser = LibStub:GetLibrary("AceSerializer-3.0");
 SKC.lib_comp = LibStub:GetLibrary("LibCompress");
 SKC.lib_enc = SKC.lib_comp:GetAddonEncodeTable();
 --------------------------------------
--- SKC CONSTANTS
+-- DEV CONTROLS
+--------------------------------------
+SKC.DEV = {
+	GL_OVRD = "Paskal", -- name of faux GL to override guild leader permissions (local)
+    ML_OVRD = nil, -- name of faux ML override master looter permissions (local)
+    LOOT_SAFE_MODE = false, -- true if saving loot is immediately rejected
+    LOOT_DIST_DISABLE = true, -- true if loot distribution is disabled
+    LOG_ACTIVE_OVRD = false, -- true to force logging
+    GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
+		-- Freznic = true,
+	},
+    ACTIVE_RAID_OVRD = false, -- true if SKC can be used outside of active raids
+    LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
+	VERBOSITY_LEVEL = 0,-- verbosity level (debug messages at or below this level will print)
+	VERBOSE = { -- verbosity levels
+		COMM = 1,
+		LOOT = 2,
+		GUI = 3,
+		GUILD = 3,
+	}
+};
+--------------------------------------
+-- CONSTANTS
 --------------------------------------
 SKC.ADDON_VERSION = GetAddOnMetadata("NovaWorldBuffs", "Version");
 SKC.DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
@@ -60,6 +92,16 @@ SKC.THEME = { -- general color themes
 		HELP = {r = 1, g = 204/255, b = 0, hex = "ffcc00"},
 	},
 	STATUS_BAR_COLOR = {0.0,0.6,0.0},
+};
+SKC.CHANNELS = { -- channels for inter addon communication (const)
+	LOGIN_SYNC_CHECK = "?Q!@$8a1pc8QqYyH",
+	LOGIN_SYNC_PUSH = "6-F?832qBmrJE?pR",
+	LOGIN_SYNC_PUSH_RQST = "d$8B=qB4VsW&&Y^D",
+	SYNC_PUSH = "8EtTWxyA$r6xi3=F",
+	LOOT = "xBPE9,-Fjsc+A#rm",
+	LOOT_DECISION = "ksg(Ak2.*/@&+`8Q",
+	LOOT_DECISION_PRINT = "xP@&!9hQxY]1K&C4",
+	LOOT_OUTCOME = "aP@yX9hQf}89K&C4",
 };
 local OnClick_EditDropDownOption; -- forward declare for drop down menu details
 SKC.CLASSES = { -- wow classes
@@ -634,6 +676,11 @@ SKC.LOOT_DECISION = {
 		KICKOFF_DELAY = 3, -- delay after finishing one loot distribution before next begins
 	},
 };
+SKC.SYNC_PARAMS = {
+	-- LoginSyncCheckTicker_InitDelay = 5, -- seconds
+	-- LoginSyncCheckTicker_Intvl = 10, -- seconds between function calls
+	-- LoginSyncCheckTicker_MaxTicks = 59, -- 1 tick = 1 sec
+};
 SKC.PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
 	SK = {
 		Main = {
@@ -740,7 +787,7 @@ SKC.RAID_NAME_MAP = {
 	AQ40 = "Temple of Ahn'Qiraj",
 	NAXX = "Naxxramas",
 };
-SKC.SKC_STATUS_ENUM = {
+SKC.STATUS_ENUM = {
 	ACTIVE = {
 		val = 0,
 		text = "Active",
@@ -783,5 +830,66 @@ SKC.SKC_STATUS_ENUM = {
 	},
 };
 --------------------------------------
--- SKC VARIABLES
+-- VARIABLES
 --------------------------------------
+SKC.Status = STATUS_ENUM.INACTIVE_GL; -- SKC status state enumeration
+-- local tmp_sync_var = {}; -- temporary variable used to hold incoming data when synchronizing
+SKC.UnFilteredCnt = 0; -- defines max count of sk cards to scroll over (XXX)
+-- local SK_MessagesSent = 0;
+-- local SK_MessagesReceived = 0;
+SKC.event_states = { -- tracks if certain events have fired
+	AddonLoaded = false,
+	DropDownOpen = false, -- used to track state of drop down menu
+	SetSKInProgress = false; -- true when SK position is being set
+	InitGuildSync = false; -- used to control for first time setup
+	RaidLoggingActive = LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
+	LoginSyncPartner = nil, -- name of sender who answered LoginSyncCheck first
+	ReadInProgress = {
+		MSK = false,
+		TSK = false,
+		GuildData = false,
+		LootPrio = false,
+		Bench = false,
+		ActiveRaids = false,
+		LootOfficers = false,
+	},
+	PushInProgress = {
+		MSK = false,
+		TSK = false,
+		GuildData = false,
+		LootPrio = false,
+		Bench = false,
+		ActiveRaids = false,
+		LootOfficers = false,
+	},
+};
+SKC.event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_MaxTicks + 1;
+-- local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due to addon version or malformed messages)
+SKC.Timers = {
+	LoginSyncCheck = {-- ticker that requests sync each iteration until over or cancelled
+		Ticker = nil, 
+		Ticks = nil,
+		TimeElasped = nil,
+	}, 
+	LootDecision = { -- current loot timer
+		Ticker = nil, -- ticker that requests sync each iteration until over or cancelled
+		Ticks = nil,
+		TimeElapsed = nil,
+	}, 
+};
+SKC.DEBUG = {
+	ReadTime = {
+		GLP = nil,
+		LOP = nil,
+		GuildData = nil,
+		MSK = nil,
+		TSK = nil,
+	},
+	PushTime = {
+		GLP = nil,
+		LOP = nil,
+		GuildData = nil,
+		MSK = nil,
+		TSK = nil,
+	},
+};

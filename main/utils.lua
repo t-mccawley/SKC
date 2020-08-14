@@ -1,6 +1,14 @@
 --------------------------------------
 -- UTILS
 --------------------------------------
+function SKC:Debug(msg,lvl)
+	-- prints message if level is at or below VERBOSITY_LEVEL
+	if lvl <= SKC.DEV.VERBOSITY_LEVEL then
+		self:Print(msg);
+	end
+    return;
+end
+
 function SKC:Error(msg)
     -- formats and prints msg with red color
     self:Print("|cff"..self.THEME.PRINT.ERROR.hex..msg.."|r")
@@ -28,7 +36,7 @@ function SKC:GetSpecClassColor(spec_class)
 end
 
 local function SendCompMsg(data,addon_channel,wow_channel,target,prio,callback_fn)
-	-- serialize, compress, and send
+	-- serialize, compress, and send an addon message
 	local data_ser = SKC.lib_ser:Serialize(data);
 	local data_comp = SKC.lib_comp:CompressHuffman(data_ser)
 	local msg = SKC.lib_enc:Encode(data_comp)
@@ -280,3 +288,138 @@ local function PrintSyncMsgEnd(db_name,push)
 	return;
 end
 
+local function ResetLootLog()
+	SKC_DB.RaidLog = {};
+	-- Initialize with header
+	WriteToLog(
+		LOG_OPTIONS["Event Type"].Text,
+		LOG_OPTIONS["Subject"].Text,
+		LOG_OPTIONS["Action"].Text,
+		LOG_OPTIONS["Item"].Text,
+		LOG_OPTIONS["SK List"].Text,
+		LOG_OPTIONS["Prio"].Text,
+		LOG_OPTIONS["Current SK Position"].Text,
+		LOG_OPTIONS["New SK Position"].Text,
+		LOG_OPTIONS["Roll"].Text,
+		LOG_OPTIONS["Item Receiver"].Text,
+		LOG_OPTIONS["Timestamp"].Text,
+		LOG_OPTIONS["Master Looter"].Text,
+		LOG_OPTIONS["Class"].Text,
+		LOG_OPTIONS["Spec"].Text,
+		LOG_OPTIONS["Status"].Text
+	);
+	return;
+end
+
+local function ManageLootLogging()
+	-- determines if loot loging should be on or off
+	-- activate SKC / update GUI
+	SKC_Main:RefreshStatus();
+	-- check if SKC is active, if so start loot logging
+	local prev_log_state = event_states.RaidLoggingActive;
+	if LOG_ACTIVE_OVRD or CheckActive() then
+		event_states.RaidLoggingActive = true;
+		if not prev_log_state then
+			ResetLootLog();
+			SKC_Main:Print("WARN","Loot logging turned on");
+		end
+	else
+		event_states.RaidLoggingActive = false;
+		if prev_log_state then SKC_Main:Print("WARN","Loot logging turned off") end
+	end
+	return;
+end
+
+local function UpdateActivity(name)
+	-- check if activity exceeds threshold and updates if different
+	local activity = "Inactive";
+	if CheckActivity(name) then activity = "Active" end
+	if SKC_DB.GuildData:GetData(name,"Activity") ~= activity then
+		if not init then SKC_Main:Print("IMPORTANT",name.." set to "..activity) end
+		SKC_DB.GuildData:SetData(name,"Activity",activity);
+	end
+end
+
+local function CheckActiveInstance()
+	if SKC_DB == nil or SKC_DB.GLP == nil then return false end
+	return(SKC_DB.GLP:IsActiveInstance());
+end
+
+local function ActivateSKC()
+	-- master control for wheter or not loot is managed with SKC
+	if not CheckAddonLoaded() then return end
+	if not SKC_DB.SKC_Enable then
+		SKC_Status = SKC_STATUS_ENUM.DISABLED;
+	elseif SKC_DB.GLP:GetGLAddonVer() == nil then
+		SKC_Status = SKC_STATUS_ENUM.INACTIVE_GL;
+	elseif not CheckAddonVerMatch() then
+		SKC_Status = SKC_STATUS_ENUM.INACTIVE_VER;
+	elseif not UnitInRaid("player") then
+		SKC_Status = SKC_STATUS_ENUM.INACTIVE_RAID;
+	elseif GetLootMethod() ~= "master" then
+		SKC_Status = SKC_STATUS_ENUM.INACTIVE_ML;
+	else
+		-- Master Looter is Loot Officer
+		local _, _, masterlooterRaidIndex = GetLootMethod();
+		local master_looter_full_name = GetRaidRosterInfo(masterlooterRaidIndex);
+		local loot_officer_check = SKC_Main:isLO(master_looter_full_name);
+		if not loot_officer_check then
+			SKC_Status = SKC_STATUS_ENUM.INACTIVE_LO;
+		else
+			-- Elligible instance
+			if not CheckActiveInstance() then
+				SKC_Status = SKC_STATUS_ENUM.INACTIVE_AI;
+			else
+				SKC_Status = SKC_STATUS_ENUM.ACTIVE;
+			end
+		end
+	end
+	return;
+end
+
+local function ManageLiveLists(name,live_status)
+	-- adds / removes player to live lists and records time in guild data
+	local sk_lists = {"MSK","TSK"};
+	for _,sk_list in pairs(sk_lists) do
+		local success = SKC_DB[sk_list]:SetLive(name,live_status);
+	end
+	-- update guild data if SKC is active
+	if CheckActive() then
+		local ts = time();
+		SKC_DB.GuildData:SetLastLiveTime(name,ts);
+	end
+	return;
+end
+
+local function UpdateLiveList()
+	-- Adds every player in raid to live list
+	-- All players update their own local live lists
+	if not CheckAddonLoaded() then return end
+	if RAID_VERBOSE then SKC_Main:Print("IMPORTANT","Updating live list") end
+
+	-- Activate SKC
+	SKC_Main:RefreshStatus();
+
+	-- Scan raid and update live list
+	for char_name,_ in pairs(SKC_DB.GuildData.data) do
+		ManageLiveLists(char_name,UnitInRaid(char_name) ~= nil);
+	end
+
+	-- Scan bench and adjust live
+	for char_name,_ in pairs(SKC_DB.LOP.bench.data) do
+		ManageLiveLists(char_name,true);
+	end
+
+	-- populate data
+	SKC_Main:PopulateData();
+	return;
+end
+
+local function HardReset()
+	-- resets the saved variables completely
+	SKC_DB = {};
+	SKC_DB.SKC_Enable = true;
+	SKC_DB.AddonVersion = ADDON_VERSION;
+	InitGuildSync = true;
+	return;
+end
