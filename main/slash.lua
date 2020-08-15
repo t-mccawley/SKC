@@ -36,7 +36,6 @@ function SKC:PrintHelp()
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc b|r - Displays the Bench");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc ai|r - Displays Active Instances");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lo|r - Displays Loot Officers");
-    print("|cff"..self.THEME.PRINT.HELP.hex.."/skc at|r - Displays the current Activity Threshold in days");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc export sk|r - Export (CSV) current sk lists");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc reset|r - Resets local SKC data");
     if self:isML() then
@@ -50,7 +49,6 @@ function SKC:PrintHelp()
     end
     if self:isGL() then
         print("|cff"..self.THEME.PRINT.NORMAL.hex.."Guild Leader Only:|r");
-        print("|cff"..self.THEME.PRINT.HELP.hex.."/skc at <#>|r - Sets Activity Threshold to # days");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lp init|r - Initialze Loot Prio with a CSV");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc <msk/tsk> init|r - Initialze SK List with a CSV");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc ai add <acro>|r - Adds instance to Active Instances");      

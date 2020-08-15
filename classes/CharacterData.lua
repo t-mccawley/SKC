@@ -12,8 +12,6 @@ CharacterData = {
 	["Raid Role"] = nil, --DPS, Healer, or Tank
 	["Guild Role"] = nil, --Disenchanter, Guild Banker, or None
 	Status = nil, -- Main or Alt
-	Activity = nil, -- Active or Inactive
-	last_live_time = nil, -- most recent time added to ANY live list
 }
 CharacterData.__index = CharacterData;
 
@@ -23,13 +21,11 @@ function CharacterData:new(character_data,name,class)
 		local obj = {};
 		obj.Name = name;
 		obj.Class = class;
-		local default_spec = CLASSES[class].DEFAULT_SPEC;
-		obj.Spec = CLASSES[class].Specs[default_spec].val;
-		obj["Raid Role"] = CHARACTER_DATA["Raid Role"].OPTIONS[CLASSES[class].Specs[default_spec].RR].val;
-		obj["Guild Role"] = CHARACTER_DATA["Guild Role"].OPTIONS.None.val;
-		obj.Status = CHARACTER_DATA.Status.OPTIONS.Main.val;
-		obj.Activity = CHARACTER_DATA.Activity.OPTIONS.Active.val;
-		obj.last_live_time = time();
+		local default_spec = SKC.CLASSES[class].DEFAULT_SPEC;
+		obj.Spec = SKC.CLASSES[class].Specs[default_spec].val;
+		obj["Raid Role"] = SKC.CHARACTER_DATA["Raid Role"].OPTIONS[SKC.CLASSES[class].Specs[default_spec].RR].val;
+		obj["Guild Role"] = SKC.CHARACTER_DATA["Guild Role"].OPTIONS.None.val;
+		obj.Status = SKC.CHARACTER_DATA.Status.OPTIONS.Main.val;
 		setmetatable(obj,CharacterData);
 		return obj;
 	else

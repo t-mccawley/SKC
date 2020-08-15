@@ -8,28 +8,28 @@ function SKC:Activate()
 	-- master control for wheter or not loot is managed with SKC
 	if not self:CheckAddonLoaded() then return end
 	if not self.db.char.ENABLED then
-		self.SKC.Status = SKC_STATUS_ENUM.DISABLED;
+		self.Status = self.STATUS_ENUM.DISABLED;
 	elseif self.db.char.GLP:GetGLAddonVer() == nil then
-		self.SKC.Status = SKC_STATUS_ENUM.INACTIVE_GL;
+		self.Status = self.STATUS_ENUM.INACTIVE_GL;
 	elseif not elf:CheckAddonVerMatch() then
-		self.SKC.Status = SKC_STATUS_ENUM.INACTIVE_VER;
+		self.Status = self.STATUS_ENUM.INACTIVE_VER;
 	elseif not UnitInRaid("player") then
-		self.SKC.Status = SKC_STATUS_ENUM.INACTIVE_RAID;
+		self.Status = self.STATUS_ENUM.INACTIVE_RAID;
 	elseif GetLootMethod() ~= "master" then
-		self.SKC.Status = SKC_STATUS_ENUM.INACTIVE_ML;
+		self.Status = self.STATUS_ENUM.INACTIVE_ML;
 	else
 		-- Master Looter is Loot Officer
 		local _, _, masterlooterRaidIndex = GetLootMethod();
 		local master_looter_full_name = GetRaidRosterInfo(masterlooterRaidIndex);
 		local loot_officer_check = self:isLO(master_looter_full_name);
 		if not loot_officer_check then
-			self.SKC.Status = SKC_STATUS_ENUM.INACTIVE_LO;
+			self.Status = self.STATUS_ENUM.INACTIVE_LO;
 		else
 			-- Elligible instance
 			if not self:CheckActiveInstance() then
-				self.SKC.Status = SKC_STATUS_ENUM.INACTIVE_AI;
+				self.Status = self.STATUS_ENUM.INACTIVE_AI;
 			else
-				self.SKC.Status = SKC_STATUS_ENUM.ACTIVE;
+				self.Status = self.STATUS_ENUM.ACTIVE;
 			end
 		end
 	end
@@ -99,12 +99,12 @@ end
 --------------------------------------
 function SKC:isML()
 	-- Check if current player is master looter
-	return(UnitName("player") == self.ML_OVRD or IsMasterLooter());
+	return(UnitName("player") == self.DEV.ML_OVRD or IsMasterLooter());
 end
 
 function SKC:isGL()
 	-- Check if current player is guild leader
-	return(UnitName("player") == self.GL_OVRD or IsGuildLeader());
+	return(UnitName("player") == self.DEV.GL_OVRD or IsGuildLeader());
 end
 
 function SKC:isLO(name)
@@ -156,7 +156,7 @@ end
 
 function SKC:CheckActive()
 	-- returns true of SKC is active
-	return(self.Status.val == SKC_STATUS_ENUM.ACTIVE.val);
+	return(self.Status.val == SKC.STATUS_ENUM.ACTIVE.val);
 end
 
 function SKC:CheckAddonLoaded()
@@ -188,12 +188,6 @@ function SKC:CheckIfPushInProgress()
 		if push then return true end
 	end
 	return false;
-end
-
-function SKC:CheckActivity(name)
-	-- checks activity level
-	-- returns true if still active
-	return (self.db.char.GD:CalcActivity(name) < self.db.char.GLP:GetActivityThreshold()*DAYS_TO_SECS);
 end
 
 function SKC:CheckIfGuildMemberOnline(target)
@@ -243,7 +237,7 @@ end
 --------------------------------------
 function SKC:WriteToLog(event_type,subject,action,item,sk_list,prio,current_sk_pos,new_sk_pos,roll,item_rec,time_txt,master_looter_txt,class_txt,spec_txt,status_txt)
 	-- writes new log entry (if raid logging active)
-	if not event_states.LoggingActive then return end
+	if not self.event_states.LoggingActive then return end
 	local idx = #self.db.char.LOG + 1;
 	self.db.char.LOG[idx] = {};
 	if time_txt == nil then
@@ -324,7 +318,7 @@ function SKC:ManageLogging()
 	self:RefreshStatus();
 	-- check if SKC is active, if so start loot logging
 	local prev_log_state = self.event_states.LoggingActive;
-	if LOG_ACTIVE_OVRD or self:CheckActive() then
+	if self.DEV.LOG_ACTIVE_OVRD or self:CheckActive() then
 		self.event_states.LoggingActive = true;
 		if not prev_log_state then
 			ResetLog();

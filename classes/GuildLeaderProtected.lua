@@ -7,10 +7,8 @@
 --------------------------------------
 GuildLeaderProtected = {
 	addon_ver = nil, -- addon version of the guild leader
-	activity_thresh = nil, -- time threshold [days] which changes activity from Active to Inactive
-	loot_prio = nil, -- loot prio
-	loot_officers = nil, -- SimpleMap of player names who are loot officers
-	active_instances = nil, -- SimpleMap of instance acronyms which enable the addon
+	loot_officers = nil, -- map of player names who are loot officers
+	active_instances = nil, -- map of instance acronyms which enable the addon
 	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
 	edit_ts_generic = nil, -- timestamp of most recent edit (non-raid)
 };
@@ -21,19 +19,14 @@ function GuildLeaderProtected:new(glp)
 		-- initalize fresh
 		local obj = {};
 		obj.addon_ver = nil;
-		obj.activity_thresh = nil;
-		obj.loot_prio = LootPrio:new();
-		obj.loot_officers = SimpleMap:new();
-		obj.active_instances = SimpleMap:new();
+		obj.loot_officers = {};
+		obj.active_instances = {};
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
 		setmetatable(obj,GuildLeaderProtected);
 		return obj;
 	else
 		-- set metatable of existing table and all sub tables
-		glp.loot_prio = LootPrio:new(glp.loot_prio);
-		glp.loot_officers = SimpleMap:new(glp.loot_officers);
-		glp.active_instances = SimpleMap:new(glp.active_instances);
 		setmetatable(glp,GuildLeaderProtected);
 		return glp;
 	end
@@ -44,7 +37,18 @@ end
 function GuildLeaderProtected:SetEditTime()
 	local ts = time();
 	self.edit_ts_generic = ts;
-	if CheckActive() then self.edit_ts_raid = ts end
+	if SKC:CheckActive() then self.edit_ts_raid = ts end
+	return;
+end
+
+function GuildLeaderProtected:SetAddonVer(ver)
+	-- sets guild leader addon version
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that")
+		return;
+	end
+	self.addon_ver = ver;
+	self:SetEditTime();
 	return;
 end
 
@@ -53,9 +57,13 @@ function GuildLeaderProtected:GetGLAddonVer()
 	return self.addon_ver;
 end
 
+function GuildLeaderProtected:GetNumLootOfficers()
+	return(#self.loot_officers);
+end
+
 function GuildLeaderProtected:SetGLAddonVer(ver)
-	if not SKC_Main:isGL() then
-		SKC_Main:Print("ERROR","You must be guild leader to do that")
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that")
 		return;
 	end
 	-- updates GL version if it is different than previous version
@@ -67,8 +75,8 @@ function GuildLeaderProtected:SetGLAddonVer(ver)
 end
 
 function GuildLeaderProtected:SetActivityThreshold(new_thresh)
-	if not SKC_Main:isGL() then
-		SKC_Main:Print("ERROR","You must be guild leader to do that")
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that")
 		return;
 	end
 	-- sets new activity threshold (input days, stored as seconds)
@@ -84,8 +92,8 @@ function GuildLeaderProtected:GetActivityThreshold()
 end
 
 function GuildLeaderProtected:AddLO(lo_name)
-	if not SKC_Main:isGL() then
-		SKC_Main:Print("ERROR","You must be guild leader to do that")
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that")
 		return;
 	end
 	self.loot_officers:Add(lo_name);
@@ -94,13 +102,13 @@ function GuildLeaderProtected:AddLO(lo_name)
 end
 
 function GuildLeaderProtected:RemoveLO(lo_name)
-	if not SKC_Main:isGL() then
-		SKC_Main:Print("ERROR","You must be guild leader to do that");
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that");
 		return;
 	end
 	-- first check if removal candidate is guild leader (cannot remove)
 	if lo_name == UnitName("player") then
-		SKC_Main:Print("ERROR","You cannot remove the guild leader as a loot officer");
+		SKC:Error("You cannot remove the guild leader as a loot officer");
 		return;
 	end
 	self.loot_officers:Remove(lo_name);
@@ -109,8 +117,8 @@ function GuildLeaderProtected:RemoveLO(lo_name)
 end
 
 function GuildLeaderProtected:ClearLO()
-	if not SKC_Main:isGL() then
-		SKC_Main:Print("ERROR","You must be guild leader to do that");
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that");
 		return;
 	end
 	-- clear data
@@ -148,12 +156,3 @@ function GuildLeaderProtected:IsLO(full_name)
 	local name = StripRealmName(full_name);
 	return(self.loot_officers.data[name]);
 end
-
--- function SKC:UpdateActivity(name)
--- 	-- check if activity exceeds threshold and updates if different
--- 	local activity = "Inactive";
--- 	if self:CheckActivity(name) then activity = "Active" end
--- 	if self.db.char.GD:GetData(name,"Activity") ~= activity then
--- 		self.db.char.GD:SetData(name,"Activity",activity);
--- 	end
--- end

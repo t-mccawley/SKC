@@ -75,7 +75,7 @@ function SKC:CreateLootGUI()
 	self.LootGUI.ItemTexture = self.LootGUI:CreateTexture(nil, "ARTWORK");
 	self.LootGUI.ItemTexture:SetSize(self.UI_DIMS.ITEM_WIDTH,self.UI_DIMS.ITEM_HEIGHT);
 	self.LootGUI.ItemTexture:SetPoint("TOP",self.LootGUI,"TOP",0,item_texture_y_offst)
-	self.LootGUI.ItemClickBox = CreateFrame("Frame", nil, SKC_UIMain);
+	self.LootGUI.ItemClickBox = CreateFrame("Frame", nil, self.MainGUI);
 	self.LootGUI.ItemClickBox:SetFrameLevel(7)
 	self.LootGUI.ItemClickBox:SetSize(self.UI_DIMS.ITEM_WIDTH,self.UI_DIMS.ITEM_HEIGHT);
 	self.LootGUI.ItemClickBox:SetPoint("CENTER",self.LootGUI.ItemTexture,"CENTER");
@@ -143,7 +143,7 @@ function SKC:CreateLootGUI()
 	table.insert(UISpecialFrames, "self.LootGUI");
 
 	-- hide
-	SKC:HideLootDecisionGUI();
+	self:HideLootDecisionGUI();
 	return;
 end
 
@@ -159,7 +159,7 @@ end
 
 function SKC:DisplayLootDecisionGUI(open_roll,sk_list)
 	-- ensure LootGUI is created
-	if not self:CheckLootGUICreated() then SKC:CreateLootGUI() end
+	if not self:CheckLootGUICreated() then self:CreateLootGUI() end
 	-- Enable correct buttons
 	self.LootGUI.loot_decision_pass_btn:Enable(); -- OnClick_PASS
 	self.LootGUI.loot_decision_sk_btn:Enable(); -- OnClick_SK
@@ -207,16 +207,16 @@ function SKC:StartLootTimer()
 	-- update GUI
 	self:UpdateLootTimerGUI();
 	-- start new ticker
-	self.Timers.Loot.Ticker = C_Timer.NewTicker(self.LOOT_DECISION.OPTIONS.TIME_STEP, "UpdateLootTimer", self.LOOT_DECISION.OPTIONS.MAX_DECISION_TIME/self.LOOT_DECISION.OPTIONS.TIME_STEP);
+	self.Timers.Loot.Ticker = C_Timer.NewTicker(self.Timers.Loot.TIME_STEP,"UpdateLootTimer",self.Timers.Loot.MAX_TICKS);
 	return;
 end
 
 function SKC:UpdateLootTimer()
 	-- Handles tick / elapsed time and updates GUI
 	self.Timers.Loot.Ticks = self.Timers.Loot.Ticks + 1;
-	self.Timers.Loot.ElapsedTime = self.Timers.Loot.ElapsedTime - self.LOOT_DECISION.OPTIONS.TIME_STEP;
+	self.Timers.Loot.ElapsedTime = self.Timers.Loot.ElapsedTime + self.Timers.Loot.TIME_STEP;
 	self:UpdateLootTimerGUI();
-	if self.Timers.Loot.ElapsedTime >= self.LOOT_DECISION.OPTIONS.MAX_DECISION_TIME then
+	if self.Timers.Loot.Ticks >= self.Timers.Loot.MAX_TICKS then
 		-- out of time
 		self:CancelLootTimer();
 		-- send loot response
@@ -230,7 +230,7 @@ end
 function SKC:UpdateLootTimerGUI()
 	-- updates loot timer GUI
 	self.LootGUI.TimerBar:SetValue(self.Timers.Loot.ElapsedTime);
-	self.LootGUI.TimerBar.Text:SetText(self.LOOT_DECISION.OPTIONS.MAX_DECISION_TIME - self.Timers.Loot.ElapsedTime);
+	self.LootGUI.TimerBar.Text:SetText(self.Timers.Loot.MAX_TICKS*self.Timers.Loot.TIME_STEP - self.Timers.Loot.ElapsedTime);
 	return;
 end
 

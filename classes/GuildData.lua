@@ -36,7 +36,7 @@ end
 function GuildData:SetEditTime()
 	local ts = time();
 	self.edit_ts_generic = ts;
-	if CheckActive() then self.edit_ts_raid = ts end
+	if SKC:CheckActive() then self.edit_ts_raid = ts end
 	return;
 end
 
@@ -46,20 +46,15 @@ function GuildData:length()
 	return count;
 end
 
-function GuildData:CalcActivity(name)
-	-- calculate time difference (in seconds)
-	return ((time() - self.data[name].last_live_time));
-end
-
 function GuildData:GetFirstGuildRoles()
 	-- scan guild data and return first disenchanter and banker
 	local disenchanter = nil;
 	local banker = nil;
 	for char_name,data_tmp in pairs(self.data) do
-		if disenchanter == nil and data_tmp["Guild Role"] == CHARACTER_DATA["Guild Role"].OPTIONS.Disenchanter.val then
+		if disenchanter == nil and data_tmp["Guild Role"] == SKC.CHARACTER_DATA["Guild Role"].OPTIONS.Disenchanter.val then
 			disenchanter = char_name;
 		end
-		if banker == nil and data_tmp["Guild Role"] == CHARACTER_DATA["Guild Role"].OPTIONS.Banker.val then
+		if banker == nil and data_tmp["Guild Role"] == SKC.CHARACTER_DATA["Guild Role"].OPTIONS.Banker.val then
 			banker = char_name;
 		end
 	end
@@ -73,13 +68,13 @@ function GuildData:GetData(name,field)
 		return value;
 	elseif field == "Spec" then
 		local class = self.data[name].Class;
-		for _,data in pairs(CLASSES[class].Specs) do
+		for _,data in pairs(SKC.CLASSES[class].Specs) do
 			if data.val == value then
 				return data.text;
 			end
 		end
 	else
-		for _,data in pairs(CHARACTER_DATA[field].OPTIONS) do
+		for _,data in pairs(SKC.CHARACTER_DATA[field].OPTIONS) do
 			if data.val == value then
 				return data.text;
 			end
@@ -88,30 +83,25 @@ function GuildData:GetData(name,field)
 end
 
 function GuildData:SetData(name,field,value)
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that")
+		return;
+	end
 	-- assigns data based on field and string name of value
 	if field == "Name" or field == "Class" then
 		self.data[name][field] = value;
 	elseif field == "Spec" then
 		local class = self.data[name].Class;
-		self.data[name][field] = CLASSES[class].Specs[value].val;
-	elseif field == "Activity" then
-		local curr_str = self:GetData(name,field);
-		local new_str = CHARACTER_DATA[field].OPTIONS[value].text
-		if curr_str == "Active" and new_str == "Inactive" then
-			SKC_DB.GuildData:SetLastLiveTime(name,time()-SKC_DB.GLP:GetActivityThreshold()*DAYS_TO_SECS);
-		elseif curr_str == "Inactive" and new_str == "Active" then
-			SKC_DB.GuildData:SetLastLiveTime(name,time());
-		end
-		self.data[name][field] = CHARACTER_DATA[field].OPTIONS[value].val;
+		self.data[name][field] = SKC.CLASSES[class].Specs[value].val;
 	else
-		self.data[name][field] = CHARACTER_DATA[field].OPTIONS[value].val;
+		self.data[name][field] = SKC.CHARACTER_DATA[field].OPTIONS[value].val;
 	end
 	-- update raid role
 	if field == "Spec" then
 		local class = self.data[name].Class;
 		local spec = value;
-		local raid_role = CLASSES[class].Specs[spec].RR;
-		self.data[name]["Raid Role"] = CHARACTER_DATA["Raid Role"].OPTIONS[raid_role].val;
+		local raid_role = SKC.CLASSES[class].Specs[spec].RR;
+		self.data[name]["Raid Role"] = SKC.CHARACTER_DATA["Raid Role"].OPTIONS[raid_role].val;
 	end
 	self:SetEditTime();
 	return;
@@ -123,12 +113,20 @@ function GuildData:Exists(name)
 end
 
 function GuildData:Add(name,class)
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that")
+		return;
+	end
 	self.data[name] = CharacterData:new(nil,name,class);
 	self:SetEditTime();
 	return;
 end
 
 function GuildData:Remove(name)
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that")
+		return;
+	end
 	if not self:Exists(name) then return end
 	self.data[name] = nil;
 	self:SetEditTime();
@@ -151,11 +149,4 @@ function GuildData:GetSpecName(name)
 	-- gets spec value of given name
 	if not self:Exists(name) then return nil end
 	return SPEC_MAP[self:GetSpecIdx(name)];
-end
-
-function GuildData:SetLastLiveTime(name,ts)
-	-- sets the last time the given player was on a live list
-	if not self:Exists(name) then return end
-	self.data[name].last_live_time = ts;
-	return;
 end

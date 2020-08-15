@@ -2,12 +2,20 @@
 -- INITIALIZE
 --------------------------------------
 function SKC:OnInitialize()
-	-- Initialize saved database
+	-- initialize saved database
 	self.db = LibStub("AceDB-3.0"):New("SKC_DB",self.DB_DEFAULT);
-	-- Register slash commands
+	-- initialize or refresh metatables
+	self.db.char.GLP = GuildLeaderProtected:new(self.db.char.GLP);
+	self.db.char.LOP = LootOfficerProtected:new(self.db.char.LOP);
+	self.db.char.GD = GuildData:new(self.db.char.GD);
+	self.db.char.LP = LootPrio:new(self.db.char.LP);
+	self.db.char.MSK = SK_List:new(self.db.char.MSK);
+	self.db.char.TSK = SK_List:new(self.db.char.TSK);
+	self.db.char.LootManager = LootManager:new(self.db.char.LootManager);
+	-- register slash commands
 	self:RegisterChatCommand("rl",ReloadUI);
 	self:RegisterChatCommand("skc","SlashHandler");
-	-- Register comms
+	-- register comms
 	-- self:RegisterComm(LOGIN_SYNC_CHECK,self.LoginSyncCheckRead);
 	-- LOGIN_SYNC_PUSH = "6-F?832qBmrJE?pR",
 	-- LOGIN_SYNC_PUSH_RQST = "d$8B=qB4VsW&&Y^D",
@@ -20,6 +28,8 @@ function SKC:OnInitialize()
 	-- 	self:RegisterComm(channel,self.AddonMessageRead);
 	-- 	-- TODO, need to make specific callback to read each channel....
 	-- end
+	-- register events
+	self:RegisterEvent("GUILD_ROSTER_UPDATE","ManageGuildData")
 	-- create blank main GUI
 	self:CreateMainGUI();
 	-- create blank loot GUI
@@ -31,41 +41,42 @@ function SKC:OnInitialize()
 	else
 		self:Alert("Welcome Back (/skc)");
 	end
+	self.event_states.AddonLoaded = true;
 	return;
 end
 
 -- local function OnAddonLoad(addon_name)
 -- 	if addon_name ~= "SKC" then return end
--- 	InitGuildSync = false; -- only initialize if hard reset or new install
+-- 	self.event_states.InitGuildSync = false; -- only initialize if hard reset or new install
 -- 	-- Initialize DBs
 -- 	if SKC_DB == nil or HARD_DB_RESET then
 -- 		HardReset();
 -- 		if HARD_DB_RESET then 
--- 			SKC_Main:Print("IMPORTANT","Hard Reset: Manual");
+-- 			self:Print("IMPORTANT","Hard Reset: Manual");
 -- 		end
--- 		SKC_Main:Print("IMPORTANT","Welcome (/skc help)");
+-- 		self:Print("IMPORTANT","Welcome (/skc help)");
 -- 	else
--- 		SKC_Main:Print("IMPORTANT","Welcome back (/skc)");
+-- 		self:Print("IMPORTANT","Welcome back (/skc)");
 -- 	end
--- 	-- if SKC_DB.AddonVersion == nil or SKC_DB.AddonVersion ~= ADDON_VERSION then
+-- 	-- if self.db.char.AddonVersion == nil or self.db.char.AddonVersion ~= ADDON_VERSION then
 -- 	-- 	-- addon version never set
 -- 	-- 	HardReset();
--- 	-- 	SKC_Main:Print("IMPORTANT","Hard Reset: New addon version "..SKC_DB.AddonVersion);
+-- 	-- 	self:Print("IMPORTANT","Hard Reset: New addon version "..self.db.char.AddonVersion);
 -- 	-- end
--- 	if SKC_DB.GLP == nil then
--- 		SKC_DB.GLP = nil;
+-- 	if self.db.char.GLP == nil then
+-- 		self.db.char.GLP = nil;
 -- 	end
 -- 	if SKC_DB.LOP == nil then
 -- 		SKC_DB.LOP = nil;
 -- 	end
--- 	if SKC_DB.GuildData == nil then
--- 		SKC_DB.GuildData = nil;
+-- 	if self.db.char.GD == nil then
+-- 		self.db.char.GD = nil;
 -- 	end
--- 	if SKC_DB.MSK == nil then 
--- 		SKC_DB.MSK = nil;
+-- 	if self.db.char.MSK == nil then 
+-- 		self.db.char.MSK = nil;
 -- 	end
--- 	if SKC_DB.TSK == nil then 
--- 		SKC_DB.TSK = nil;
+-- 	if self.db.char.TSK == nil then 
+-- 		self.db.char.TSK = nil;
 -- 	end
 -- 	if SKC_DB.RaidLog == nil then
 -- 		SKC_DB.RaidLog = {};
@@ -73,54 +84,34 @@ end
 -- 	if SKC_DB.LootManager == nil then
 -- 		SKC_DB.LootManager = nil
 -- 	end
--- 	if SKC_DB.FilterStates == nil then
--- 		SKC_DB.FilterStates = {
--- 			DPS = true,
--- 			Healer = true,
--- 			Tank = true,
--- 			Live = false,
--- 			Main = true,
--- 			Alt = true,
--- 			Active = true,
--- 			Inactive = false,
--- 			Druid = true,
--- 			Hunter = true,
--- 			Mage = true,
--- 			Paladin = UnitFactionGroup("player") == "Alliance",
--- 			Priest = true;
--- 			Rogue = true,
--- 			Shaman = UnitFactionGroup("player") == "Horde",
--- 			Warlock = true,
--- 			Warrior = true,
--- 		};
 -- 	end
 -- 	-- always reset live filter state because its confusing to see a blank list
 -- 	SKC_DB.FilterStates.Live = false;
 -- 	-- Initialize or refresh metatables
--- 	SKC_DB.GLP = GuildLeaderProtected:new(SKC_DB.GLP);
+-- 	self.db.char.GLP = GuildLeaderProtected:new(self.db.char.GLP);
 -- 	SKC_DB.LOP = LootOfficerProtected:new(SKC_DB.LOP);
--- 	SKC_DB.GuildData = GuildData:new(SKC_DB.GuildData);
--- 	SKC_DB.MSK = SK_List:new(SKC_DB.MSK);
--- 	SKC_DB.TSK = SK_List:new(SKC_DB.TSK);
+-- 	self.db.char.GD = GuildData:new(self.db.char.GD);
+-- 	self.db.char.MSK = SK_List:new(self.db.char.MSK);
+-- 	self.db.char.TSK = SK_List:new(self.db.char.TSK);
 -- 	SKC_DB.LootManager = LootManager:new(SKC_DB.LootManager);
 -- 	-- Addon loaded
--- 	event_states.AddonLoaded = true;
+-- 	self.event_states.AddonLoaded = true;
 -- 	-- Manage loot logging
 -- 	ManageLootLogging();
 -- 	-- Update live list
 -- 	UpdateLiveList();
 -- 	-- Populate data
--- 	SKC_Main:PopulateData();
+-- 	self:PopulateData();
 -- 	return;
 -- end
 
 function SKC:ManageGuildData()
 	-- synchronize GuildData with guild roster
 	if not self:CheckAddonLoaded() then
-		self:Debug("Reject ManageGuildData, addon not loaded yet",self.DEV.VERBOSE.COMM);
+		self:Debug("Reject ManageGuildData, addon not loaded yet",self.DEV.VERBOSE.GUILD);
 		return;
 	end
-	if event_states.ReadInProgress.GuildData or event_states.PushInProgress.GuildData then
+	if self.event_states.ReadInProgress.GuildData or self.event_states.PushInProgress.GuildData then
 		self:Debug("Rejected ManageGuildData, sync in progress",self.DEV.VERBOSE.GUILD);
 		return;
 	end
@@ -128,7 +119,7 @@ function SKC:ManageGuildData()
 		self:Debug("Rejected ManageGuildData, not in guild",self.DEV.VERBOSE.GUILD);
 		return;
 	end
-	if not CheckIfAnyGuildMemberOnline() then
+	if not self:CheckIfAnyGuildMemberOnline() then
 		self:Debug("Rejected ManageGuildData, no online guild members",self.DEV.VERBOSE.GUILD);
 		return;
 	end
@@ -137,7 +128,7 @@ function SKC:ManageGuildData()
 		self:Debug("Rejected ManageGuildData, no guild members",self.DEV.VERBOSE.GUILD);
 		return;
 	end
-	if not SKC_Main:isGL() then
+	if not self:isGL() then
 		-- only fetch data if guild leader
 		self:Debug("Rejected ManageGuildData, not guild leader",self.DEV.VERBOSE.GUILD);
 	else
@@ -145,47 +136,45 @@ function SKC:ManageGuildData()
 		local guild_roster = {};
 		for idx = 1, GetNumGuildMembers() do
 			local full_name, _, _, level, class = GetGuildRosterInfo(idx);
-			local name = StripRealmName(full_name);
-			if level == 60 or CHARS_OVRD[name] then
+			local name = self:StripRealmName(full_name);
+			if level == 60 or self.DEV.GUILD_CHARS_OVRD[name] then
 				guild_roster[name] = true;
-				if not SKC_DB.GuildData:Exists(name) then
+				if not self.db.char.GD:Exists(name) then
 					-- new player, add to DB and SK lists
-					SKC_DB.GuildData:Add(name,class);
-					SKC_DB.MSK:PushBack(name);
-					SKC_DB.TSK:PushBack(name);
-					if not InitGuildSync then self:Print(name.." added to databases") end
+					self.db.char.GD:Add(name,class);
+					self.db.char.MSK:PushBack(name);
+					self.db.char.TSK:PushBack(name);
+					if not self.event_states.InitGuildSync then self:Print(name.." added to databases") end
 				end
-				-- check activity level and update
-				UpdateActivity(name);
 			end
 		end
 		-- Scan guild data and remove players
-		for name,data in pairs(SKC_DB.GuildData.data) do
+		for name,data in pairs(self.db.char.GD.data) do
 			if guild_roster[name] == nil then
-				SKC_DB.MSK:Remove(name);
-				SKC_DB.TSK:Remove(name);
-				SKC_DB.GuildData:Remove(name);
-				if not InitGuildSync then self:Print(name.." removed from databases") end
+				self.db.char.MSK:Remove(name);
+				self.db.char.TSK:Remove(name);
+				self.db.char.GD:Remove(name);
+				if not self.event_states.InitGuildSync then self:Print(name.." removed from databases") end
 			end
 		end
 		-- miscellaneous
-		UnFilteredCnt = SKC_DB.GuildData:length();
-		if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
+		self.UnFilteredCnt = self.db.char.GD:length();
+		if self.event_states.InitGuildSync and (self.db.char.GD:length() ~= 0) then
 			-- init sync completed
-			SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")");
-			if COMM_VERBOSE then SKC_Main:Print("NORMAL","Generic TS: "..SKC_DB.GuildData.edit_ts_generic..", Raid TS: "..SKC_DB.GuildData.edit_ts_raid) end
+			self:Warn("Populated fresh GuildData ("..self.db.char.GD:length()..")");
+			self:Debug("Generic TS: "..self.db.char.GD.edit_ts_generic..", Raid TS: "..self.db.char.GD.edit_ts_raid,self.DEV.VERBOSE.GUILD);
 			-- add self (GL) to loot officers
-			SKC_DB.GLP:AddLO(UnitName("player"));
-			InitGuildSync = false;
+			self.db.char.GLP:AddLO(UnitName("player"));
+			self.event_states.InitGuildSync = false;
 		end
 		-- set required version to current version
-		SKC_DB.GLP:SetAddonVer(SKC_DB.AddonVersion);
-		if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL","ManageGuildData success!") end
+		self.db.char.GLP:SetAddonVer(self.db.char.AddonVersion);
+		self:Debug("ManageGuildData success!",self.DEV.VERBOSE.GUILD);
 	end
-	-- sync with guild
-	if event_states.LoginSyncCheckTicker == nil then
-		C_Timer.After(event_states.LoginSyncCheckTicker_InitDelay,StartSyncCheckTimer);
-	end
+	-- sync with guild (TODO)
+	-- if self.event_states.LoginSyncCheckTicker == nil then
+	-- 	C_Timer.After(self.event_states.LoginSyncCheckTicker_InitDelay,StartSyncCheckTimer);
+	-- end
 	return;
 end
 
@@ -240,7 +229,7 @@ end
 -- 	elseif event == "OPEN_MASTER_LOOT_LIST" then
 -- 		SaveLoot();
 -- 	elseif event == "PLAYER_ENTERING_WORLD" then
--- 		if COMM_VERBOSE then SKC_Main:Print("NORMAL","Firing PLAYER_ENTERING_WORLD") end
+-- 		if COMM_VERBOSE then self:Print("Firing PLAYER_ENTERING_WORLD") end
 -- 		ManageLootLogging();
 -- 	end
 	

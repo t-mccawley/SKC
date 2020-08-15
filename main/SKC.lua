@@ -14,7 +14,7 @@
 --------------------------------------
 -- ADDON CONSTRUCTOR
 --------------------------------------
-SKC = LibStub("AceAddon-3.0"):NewAddon("SKC","AceComm-3.0","AceConsole-3.0");
+SKC = LibStub("AceAddon-3.0"):NewAddon("SKC","AceComm-3.0","AceConsole-3.0","AceEvent-3.0");
 SKC.lib_ser = LibStub:GetLibrary("AceSerializer-3.0");
 SKC.lib_comp = LibStub:GetLibrary("LibCompress");
 SKC.lib_enc = SKC.lib_comp:GetAddonEncodeTable();
@@ -32,12 +32,13 @@ SKC.DEV = {
 	},
     ACTIVE_RAID_OVRD = false, -- true if SKC can be used outside of active raids
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 0,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 2,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
 		GUI = 3,
 		GUILD = 3,
+		MERGE = 4,
 	}
 };
 --------------------------------------
@@ -106,7 +107,21 @@ SKC.CHANNELS = { -- channels for inter addon communication (const)
 	LOOT_DECISION_PRINT = "xP@&!9hQxY]1K&C4",
 	LOOT_OUTCOME = "aP@yX9hQf}89K&C4",
 };
-local OnClick_EditDropDownOption; -- forward declare for drop down menu details
+function OnClick_EditDropDownOption(field,value) -- Must be global
+	-- Triggered when drop down of edit button is selected
+	local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+	local class = SKC.MainGUI["Details_border"]["Class"].Data:GetText();
+	-- Edit GuildData
+	local prev_val = SKC.db.char.GD:GetData(name,field);
+	prev_val = SKC.db.char.GD:SetData(name,field,value);
+	-- Refresh data
+	SKC:PopulateData(name);
+	-- Reset menu toggle
+	SKC.event_states.DropDownID = 0;
+	-- send GuildData to all players
+	-- SyncPushSend("GuildData",CHANNELS.SYNC_PUSH,"GUILD",nil); TODO
+	return;
+end
 SKC.CLASSES = { -- wow classes
 	Druid = {
 		text = "Druid",
@@ -644,21 +659,6 @@ SKC.CHARACTER_DATA = { -- fields used to define character
 				func = function (self) OnClick_EditDropDownOption("Status","Alt") end,
 			},
 		},
-	},
-	Activity = {
-		text = "Activity",
-		OPTIONS = {
-			Active = {
-				val = 0,
-				text = "Active",
-				func = function (self) OnClick_EditDropDownOption("Activity","Active") end,
-			},
-			Inactive = {
-				val = 1,
-				text = "Inactive",
-				func = function (self) OnClick_EditDropDownOption("Activity","Inactive") end,
-			},
-		},
 	},	
 };
 SKC.LOOT_DECISION = {
@@ -673,8 +673,6 @@ SKC.LOOT_DECISION = {
 		"ROLL",
 	},
 	OPTIONS = {
-		MAX_DECISION_TIME = 30,
-		TIME_STEP = 1,
 		ML_WAIT_BUFFER = 5, -- additional time that master looter waits before triggering auto pass (accounts for transmission delays)
 		KICKOFF_DELAY = 3, -- delay after finishing one loot distribution before next begins
 	},
@@ -869,34 +867,21 @@ SKC.event_states = { -- tracks if certain events have fired
 -- local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due to addon version or malformed messages)
 SKC.Timers = {
 	LoginSyncCheck = {-- ticker that requests sync each iteration until over or cancelled
+		MAX_TICKS = 6,
+		TIME_STEP = 10,
 		Ticker = nil, 
-		Ticks = nil,
-		ElapsedTime = nil,
+		Ticks = 0,
+		ElapsedTime = 0,
 	}, 
 	Loot = { -- current loot timer
-		Ticker = nil, -- ticker that requests sync each iteration until over or cancelled
-		Ticks = nil,
-		ElapsedTime = nil,
+		MAX_TICKS = 30,
+		TIME_STEP = 1,
+		Ticker = nil,
+		Ticks = 0,
+		ElapsedTime = 0,
 	}, 
 };
--- SKC.event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_MaxTicks + 1;
-SKC.DEBUG = {
-	ReadTime = {
-		GLP = nil,
-		LOP = nil,
-		GuildData = nil,
-		MSK = nil,
-		TSK = nil,
-	},
-	PushTime = {
-		GLP = nil,
-		LOP = nil,
-		GuildData = nil,
-		MSK = nil,
-		TSK = nil,
-	},
-};
---------------------------------------
+--------------------------------
 -- DB INIT
 --------------------------------------
 SKC.DB_DEFAULT = {
@@ -906,6 +891,7 @@ SKC.DB_DEFAULT = {
 		GLP = nil, -- GuildLeaderProtected
 		LOP = nil, -- LootOfficersProtected
 		GD = nil, -- GuildData
+		LP = nil, --LootPrio
 		MSK = nil, -- SK_List
 		TSK = nil, -- SK_List
 		LM = nil, -- LootManager
@@ -913,11 +899,9 @@ SKC.DB_DEFAULT = {
 			DPS = true,
 			Healer = true,
 			Tank = true,
-			Live = false,
 			Main = true,
 			Alt = true,
-			Active = true,
-			Inactive = false,
+			Live = false,
 			Druid = true,
 			Hunter = true,
 			Mage = true,

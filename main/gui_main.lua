@@ -6,7 +6,7 @@ function OnMouseWheel_ScrollFrame(self,delta)
 	-- value at top is 0, value at bottom is size of child
 	-- scroll so that one wheel is 3 SK cards
 	local scroll_range = self:GetVerticalScrollRange();
-	local inc = 3 * (SKC.UI_DIMENSIONS.SK_CARD_HEIGHT + SKC.UI_DIMENSIONS.SK_CARD_SPACING)
+	local inc = 3 * (SKC.UI_DIMS.SK_CARD_HEIGHT + SKC.UI_DIMS.SK_CARD_SPACING)
     local newValue = math.min( scroll_range , math.max( 0 , self:GetVerticalScroll() - (inc*delta) ) );
     self:SetVerticalScroll(newValue);
     return
@@ -20,44 +20,22 @@ end
 
 local function OnLoad_EditDropDown_Spec(self)
 	local class = SKC.MainGUI["Details_border"]["Class"].Data:GetText();
-	for key,value in pairs(self.CLASSES[class].Specs) do
+	for key,value in pairs(SKC.CLASSES[class].Specs) do
 		UIDropDownMenu_AddButton(value);
 	end
 	return;
 end
 
 local function OnLoad_EditDropDown_GuildRole(self)
-	UIDropDownMenu_AddButton(CHARACTER_DATA["Guild Role"].OPTIONS.None);
-	UIDropDownMenu_AddButton(CHARACTER_DATA["Guild Role"].OPTIONS.Disenchanter);
-	UIDropDownMenu_AddButton(CHARACTER_DATA["Guild Role"].OPTIONS.Banker);
+	UIDropDownMenu_AddButton(SKC.CHARACTER_DATA["Guild Role"].OPTIONS.None);
+	UIDropDownMenu_AddButton(SKC.CHARACTER_DATA["Guild Role"].OPTIONS.Disenchanter);
+	UIDropDownMenu_AddButton(SKC.CHARACTER_DATA["Guild Role"].OPTIONS.Banker);
 	return;
 end
 
 local function OnLoad_EditDropDown_Status(self)
-	UIDropDownMenu_AddButton(CHARACTER_DATA.Status.OPTIONS.Alt);
-	UIDropDownMenu_AddButton(CHARACTER_DATA.Status.OPTIONS.Main);
-	return;
-end
-
-local function OnLoad_EditDropDown_Activity(self)
-	UIDropDownMenu_AddButton(CHARACTER_DATA.Activity.OPTIONS.Active);
-	UIDropDownMenu_AddButton(CHARACTER_DATA.Activity.OPTIONS.Inactive);
-	return;
-end
-
-function OnClick_EditDropDownOption(field,value) -- Must be global
-	-- Triggered when drop down of edit button is selected
-	local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
-	local class = SKC.MainGUI["Details_border"]["Class"].Data:GetText();
-	-- Edit GuildData
-	local prev_val = SKC.db.char.GD:GetData(name,field);
-	prev_val = SKC.db.char.GD:SetData(name,field,value);
-	-- Refresh data
-	SKC:PopulateData(name);
-	-- Reset menu toggle
-	SKC.event_states.DropDownID = 0;
-	-- send GuildData to all players
-	SyncPushSend("GuildData",CHANNELS.SYNC_PUSH,"GUILD",nil);
+	UIDropDownMenu_AddButton(SKC.CHARACTER_DATA.Status.OPTIONS.Alt);
+	UIDropDownMenu_AddButton(SKC.CHARACTER_DATA.Status.OPTIONS.Main);
 	return;
 end
 
@@ -70,24 +48,20 @@ local function OnClick_EditDetails(self, button)
 	local field;
 	if ID == 3 then
 		field = "Spec";
-		if SKC.event_states.DropDownID ~= ID then UIDropDownMenu_Initialize(self.MainGUI["Details_border"][field].DD,OnLoad_EditDropDown_Spec) end
+		if SKC.event_states.DropDownID ~= ID then UIDropDownMenu_Initialize(SKC.MainGUI["Details_border"][field].DD,OnLoad_EditDropDown_Spec) end
 	elseif ID == 5 then
 		-- Guild Role
 		field = "Guild Role";
-		if SKC.event_states.DropDownID ~= ID then UIDropDownMenu_Initialize(self.MainGUI["Details_border"][field].DD,OnLoad_EditDropDown_GuildRole) end
+		if SKC.event_states.DropDownID ~= ID then UIDropDownMenu_Initialize(SKC.MainGUI["Details_border"][field].DD,OnLoad_EditDropDown_GuildRole) end
 	elseif ID == 6 then
 		-- Status
 		field = "Status";
-		if SKC.event_states.DropDownID ~= ID then UIDropDownMenu_Initialize(self.MainGUI["Details_border"][field].DD,OnLoad_EditDropDown_Status) end
-	elseif ID == 7 then
-		-- Activity
-		field = "Activity";
-		if SKC.event_states.DropDownID ~= ID then UIDropDownMenu_Initialize(self.MainGUI["Details_border"][field].DD,OnLoad_EditDropDown_Activity) end
+		if SKC.event_states.DropDownID ~= ID then UIDropDownMenu_Initialize(SKC.MainGUI["Details_border"][field].DD,OnLoad_EditDropDown_Status) end
 	else
-		self:Error("Menu not found.");
+		SKC:Error("Menu not found.");
 		return;
 	end
-	ToggleDropDownMenu(1, nil, self.MainGUI["Details_border"][field].DD, self.MainGUI["Details_border"][field].DD, 0, 0);
+	ToggleDropDownMenu(1, nil, SKC.MainGUI["Details_border"][field].DD, SKC.MainGUI["Details_border"][field].DD, 0, 0);
 	if SKC.event_states.DropDownID == ID then
 		SKC.event_states.DropDownID = 0;
 	else
@@ -131,9 +105,9 @@ local function OnClick_FullSK(self)
 				"",
 				""
 			);
-			SKC:Print("Full SK on "..name);
+			SKC:Print("Full SK on "..SKC:FormatWithClassColor(name));
 			-- send SK data to all players
-			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
+			-- SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil); TODO
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
@@ -145,7 +119,7 @@ end
 
 local function OnClick_SingleSK(self)
 	if self:IsEnabled() then
-		self.event_states.SetSKInProgress = false;
+		SKC.event_states.SetSKInProgress = false;
 		-- On click event for full SK of details targeted character
 		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
 		local sk_list = SKC.MainGUI["sk_list_border"].Title.Text:GetText();
@@ -168,9 +142,9 @@ local function OnClick_SingleSK(self)
 				"",
 				""
 			);
-			SKC:Print("Single SK on "..name);
+			SKC:Print("Single SK on "..SKC:FormatWithClassColor(name));
 			-- send SK data to all players
-			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
+			-- SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil); TODO
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
@@ -186,7 +160,44 @@ local function OnClick_SetSK(self)
 	if self:IsEnabled() then
 		SKC.event_states.SetSKInProgress = true;
 		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
-		SKC:Print("Click desired position in SK list for "..name);
+		SKC:Alert("Click desired position in SK list for "..SKC:FormatWithClassColor(name));
+	end
+	return;
+end
+
+function OnClick_NumberCard(self)
+	-- On click event for number card in SK list
+	if SKC.event_states.SetSKInProgress and SKC.MainGUI["Details_border"]["Name"].Data ~= nil then
+		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+		local new_abs_pos = tonumber(self.Text:GetText());
+		local sk_list = SKC.MainGUI["sk_list_border"].Title.Text:GetText();
+		-- Get initial position
+		local prev_pos = SKC.db.char[sk_list]:GetPos(name);
+		-- Set new position
+		local success = SKC.db.char[sk_list]:SetByPos(name,new_abs_pos);
+		if success then
+			-- log
+			SKC:WriteToLog( 
+				SKC.LOG_OPTIONS["Event Type"].Options.ManEdit,
+				name,
+				"Set SK",
+				"",
+				sk_list,
+				"",
+				prev_pos,
+				SKC.db.char[sk_list]:GetPos(name),
+				"",
+				""
+			);
+			SKC:Print("Set SK position of "..SKC:FormatWithClassColor(name).." to "..SKC.db.char[sk_list]:GetPos(name));
+			-- send SK data to all players
+			-- SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil); TODO
+			-- Refresh SK List
+			SKC:UpdateSKUI();
+		else
+			SKC:Error("Set SK on "..name.." rejected");
+		end
+		SKC.event_states.SetSKInProgress = false;
 	end
 	return;
 end
@@ -246,7 +257,7 @@ function SKC:CreateMainGUI()
 	-- create details fields
 	local faction_class;
 	if UnitFactionGroup("player") == "Horde" then faction_class="Shaman" else faction_class="Paladin" end
-	local filter_roles = {"DPS","Healer","Tank","Main","Alt","SKIP","Inactive","Active","Live","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
+	local filter_roles = {"DPS","Healer","Tank","Main","Alt","Live","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
 	local num_cols = 3;
 	for idx,value in ipairs(filter_roles) do
 		if value ~= "SKIP" then
@@ -259,7 +270,7 @@ function SKC:CreateMainGUI()
 			self.MainGUI[filter_border_key][value]:SetPoint("TOPLEFT", self.MainGUI[filter_border_key], "TOPLEFT", 22 + 73*col , -20 + -24*row);
 			self.MainGUI[filter_border_key][value].text:SetFontObject("GameFontNormalSmall");
 			self.MainGUI[filter_border_key][value].text:SetText(value);
-			if idx > 9 then
+			if idx > 6 then
 				-- assign class colors
 				self.MainGUI[filter_border_key][value].text:SetTextColor(self.CLASSES[value].color.r,self.CLASSES[value].color.g,self.CLASSES[value].color.b,1.0);
 			end
@@ -345,12 +356,12 @@ function SKC:CreateMainGUI()
 	end
 
 	-- Create details panel
-	SKC.event_states.DropDownID = 0; -- reset drop down options state
+	self.event_states.DropDownID = 0; -- reset drop down options state
 	local details_border_key = self:CreateUIBorder("Details",self.UI_DIMS.SK_DETAILS_WIDTH,self.UI_DIMS.SK_DETAILS_HEIGHT);
 	-- set position
 	self.MainGUI[details_border_key]:SetPoint("TOPLEFT", self.MainGUI[sk_list_border_key], "TOPRIGHT", self.UI_DIMS.MAIN_BORDER_PADDING, 0);
 	-- create details fields
-	local details_fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Last Raid"};
+	local details_fields = {"Name","Class","Spec","Raid Role","Guild Role","Status"};
 	for idx,value in ipairs(details_fields) do
 		-- fields
 		self.MainGUI[details_border_key][value] = CreateFrame("Frame",self.MainGUI[details_border_key])
@@ -480,7 +491,7 @@ function SKC:UpdateSKUI()
 	local print_order = self.db.char[sk_list]:ReturnList();
 
 	-- Confirm that every character in SK list is also in GuildData
-	if not CheckSKinGuildData(sk_list,print_order) then return end
+	if not self:CheckSKinGuildData(sk_list,print_order) then return end
 
 	-- Populate non filtered cards
 	local idx = 1;
@@ -489,13 +500,11 @@ function SKC:UpdateSKUI()
 		local class_tmp = self.db.char.GD:GetData(name,"Class");
 		local raid_role_tmp = self.db.char.GD:GetData(name,"Raid Role");
 		local status_tmp = self.db.char.GD:GetData(name,"Status");
-		local activity_tmp = self.db.char.GD:GetData(name,"Activity");
 		local live_tmp = self.db.char[sk_list]:GetLive(name);
 		-- only add cards to list which are not being filtered
 		if self.db.char.FS[class_tmp] and 
 		   self.db.char.FS[raid_role_tmp] and
 		   self.db.char.FS[status_tmp] and
-		   self.db.char.FS[activity_tmp] and
 		   (live_tmp or (not live_tmp and not self.db.char.FS.Live)) then
 			-- Add position number text
 			self.MainGUI.sk_list.NumberFrame[idx].Text:SetText(pos);
@@ -524,32 +533,32 @@ end
 function SKC:RefreshStatus()
 	-- refresh variable and update GUI
 	self:Debug("RefreshStatus()",self.DEV.VERBOSE.GUI);
-	ActivateSKC();
+	self:Activate();
 	if not self:CheckMainGUICreated() then return end
-	self.MainGUI["Status_border"]["Status"].Data:SetText(SKC_Status.text);
-	self.MainGUI["Status_border"]["Status"].Data:SetTextColor(unpack(SKC_Status.color));
-	if CheckIfPushInProgress() then
+	self.MainGUI["Status_border"]["Status"].Data:SetText(self.Status.text);
+	self.MainGUI["Status_border"]["Status"].Data:SetTextColor(unpack(self.Status.color));
+	if self:CheckIfPushInProgress() then
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Pushing");
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
-	elseif CheckIfReadInProgress() then
+	elseif self:CheckIfReadInProgress() then
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Reading");
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
-	elseif event_states.LoginSyncCheckTicker == nil or not event_states.LoginSyncCheckTicker:IsCancelled() then
-		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Waiting ("..event_states.LoginSyncCheckTicker_Ticks.."s)");
+	elseif self.Timers.LoginSyncCheck.Ticker == nil or not self.Timers.LoginSyncCheck.Ticker:IsCancelled() then --TODO make this a method in sync.lua
+		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Waiting ("..(self.Timers.LoginSyncCheck.TIME_STEP*self.Timers.LoginSyncCheck.MAX_TICKS - self.Timers.LoginSyncCheck.ElapsedTime).."s)");
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	else
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Complete");
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(0,1,0,1);
 	end
-	self.MainGUI["Status_border"]["Loot Prio Items"].Data:SetText(self.db.char.GLP.loot_prio:length().." items");
-	self.MainGUI["Status_border"]["Loot Officers"].Data:SetText(self.db.char.GLP.loot_officers:length());
+	self.MainGUI["Status_border"]["Loot Prio Items"].Data:SetText(self.db.char.LP:length().." items");
+	self.MainGUI["Status_border"]["Loot Officers"].Data:SetText(self.db.char.GLP:GetNumLootOfficers());
 	return;
 end
 
 function SKC:RefreshDetails(name)
 	-- populates the details fields
 	if not self:CheckMainGUICreated() then return end
-	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status","Activity","Last Raid"};
+	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status"};
 	if name == nil then
 		-- reset
 		for _,field in pairs(fields) do
@@ -559,19 +568,11 @@ function SKC:RefreshDetails(name)
 		self.MainGUI["Details_border"]["Name"].Data:SetText("            Click on a character."); -- lol, so elegant
 	else
 		for _,field in pairs(fields) do
-			if field == "Last Raid" then
-				-- calculate # days since last active
-				local days = math.floor(self.db.char.GD:CalcActivity(name)/DAYS_TO_SECS);
-				self.MainGUI["Details_border"][field].Data:SetText(days.." days ago");
-			else
-				self.MainGUI["Details_border"][field].Data:SetText(self.db.char.GD:GetData(name,field));
-			end
+			self.MainGUI["Details_border"][field].Data:SetText(self.db.char.GD:GetData(name,field));
 		end
 		-- updated class color
 		local class_color = self.CLASSES[self.db.char.GD:GetData(name,"Class")].color;
 		self.MainGUI["Details_border"]["Class"].Data:SetTextColor(class_color.r,class_color.g,class_color.b,1.0);
-		-- update last raid time
-		UpdateActivity(name);
 	end
 	return;
 end
@@ -602,7 +603,6 @@ function SKC:UpdateDetailsButtons(disable)
 		self.MainGUI["Details_border"]["Spec"].Btn:Disable();
 		self.MainGUI["Details_border"]["Guild Role"].Btn:Disable();
 		self.MainGUI["Details_border"]["Status"].Btn:Disable();
-		self.MainGUI["Details_border"]["Activity"].Btn:Disable();
 		self.MainGUI["Details_border"].manual_single_sk_btn:Disable();
 		self.MainGUI["Details_border"].manual_full_sk_btn:Disable();
 		self.MainGUI["Details_border"].manual_set_sk_btn:Disable();
@@ -611,12 +611,10 @@ function SKC:UpdateDetailsButtons(disable)
 			self.MainGUI["Details_border"]["Spec"].Btn:Enable();
 			self.MainGUI["Details_border"]["Guild Role"].Btn:Enable();
 			self.MainGUI["Details_border"]["Status"].Btn:Enable();
-			self.MainGUI["Details_border"]["Activity"].Btn:Enable();
 		else
 			self.MainGUI["Details_border"]["Spec"].Btn:Disable();
 			self.MainGUI["Details_border"]["Guild Role"].Btn:Disable();
 			self.MainGUI["Details_border"]["Status"].Btn:Disable();
-			self.MainGUI["Details_border"]["Activity"].Btn:Disable();
 		end
 		if self:isGL() or (self:isML() and self:isLO()) then
 			self.MainGUI["Details_border"].manual_single_sk_btn:Enable();
@@ -629,41 +627,4 @@ function SKC:UpdateDetailsButtons(disable)
 		end
 	end
 	return
-end
-
-function SKC:OnClick_NumberCard()
-	-- On click event for number card in SK list
-	if self.event_states.SetSKInProgress and self.MainGUI["Details_border"]["Name"].Data ~= nil then
-		local name = self.MainGUI["Details_border"]["Name"].Data:GetText();
-		local new_abs_pos = tonumber(self.Text:GetText());
-		local sk_list = self.MainGUI["sk_list_border"].Title.Text:GetText();
-		-- Get initial position
-		local prev_pos = self.db.char[sk_list]:GetPos(name);
-		-- Set new position
-		local success = self.db.char[sk_list]:SetByPos(name,new_abs_pos);
-		if success then
-			-- log
-			self:WriteToLog( 
-				self.LOG_OPTIONS["Event Type"].Options.ManEdit,
-				name,
-				"Set SK",
-				"",
-				sk_list,
-				"",
-				prev_pos,
-				self.db.char[sk_list]:GetPos(name),
-				"",
-				""
-			);
-			self:Print("Set SK position of "..name.." to "..self.db.char[sk_list]:GetPos(name));
-			-- send SK data to all players
-			SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil);
-			-- Refresh SK List
-			self:UpdateSKUI();
-		else
-			self:Error("Set SK on "..name.." rejected");
-		end
-		self.event_states.SetSKInProgress = false;
-	end
-	return;
 end
