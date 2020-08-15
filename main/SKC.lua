@@ -43,7 +43,7 @@ SKC.DEV = {
 SKC.ADDON_VERSION = GetAddOnMetadata("NovaWorldBuffs", "Version");
 SKC.DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
 SKC.DAYS_TO_SECS = 86400;
-SKC.UI_DIMENSIONS = {
+SKC.UI_DIMS = {
 	MAIN_WIDTH = 815,
 	MAIN_HEIGHT = 450,
 	MAIN_BORDER_Y_TOP = -60,
@@ -832,17 +832,17 @@ SKC.STATUS_ENUM = {
 --------------------------------------
 -- VARIABLES
 --------------------------------------
-SKC.Status = STATUS_ENUM.INACTIVE_GL; -- SKC status state enumeration
+SKC.Status = SKC.STATUS_ENUM.INACTIVE_GL; -- SKC status state enumeration
 -- local tmp_sync_var = {}; -- temporary variable used to hold incoming data when synchronizing
 SKC.UnFilteredCnt = 0; -- defines max count of sk cards to scroll over (XXX)
 -- local SK_MessagesSent = 0;
 -- local SK_MessagesReceived = 0;
 SKC.event_states = { -- tracks if certain events have fired
 	AddonLoaded = false,
-	DropDownOpen = false, -- used to track state of drop down menu
+	DropDownID = 0, -- used to track state of drop down menu
 	SetSKInProgress = false; -- true when SK position is being set
 	InitGuildSync = false; -- used to control for first time setup
-	RaidLoggingActive = LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
+	LoggingActive = SKC.DEV.LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
 	LoginSyncPartner = nil, -- name of sender who answered LoginSyncCheck first
 	ReadInProgress = {
 		MSK = false,
@@ -863,7 +863,6 @@ SKC.event_states = { -- tracks if certain events have fired
 		LootOfficers = false,
 	},
 };
-SKC.event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_MaxTicks + 1;
 -- local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due to addon version or malformed messages)
 SKC.Timers = {
 	LoginSyncCheck = {-- ticker that requests sync each iteration until over or cancelled
@@ -877,6 +876,7 @@ SKC.Timers = {
 		TimeElapsed = nil,
 	}, 
 };
+-- SKC.event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_MaxTicks + 1;
 SKC.DEBUG = {
 	ReadTime = {
 		GLP = nil,
@@ -892,4 +892,39 @@ SKC.DEBUG = {
 		MSK = nil,
 		TSK = nil,
 	},
+};
+--------------------------------------
+-- DB INIT
+--------------------------------------
+SKC.DB_DEFAULT = {
+    char = {
+		ENABLED = true,
+        ADDON_VERSION = GetAddOnMetadata("SKC", "Version"),
+		GLP = nil, -- GuildLeaderProtected
+		LOP = nil, -- LootOfficersProtected
+		GD = nil, -- GuildData
+		MSK = nil, -- SK_List
+		TSK = nil, -- SK_List
+		LM = nil, -- LootManager
+		FS = { -- filter states
+			DPS = true,
+			Healer = true,
+			Tank = true,
+			Live = false,
+			Main = true,
+			Alt = true,
+			Active = true,
+			Inactive = false,
+			Druid = true,
+			Hunter = true,
+			Mage = true,
+			Paladin = UnitFactionGroup("player") == "Alliance",
+			Priest = true;
+			Rogue = true,
+			Shaman = UnitFactionGroup("player") == "Horde",
+			Warlock = true,
+			Warrior = true,
+		},
+		LOG = {}, -- data logging
+    },
 };

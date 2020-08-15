@@ -4,6 +4,33 @@
 --------------------------------------
 -- HELPER FUNCTIONS
 --------------------------------------
+local function OnClick_PASS(self,button)
+	if self:IsEnabled() then
+		LootTimer:Cancel();
+		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.PASS);
+		SKC_Main:HideLootDecisionGUI();
+	end
+	return;
+end
+
+local function OnClick_SK(self,button)
+	if self:IsEnabled() then
+		LootTimer:Cancel();
+		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.SK);
+		SKC_Main:HideLootDecisionGUI();
+	end
+	return;
+end
+
+local function OnClick_ROLL(self,button)
+	if self:IsEnabled() then
+		LootTimer:Cancel();
+		SKC_DB.LootManager:SendLootDecision(LOOT_DECISION.ROLL);
+		SKC_Main:HideLootDecisionGUI();
+	end
+	return;
+end
+
 local function OnMouseDown_ShowItemTooltip(self, button)
 	-- shows tooltip when loot GUI clicked
 	local lootLink = SKC_DB.LootManager:GetCurrentLootLink();

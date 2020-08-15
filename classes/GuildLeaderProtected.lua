@@ -148,3 +148,12 @@ function GuildLeaderProtected:IsLO(full_name)
 	local name = StripRealmName(full_name);
 	return(self.loot_officers.data[name]);
 end
+
+-- function SKC:UpdateActivity(name)
+-- 	-- check if activity exceeds threshold and updates if different
+-- 	local activity = "Inactive";
+-- 	if self:CheckActivity(name) then activity = "Active" end
+-- 	if self.db.char.GD:GetData(name,"Activity") ~= activity then
+-- 		self.db.char.GD:SetData(name,"Activity",activity);
+-- 	end
+-- end
