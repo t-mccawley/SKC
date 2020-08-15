@@ -38,17 +38,50 @@ end
 --------------------------------------
 -- PRINTING
 --------------------------------------
-function SKC:Debug(msg,lvl)
-	-- prints message if level is at or below VERBOSITY_LEVEL
-	if lvl <= SKC.DEV.VERBOSITY_LEVEL then
-		self:Print(msg);
-	end
+function SKC:GetThemeColor(type)
+	local c = self.THEME.PRINT[type];
+	return c.r, c.g, c.b, c.hex;
+end
+
+function SKC:Print(msg)
+	-- formats and prints msg with red color
+	local hex = select(4, self:GetThemeColor("NORMAL"));
+	local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");
+	DEFAULT_CHAT_FRAME:AddMessage(string.join(" ",prefix,msg));
+    return;
+end
+
+function SKC:Warn(msg)
+	-- formats and prints msg with red color
+	local hex = select(4, self:GetThemeColor("WARN"));
+	local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");
+	DEFAULT_CHAT_FRAME:AddMessage(string.join(" ",prefix,msg));
+    return;
+end
+
+function SKC:Alert(msg)
+	-- formats and prints msg with red color
+	local hex = select(4, self:GetThemeColor("ALERT"));
+	local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");
+	DEFAULT_CHAT_FRAME:AddMessage(string.join(" ",prefix,msg));
     return;
 end
 
 function SKC:Error(msg)
-    -- formats and prints msg with red color
-    self:Print("|cff"..self.THEME.PRINT.ERROR.hex..msg.."|r")
+	-- formats and prints msg with red color
+	local hex = select(4, self:GetThemeColor("ERROR"));
+	local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");
+	DEFAULT_CHAT_FRAME:AddMessage(string.join(" ",prefix,msg));
+    return;
+end
+
+function SKC:Debug(msg,lvl)
+	-- prints message if level is at or below VERBOSITY_LEVEL
+	if lvl <= SKC.DEV.VERBOSITY_LEVEL then
+		local hex = select(4, self:GetThemeColor("DEBUG"));
+		local prefix = string.format("|cff%s%s|r", hex:upper(), "SKC:");
+		DEFAULT_CHAT_FRAME:AddMessage(string.join(" ",prefix,msg));
+	end
     return;
 end
 
@@ -114,6 +147,11 @@ end
 function SKC:CheckMainGUICreated()
 	-- returns true if MainGUI has been created
 	return(self.MainGUI ~= nil)
+end
+
+function SKC:CheckLootGUICreated()
+	-- returns true if LootGUI has been created
+	return(self.LootGUI ~= nil)
 end
 
 function SKC:CheckActive()

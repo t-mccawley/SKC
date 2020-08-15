@@ -12,14 +12,14 @@
 # external libraries
 embeds.xml
 # classes
+classes/GuildData.lua
+classes/GuildLeaderProtected.lua
 # classes/SimpleMap.lua
 # classes/SK_Node.lua
 # classes/SK_List.lua
 # classes/CharacterData.lua
-# classes/GuildData.lua
 # classes/Prio.lua
 # classes/LootPrio.lua
-# classes/GuildLeaderProtected.lua
 # classes/LootOfficerProtected.lua
 # classes/Loot.lua
 # classes/LootManager.lua
@@ -27,7 +27,7 @@ embeds.xml
 main/SKC.lua
 main/utils.lua
 main/gui_main.lua
-# main/gui_loot.lua
+main/gui_loot.lua
 # main/sync.lua
 # main/loot.lua
 main/slash.lua

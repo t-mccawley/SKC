@@ -2,7 +2,7 @@
 -- INITIALIZE
 --------------------------------------
 function SKC:OnInitialize()
-    -- Initialize saved database
+	-- Initialize saved database
 	self.db = LibStub("AceDB-3.0"):New("SKC_DB",self.DB_DEFAULT);
 	-- Register slash commands
 	self:RegisterChatCommand("rl",ReloadUI);
@@ -23,10 +23,14 @@ function SKC:OnInitialize()
 	-- create blank main GUI
 	self:CreateMainGUI();
 	-- create blank loot GUI
-	-- self:CreateLootGUI();
+	self:CreateLootGUI();
 	-- Populate Data
 	-- self:PopulateData();
-	self:Print("Welcome! /skc")
+	if self.db == nil then
+		self:Alert("Welcome (/skc help)");
+	else
+		self:Alert("Welcome Back (/skc)");
+	end
 	return;
 end
 
@@ -110,80 +114,80 @@ end
 -- 	return;
 -- end
 
--- local function SyncGuildData()
--- 	-- synchronize GuildData with guild roster
--- 	if not CheckAddonLoaded(COMM_VERBOSE) then
--- 		if COMM_VERBOSE then SKC_Main:Print("WARN","Reject SyncGuildData()") end
--- 		return;
--- 	end
--- 	if event_states.ReadInProgress.GuildData or event_states.PushInProgress.GuildData then
--- 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, sync in progress") end
--- 		return;
--- 	end
--- 	if not IsInGuild() then
--- 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, not in guild") end
--- 		return;
--- 	end
--- 	if not CheckIfAnyGuildMemberOnline() then
--- 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, no online guild members") end
--- 		return;
--- 	end
--- 	if GetNumGuildMembers() <= 1 then
--- 		-- guild is only one person, no members to fetch data for
--- 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("ERROR","Rejected SyncGuildData, no guild members") end
--- 		return;
--- 	end
--- 	if not SKC_Main:isGL() then
--- 		-- only fetch data if guild leader
--- 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("WARN","Rejected SyncGuildData, not guild leader") end
--- 	else
--- 		-- Scan guild roster and add new players
--- 		local guild_roster = {};
--- 		for idx = 1, GetNumGuildMembers() do
--- 			local full_name, _, _, level, class = GetGuildRosterInfo(idx);
--- 			local name = StripRealmName(full_name);
--- 			if level == 60 or CHARS_OVRD[name] then
--- 				guild_roster[name] = true;
--- 				if not SKC_DB.GuildData:Exists(name) then
--- 					-- new player, add to DB and SK lists
--- 					SKC_DB.GuildData:Add(name,class);
--- 					SKC_DB.MSK:PushBack(name);
--- 					SKC_DB.TSK:PushBack(name);
--- 					if not InitGuildSync then SKC_Main:Print("NORMAL",name.." added to databases") end
--- 				end
--- 				-- check activity level and update
--- 				UpdateActivity(name);
--- 			end
--- 		end
--- 		-- Scan guild data and remove players
--- 		for name,data in pairs(SKC_DB.GuildData.data) do
--- 			if guild_roster[name] == nil then
--- 				SKC_DB.MSK:Remove(name);
--- 				SKC_DB.TSK:Remove(name);
--- 				SKC_DB.GuildData:Remove(name);
--- 				if not InitGuildSync then SKC_Main:Print("ERROR",name.." removed from databases") end
--- 			end
--- 		end
--- 		-- miscellaneous
--- 		UnFilteredCnt = SKC_DB.GuildData:length();
--- 		if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
--- 			-- init sync completed
--- 			SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")");
--- 			if COMM_VERBOSE then SKC_Main:Print("NORMAL","Generic TS: "..SKC_DB.GuildData.edit_ts_generic..", Raid TS: "..SKC_DB.GuildData.edit_ts_raid) end
--- 			-- add self (GL) to loot officers
--- 			SKC_DB.GLP:AddLO(UnitName("player"));
--- 			InitGuildSync = false;
--- 		end
--- 		-- set required version to current version
--- 		SKC_DB.GLP:SetAddonVer(SKC_DB.AddonVersion);
--- 		if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL","SyncGuildData success!") end
--- 	end
--- 	-- sync with guild
--- 	if event_states.LoginSyncCheckTicker == nil then
--- 		C_Timer.After(event_states.LoginSyncCheckTicker_InitDelay,StartSyncCheckTimer);
--- 	end
--- 	return;
--- end
+function SKC:ManageGuildData()
+	-- synchronize GuildData with guild roster
+	if not self:CheckAddonLoaded() then
+		self:Debug("Reject ManageGuildData, addon not loaded yet",self.DEV.VERBOSE.COMM);
+		return;
+	end
+	if event_states.ReadInProgress.GuildData or event_states.PushInProgress.GuildData then
+		self:Debug("Rejected ManageGuildData, sync in progress",self.DEV.VERBOSE.GUILD);
+		return;
+	end
+	if not IsInGuild() then
+		self:Debug("Rejected ManageGuildData, not in guild",self.DEV.VERBOSE.GUILD);
+		return;
+	end
+	if not CheckIfAnyGuildMemberOnline() then
+		self:Debug("Rejected ManageGuildData, no online guild members",self.DEV.VERBOSE.GUILD);
+		return;
+	end
+	if GetNumGuildMembers() <= 1 then
+		-- guild is only one person, no members to fetch data for
+		self:Debug("Rejected ManageGuildData, no guild members",self.DEV.VERBOSE.GUILD);
+		return;
+	end
+	if not SKC_Main:isGL() then
+		-- only fetch data if guild leader
+		self:Debug("Rejected ManageGuildData, not guild leader",self.DEV.VERBOSE.GUILD);
+	else
+		-- Scan guild roster and add new players
+		local guild_roster = {};
+		for idx = 1, GetNumGuildMembers() do
+			local full_name, _, _, level, class = GetGuildRosterInfo(idx);
+			local name = StripRealmName(full_name);
+			if level == 60 or CHARS_OVRD[name] then
+				guild_roster[name] = true;
+				if not SKC_DB.GuildData:Exists(name) then
+					-- new player, add to DB and SK lists
+					SKC_DB.GuildData:Add(name,class);
+					SKC_DB.MSK:PushBack(name);
+					SKC_DB.TSK:PushBack(name);
+					if not InitGuildSync then self:Print(name.." added to databases") end
+				end
+				-- check activity level and update
+				UpdateActivity(name);
+			end
+		end
+		-- Scan guild data and remove players
+		for name,data in pairs(SKC_DB.GuildData.data) do
+			if guild_roster[name] == nil then
+				SKC_DB.MSK:Remove(name);
+				SKC_DB.TSK:Remove(name);
+				SKC_DB.GuildData:Remove(name);
+				if not InitGuildSync then self:Print(name.." removed from databases") end
+			end
+		end
+		-- miscellaneous
+		UnFilteredCnt = SKC_DB.GuildData:length();
+		if InitGuildSync and (SKC_DB.GuildData:length() ~= 0) then
+			-- init sync completed
+			SKC_Main:Print("WARN","Populated fresh GuildData ("..SKC_DB.GuildData:length()..")");
+			if COMM_VERBOSE then SKC_Main:Print("NORMAL","Generic TS: "..SKC_DB.GuildData.edit_ts_generic..", Raid TS: "..SKC_DB.GuildData.edit_ts_raid) end
+			-- add self (GL) to loot officers
+			SKC_DB.GLP:AddLO(UnitName("player"));
+			InitGuildSync = false;
+		end
+		-- set required version to current version
+		SKC_DB.GLP:SetAddonVer(SKC_DB.AddonVersion);
+		if GUILD_SYNC_VERBOSE then SKC_Main:Print("NORMAL","ManageGuildData success!") end
+	end
+	-- sync with guild
+	if event_states.LoginSyncCheckTicker == nil then
+		C_Timer.After(event_states.LoginSyncCheckTicker_InitDelay,StartSyncCheckTimer);
+	end
+	return;
+end
 
 
 
@@ -228,7 +232,7 @@ end
 -- 		OnAddonLoad(...);
 -- 	elseif event == "GUILD_ROSTER_UPDATE" then
 -- 		-- Sync GuildData (if GL) and create ticker to send sync requests
--- 		SyncGuildData();
+-- 		ManageGuildData();
 -- 	elseif event == "GROUP_ROSTER_UPDATE" or event == "PARTY_LOOT_METHOD_CHANGED" then
 -- 		ManageLootLogging();
 -- 		UpdateLiveList();

@@ -2,6 +2,9 @@
 -- SKC
 --------------------------------------
 -- TODO:
+-- Change SaveLoot name to OnOpenMasterLoot
+-- Remove entire scan / save of loot from OnOpenMasterLoot, instead just find first elligile item and print raid warning to distribute that
+-- Create new function OnOpenLoot, which fires on LOOT_OPENED, and just prints the name of all epic or better items on the corpse to raid
 -- package AI and LO with GuildData instead (GuildData is all data that only GL can send / must be verified to come from GL)
 -- serialize communications
 -- make loot officers only ones able to push (client checks that sender is loot officer)
@@ -84,11 +87,11 @@ SKC.UI_DIMS = {
 };
 SKC.THEME = { -- general color themes
 	PRINT = {
-		NORMAL = {r = 0, g = 0.8, b = 1, hex = "00ccff"},
+		NORMAL = {r = 26/255, g = 1, b = 178/255, hex = "1affb2"},
 		WARN = {r = 1, g = 0.8, b = 0, hex = "ffcc00"},
+		ALERT = {r = 1, g = 0, b = 1, hex = "ff00ff"},
 		ERROR = {r = 1, g = 0.2, b = 0, hex = "ff3300"},
-		IMPORTANT = {r = 1, g = 0, b = 1, hex = "ff00ff"},
-		TITLE = {r = 26/255, g = 1, b = 178/255, hex = "1affb2"},
+		DEBUG = {r = 0, g = 0.8, b = 1, hex = "00ccff"},
 		HELP = {r = 1, g = 204/255, b = 0, hex = "ffcc00"},
 	},
 	STATUS_BAR_COLOR = {0.0,0.6,0.0},
@@ -868,12 +871,12 @@ SKC.Timers = {
 	LoginSyncCheck = {-- ticker that requests sync each iteration until over or cancelled
 		Ticker = nil, 
 		Ticks = nil,
-		TimeElasped = nil,
+		ElapsedTime = nil,
 	}, 
-	LootDecision = { -- current loot timer
+	Loot = { -- current loot timer
 		Ticker = nil, -- ticker that requests sync each iteration until over or cancelled
 		Ticks = nil,
-		TimeElapsed = nil,
+		ElapsedTime = nil,
 	}, 
 };
 -- SKC.event_states.LoginSyncCheckTicker_Ticks = event_states.LoginSyncCheckTicker_MaxTicks + 1;

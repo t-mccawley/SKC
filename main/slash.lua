@@ -26,7 +26,7 @@ end
 function SKC:PrintHelp()
     -- prints help for slash commands
     print(" ");
-    print("|cff"..self.THEME.PRINT.TITLE.hex.."SKC Slash Commands:|r");
+    print("|cff"..self.THEME.PRINT.NORMAL.hex.."SKC Slash Commands:|r");
     -- all members
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc help|r - Lists all available slash commands");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc|r - Toggles GUI");
@@ -40,7 +40,7 @@ function SKC:PrintHelp()
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc export sk|r - Export (CSV) current sk lists");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc reset|r - Resets local SKC data");
     if self:isML() then
-        print("|cff"..self.THEME.PRINT.TITLE.hex.."Master Looter Only:|r");
+        print("|cff"..self.THEME.PRINT.NORMAL.hex.."Master Looter Only:|r");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc b add <character name>|r - Adds character to the Bench");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc b remove <character name>|r - Removes character from the Bench");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc b clear|r - Clears the Bench");
@@ -49,7 +49,7 @@ function SKC:PrintHelp()
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc export log|r - Export (CSV) loot log for most recent raid");
     end
     if self:isGL() then
-        print("|cff"..self.THEME.PRINT.TITLE.hex.."Guild Leader Only:|r");
+        print("|cff"..self.THEME.PRINT.NORMAL.hex.."Guild Leader Only:|r");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc at <#>|r - Sets Activity Threshold to # days");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lp init|r - Initialze Loot Prio with a CSV");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc <msk/tsk> init|r - Initialze SK List with a CSV");
