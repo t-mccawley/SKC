@@ -11,7 +11,7 @@ function SKC:Activate()
 		self.Status = self.STATUS_ENUM.DISABLED;
 	elseif self.db.char.GLP:GetGLAddonVer() == nil then
 		self.Status = self.STATUS_ENUM.INACTIVE_GL;
-	elseif not elf:CheckAddonVerMatch() then
+	elseif not self:CheckAddonVerMatch() then
 		self.Status = self.STATUS_ENUM.INACTIVE_VER;
 	elseif not UnitInRaid("player") then
 		self.Status = self.STATUS_ENUM.INACTIVE_RAID;
@@ -21,12 +21,13 @@ function SKC:Activate()
 		-- Master Looter is Loot Officer
 		local _, _, masterlooterRaidIndex = GetLootMethod();
 		local master_looter_full_name = GetRaidRosterInfo(masterlooterRaidIndex);
-		local loot_officer_check = self:isLO(master_looter_full_name);
+		local loot_officer_check = self.DEV.LOOT_OFFICER_OVRD or self:isLO(self.StripRealmName(master_looter_full_name));
 		if not loot_officer_check then
 			self.Status = self.STATUS_ENUM.INACTIVE_LO;
 		else
 			-- Elligible instance
-			if not self:CheckActiveInstance() then
+			local active_instance_check = self.DEV.ACTIVE_INSTANCE_OVRD or self:CheckActiveInstance()
+			if not active_instance_check then
 				self.Status = self.STATUS_ENUM.INACTIVE_AI;
 			else
 				self.Status = self.STATUS_ENUM.ACTIVE;
@@ -102,15 +103,20 @@ function SKC:isML()
 	return(UnitName("player") == self.DEV.ML_OVRD or IsMasterLooter());
 end
 
-function SKC:isGL()
-	-- Check if current player is guild leader
-	return(UnitName("player") == self.DEV.GL_OVRD or IsGuildLeader());
+function SKC:isGL(name)
+	-- Check if name is guild leader
+	if name == nil then
+		return(UnitName("player") == self.DEV.GL_OVRD or IsGuildLeader());
+	else
+		local _,_,guildRankIndex = GetGuildInfo(name);
+		return(guildRankIndex == 0)
+	end
 end
 
 function SKC:isLO(name)
 	-- returns true if given name (current player if nil) is a loot officer
 	if name == nil then name = UnitName("player") end
-	return(self.DEV.LOOT_OFFICER_OVRD or (self:CheckDatabasePopulated("GLP") and self.db.char.GLP:IsLO(name)));
+	return(self:CheckDatabasePopulated("GLP") and self.db.char.GLP:CheckIfLO(name));
 end
 
 function SKC:GetGuildLeader()
@@ -188,6 +194,19 @@ function SKC:CheckIfPushInProgress()
 		if push then return true end
 	end
 	return false;
+end
+
+function SKC:GetOnlineSyncables()
+	-- returns ordered list of guild leader and loot officers that are online
+	local syncables = {};
+	for idx = 1, GetNumGuildMembers() do
+		local full_name, _, _, _, _, _, _, _, online = GetGuildRosterInfo(idx);
+		local name = self:StripRealmName(full_name);
+		if self:isGL(name) or self:isLO(name) then
+			syncables[#syncables + 1] = name;
+		end
+	end
+	return(syncables);
 end
 
 function SKC:CheckIfGuildMemberOnline(target)
@@ -385,13 +404,7 @@ function SKC:GetSpecClassColor(spec_class)
 	return nil,nil,nil,nil;
 end
 
--- local function SendCompMsg(data,addon_channel,wow_channel,target,prio,callback_fn)
--- 	-- serialize, compress, and send an addon message
--- 	local data_ser = SKC.lib_ser:Serialize(data);
--- 	local data_comp = SKC.lib_comp:CompressHuffman(data_ser)
--- 	local msg = SKC.lib_enc:Encode(data_comp)
--- 	SKC:SendCommMessage(addon_channel,msg,wow_channel,target,prio,callback_fn);
--- end
+
 
 -- local function PrintSyncMsgStart(db_name,push,sender)
 -- 	if COMM_VERBOSE then 

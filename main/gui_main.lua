@@ -543,7 +543,7 @@ function SKC:RefreshStatus()
 	elseif self:CheckIfReadInProgress() then
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Reading");
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
-	elseif self.Timers.LoginSyncCheck.Ticker == nil or not self.Timers.LoginSyncCheck.Ticker:IsCancelled() then --TODO make this a method in sync.lua
+	elseif self:LoginSyncCheckActive() then
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Waiting ("..(self.Timers.LoginSyncCheck.TIME_STEP*self.Timers.LoginSyncCheck.MAX_TICKS - self.Timers.LoginSyncCheck.ElapsedTime).."s)");
 		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
 	else

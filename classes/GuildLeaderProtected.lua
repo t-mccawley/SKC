@@ -136,11 +136,10 @@ end
 
 function GuildLeaderProtected:IsActiveInstance()
 	-- returns true of current instance is active_instances
-	if ACTIVE_RAID_OVRD then return true end
-	if self.active_raids == nil or self.active_raids.data == nil then return false end
+	if self.active_instances == nil or self.active_instances.data == nil then return false end
 	local raid_name = GetInstanceInfo();
-	for active_raid_acro,_ in pairs(self.active_raids.data) do
-		if raid_name == RAID_NAME_MAP[active_raid_acro] then
+	for active_raid_acro,_ in pairs(self.active_instances.data) do
+		if raid_name == SKC.RAID_NAME_MAP[active_raid_acro] then
 			return true;
 		end
 	end
@@ -149,10 +148,10 @@ end
 
 function GuildLeaderProtected:IsAddonVerMatch()
 	-- returns true if this client has addon version that matches guild leader version
-	return(SKC_DB.AddonVersion == self:GetGLAddonVer());
+	return(SKC_DB.ADDON_VERSION == self:GetGLAddonVer());
 end
 
-function GuildLeaderProtected:IsLO(full_name)
-	local name = StripRealmName(full_name);
-	return(self.loot_officers.data[name]);
+function GuildLeaderProtected:CheckIfLO(full_name)
+	local name = SKC:StripRealmName(full_name);
+	return(self.loot_officers[name]);
 end

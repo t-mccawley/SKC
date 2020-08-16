@@ -16,7 +16,7 @@ function SKC:OnInitialize()
 	self:RegisterChatCommand("rl",ReloadUI);
 	self:RegisterChatCommand("skc","SlashHandler");
 	-- register comms
-	-- self:RegisterComm(LOGIN_SYNC_CHECK,self.LoginSyncCheckRead);
+	self:RegisterComm(self.CHANNELS.LOGIN_SYNC_CHECK,"LoginSyncCheckRead");
 	-- LOGIN_SYNC_PUSH = "6-F?832qBmrJE?pR",
 	-- LOGIN_SYNC_PUSH_RQST = "d$8B=qB4VsW&&Y^D",
 	-- SYNC_PUSH = "8EtTWxyA$r6xi3=F",
@@ -168,13 +168,14 @@ function SKC:ManageGuildData()
 			self.event_states.InitGuildSync = false;
 		end
 		-- set required version to current version
-		self.db.char.GLP:SetAddonVer(self.db.char.AddonVersion);
+		self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
 		self:Debug("ManageGuildData success!",self.DEV.VERBOSE.GUILD);
 	end
-	-- sync with guild (TODO)
-	-- if self.event_states.LoginSyncCheckTicker == nil then
-	-- 	C_Timer.After(self.event_states.LoginSyncCheckTicker_InitDelay,StartSyncCheckTimer);
-	-- end
+	-- sync with guild (if not already done)
+	if not self:LoginSyncCheckExists() then
+		self:StartLoginSyncCheckTicker();
+		-- C_Timer.After(self.Timers.LoginSyncCheck.INIT_D,StartSyncCheckTimer);
+	end
 	return;
 end
 

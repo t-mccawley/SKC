@@ -29,7 +29,7 @@ classes/LootManager.lua
 # main SKC files
 main/gui_main.lua
 main/gui_loot.lua
-# main/sync.lua
+main/sync.lua
 # main/loot.lua
 main/slash.lua
 main/init.lua

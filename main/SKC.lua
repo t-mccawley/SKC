@@ -30,7 +30,7 @@ SKC.DEV = {
     GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
 		-- Freznic = true,
 	},
-    ACTIVE_RAID_OVRD = false, -- true if SKC can be used outside of active raids
+    ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
 	VERBOSITY_LEVEL = 2,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
@@ -92,7 +92,7 @@ SKC.THEME = { -- general color themes
 		WARN = {r = 1, g = 0.8, b = 0, hex = "ffcc00"},
 		ALERT = {r = 1, g = 0, b = 1, hex = "ff00ff"},
 		ERROR = {r = 1, g = 0.2, b = 0, hex = "ff3300"},
-		DEBUG = {r = 0, g = 0.8, b = 1, hex = "00ccff"},
+		DEBUG = {r = 204/255, g = 51/255, b = 1, hex = "cc33ff"},
 		HELP = {r = 1, g = 204/255, b = 0, hex = "ffcc00"},
 	},
 	STATUS_BAR_COLOR = {0.0,0.6,0.0},
@@ -867,8 +867,9 @@ SKC.event_states = { -- tracks if certain events have fired
 -- local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due to addon version or malformed messages)
 SKC.Timers = {
 	LoginSyncCheck = {-- ticker that requests sync each iteration until over or cancelled
-		MAX_TICKS = 6,
-		TIME_STEP = 10,
+		MAX_TICKS = 60,
+		TIME_STEP = 1,
+		UPDATE_INVTL = 10, -- number of ticks that must elapse for function update
 		Ticker = nil, 
 		Ticks = 0,
 		ElapsedTime = 0,
@@ -887,13 +888,13 @@ SKC.Timers = {
 SKC.DB_DEFAULT = {
     char = {
 		ENABLED = true,
-        ADDON_VERSION = GetAddOnMetadata("SKC", "Version"),
+        ADDON_VERSION = GetAddOnMetadata("SKC","Version"),
 		GLP = nil, -- GuildLeaderProtected
 		LOP = nil, -- LootOfficersProtected
 		GD = nil, -- GuildData
-		LP = nil, --LootPrio
 		MSK = nil, -- SK_List
 		TSK = nil, -- SK_List
+		LP = nil, --LootPrio
 		LM = nil, -- LootManager
 		FS = { -- filter states
 			DPS = true,
