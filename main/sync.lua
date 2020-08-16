@@ -33,14 +33,14 @@ function SKC:SyncUpdate()
 		-- check if current sync has timed out
 		if self.Timers.Sync.SyncTicks[db] >= self.Timers.Sync.SYNC_TIMEOUT_TICKS then
 			-- sync has timed out, reset
-			self:Debug("Sync request for "..db.." timed out, resetting",self.DEV.VERBOSE.SYNC);
+			self:Debug("TIMEOUT: "..db.." , "..self.SyncPartners[db],self.DEV.VERBOSE.SYNC);
 			self.Timers.Sync.SyncTicks[db] = 0;
 			self.SyncPartners[db] = nil;
 		elseif self.SyncPartners[db] ~= nil then
 			-- sync in progress, increment counter
 			self.SyncStatus = self.SYNC_STATUS_ENUM.IN_PROGRESS;
 			self.Timers.Sync.SyncTicks[db] = self.Timers.Sync.SyncTicks[db] + 1;
-			self:Debug("Sync request for "..db.." from "..self.SyncPartners[db].." still in progress ("..self.Timers.Sync.SyncTicks[db]..")",self.DEV.VERBOSE.SYNC);
+			self:Debug("IN PROGRESS ["..self.Timers.Sync.SyncTicks[db].."]: "..db.." , "..self.SyncPartners[db],self.DEV.VERBOSE.SYNC);
 		end
 		-- check if sync completed
 		if self.SyncPartners[db] == nil then
@@ -48,12 +48,12 @@ function SKC:SyncUpdate()
 			self:DetermineSyncPartner(db);
 			if self.SyncPartners[db] ~= nil then
 				-- request sync
-				self:Debug("New sync partner "..self.SyncPartners[db].." for "..db..", requesting",self.DEV.VERBOSE.SYNC);
+				self:Debug("REQUEST: "..db.." , "..self.SyncPartners[db],self.DEV.VERBOSE.SYNC);
 				self.SyncStatus = self.SYNC_STATUS_ENUM.IN_PROGRESS;
 				self:Send(self.db.char.ADDON_VERSION,self.CHANNELS.SYNC_RQST,"WHISPER",self.SyncPartners[db]);
 			else
 				-- send out sync check
-				local msg = self.db.char.ADDON_VERSION..","..db..","..self:NilToStr(self.db.char[db].edit_ts_raid)..","..self:NilToStr(self.db.char[db].edit_ts_generic);
+				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db..","..self:NilToStr(self.db.char[db].edit_ts_raid)..","..self:NilToStr(self.db.char[db].edit_ts_generic);
 				self:Send(msg,self.CHANNELS.SYNC_CHECK,"GUILD");
 			end
 		end
@@ -72,18 +72,22 @@ end
 
 function SKC:ReadSyncCheck(msg,sender)
 	-- read SYNC_CHECK and save msg
+	-- check addon version
 	-- only keep data from players with appropriate permissions (GL or LO)
 	return;
 end
 
 function SKC:ReadSyncRqst(msg,sender)
 	-- read SYNC_RQST and send that player requested database
+	-- check addon version
 	return;
 end
 
 function SKC:ReadSyncPush(msg,sender)
 	-- read SYNC_PUSH and save database
+	-- check addon version
 	-- confirm that sender has correct permision (GL or LO)
+	-- after sync is complete, mark self.SyncPartners[db] to nil
 	return;
 end
 
