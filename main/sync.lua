@@ -1,72 +1,158 @@
 --------------------------------------
 -- SYNCHRONIZATION
 --------------------------------------
-function SKC:Send(data,addon_channel,wow_channel,target,prio,callback_fn)
+function SKC:Send(data,addon_channel,wow_channel,target,callback_fn)
 	-- serialize, compress, and send an addon message
 	local data_ser = self.lib_ser:Serialize(data);
 	local data_comp = self.lib_comp:CompressHuffman(data_ser)
 	local msg = self.lib_enc:Encode(data_comp)
-	self:Print(msg)
-	self:SendCommMessage(addon_channel,msg,wow_channel,target,prio,callback_fn);
-end
-
-function SKC:LoginSyncCheckExists()
-	-- returns true if LoginSyncCheck exists (exists even if its been cancelled)
-	return(self.Timers.LoginSyncCheck.Ticker ~= nil);
-end
-
-function SKC:LoginSyncCheckActive()
-	-- returns true if LoginSyncCheck is active
-	-- considered active if timer hasnt started yet
-	return(self.Timers.LoginSyncCheck.Ticker == nil or not self.Timers.LoginSyncCheck.Ticker:IsCancelled());
-end
-
-local function OnUpdate_LoginSyncCheckSend()
-	-- Send timestamps of each database to online guild leaders and loot officers (if any)
-	-- will sync with first response
-	-- check if ticker has completed entire duration
-	if SKC.Timers.LoginSyncCheck.Ticks >= SKC.Timers.LoginSyncCheck.MAX_TICKS then
-		-- sync has not been answered yet / no one online --> if GL or LO, push all data to guild
-		if SKC.isGL() or SKC.isLO() then
-			SKC:Debug("LoginSyncCheck Timer expired, push data to guild",SKC.DEV.VERBOSE.COMM);
-			-- TODO
-		end
-		-- cancel
-		SKC.Timers.LoginSyncCheck.Ticker:Cancel();
-	end
-	-- check if interval met
-	if SKC:CheckAddonLoaded() and SKC.Timers.LoginSyncCheck.Ticks % SKC.Timers.LoginSyncCheck.UPDATE_INVTL == 0 then
-		SKC:Debug("LoginSyncCheckSend!",SKC.DEV.VERBOSE.COMM);
-		-- construct message
-		local db_lsit = {"GLP","LOP","GD","MSK","TSK","LP"}; -- important that they are requested in precisely this order
-		local msg = SKC.db.char.ADDON_VERSION;
-		for _,db_name in ipairs(db_lsit) do
-			msg = msg..","..db_name..","..SKC:NilToStr(SKC.db.char[db_name].edit_ts_raid)..","..SKC:NilToStr(SKC.db.char[db_name].edit_ts_generic);
-		end
-		-- send message to guild leader and loot officers that are online
-		local syncables = SKC:GetOnlineSyncables();
-		for idx,target in ipairs(syncables) do
-			SKC:Send(msg,CHANNELS.LOGIN_SYNC_CHECK,"WHISPER",target);
-		end
-	end
-	-- update ticker
-	SKC.Timers.LoginSyncCheck.Ticks = SKC.Timers.LoginSyncCheck.Ticks + 1;
-	SKC.Timers.LoginSyncCheck.ElapsedTime = SKC.Timers.LoginSyncCheck.ElapsedTime + SKC.Timers.LoginSyncCheck.TIME_STEP;
-	-- update status
-	SKC:RefreshStatus();
+	self:SendCommMessage(addon_channel,msg,wow_channel,target,nil,callback_fn);
 	return;
 end
 
-function SKC:StartLoginSyncCheckTicker()
-	-- Create ticker that attempts to sync with guild at each iteration
-	-- once responded to, ticker is cancelled
-	if not self:LoginSyncCheckExists() then
-		-- only create ticker if one doesnt exist
-		self.Timers.LoginSyncCheck.Ticker = C_Timer.NewTicker(self.Timers.LoginSyncCheck.TIME_STEP,OnUpdate_LoginSyncCheckSend,self.Timers.LoginSyncCheck.MAX_TICKS);
-		self:Debug("LoginSyncCheckTicker created",self.DEV.VERBOSE.COMM);
-	end
+local function OnUpdate_SyncCheck()
+	-- wrapper for main logic
+	SKC:SyncUpdate();
 	return;
 end
+
+function SKC:StartSyncTicker()
+	-- Main ticker that periodically provides data to sync with guild
+	self.Timers.Sync.Ticker = C_Timer.NewTicker(self.Timers.Sync.TIME_STEP,OnUpdate_SyncCheck);
+	self:Debug("Sync Ticker created!",self.DEV.VERBOSE.SYNC);
+	return;
+end
+
+function SKC:SyncUpdate()
+	-- function called periodically to synchronize
+	-- synchronization is performed individually for each db
+	self:Debug("SyncUpdate",self.DEV.VERBOSE.SYNC);
+	-- initialize with completed sync overall
+	self.SyncStatus = self.SYNC_STATUS_ENUM.COMPLETE;
+	for _,db in ipairs(self.DB_SYNC_ORDER) do
+		-- check if current sync has timed out
+		if self.Timers.Sync.SyncTicks[db] >= self.Timers.Sync.SYNC_TIMEOUT_TICKS then
+			-- sync has timed out, reset
+			self:Debug("Sync request for "..db.." timed out, resetting",self.DEV.VERBOSE.SYNC);
+			self.Timers.Sync.SyncTicks[db] = 0;
+			self.SyncPartners[db] = nil;
+		elseif self.SyncPartners[db] ~= nil then
+			-- sync in progress, increment counter
+			self.SyncStatus = self.SYNC_STATUS_ENUM.IN_PROGRESS;
+			self.Timers.Sync.SyncTicks[db] = self.Timers.Sync.SyncTicks[db] + 1;
+			self:Debug("Sync request for "..db.." from "..self.SyncPartners[db].." still in progress ("..self.Timers.Sync.SyncTicks[db]..")",self.DEV.VERBOSE.SYNC);
+		end
+		-- check if sync completed
+		if self.SyncPartners[db] == nil then
+			-- get sync partner for current db
+			self:DetermineSyncPartner(db);
+			if self.SyncPartners[db] ~= nil then
+				-- request sync
+				self:Debug("New sync partner "..self.SyncPartners[db].." for "..db..", requesting",self.DEV.VERBOSE.SYNC);
+				self.SyncStatus = self.SYNC_STATUS_ENUM.IN_PROGRESS;
+				self:Send(self.db.char.ADDON_VERSION,self.CHANNELS.SYNC_RQST,"WHISPER",self.SyncPartners[db]);
+			else
+				-- send out sync check
+				local msg = self.db.char.ADDON_VERSION..","..db..","..self:NilToStr(self.db.char[db].edit_ts_raid)..","..self:NilToStr(self.db.char[db].edit_ts_generic);
+				self:Send(msg,self.CHANNELS.SYNC_CHECK,"GUILD");
+			end
+		end
+	end
+	-- update status on GUI
+	self:RefreshStatus();
+	return;
+end
+
+function SKC:DetermineSyncPartner(db)
+	-- determines sync partner for given database
+	-- scan all collected SYNC_CHECK messages and determine if there is a LO/GL with a newer database
+	-- mark that player in self.SyncPartners[db]
+	return;
+end
+
+function SKC:ReadSyncCheck(msg,sender)
+	-- read SYNC_CHECK and save msg
+	-- only keep data from players with appropriate permissions (GL or LO)
+	return;
+end
+
+function SKC:ReadSyncRqst(msg,sender)
+	-- read SYNC_RQST and send that player requested database
+	return;
+end
+
+function SKC:ReadSyncPush(msg,sender)
+	-- read SYNC_PUSH and save database
+	-- confirm that sender has correct permision (GL or LO)
+	return;
+end
+
+
+
+
+
+
+
+
+
+
+-- function SKC:LoginSyncCheckExists()
+-- 	-- returns true if LoginSyncCheck exists (exists even if its been cancelled)
+-- 	return(self.Timers.LoginSyncCheck.Ticker ~= nil);
+-- end
+
+-- function SKC:LoginSyncCheckActive()
+-- 	-- returns true if LoginSyncCheck is active
+-- 	-- considered active if timer hasnt started yet
+-- 	return(self.Timers.LoginSyncCheck.Ticker == nil or not self.Timers.LoginSyncCheck.Ticker:IsCancelled());
+-- end
+
+-- local function OnUpdate_LoginSyncCheckSend()
+-- 	-- Send timestamps of each database to online guild leaders and loot officers (if any)
+-- 	-- will sync with first response
+-- 	-- check if ticker has completed entire duration
+-- 	if SKC.Timers.LoginSyncCheck.Ticks >= SKC.Timers.LoginSyncCheck.MAX_TICKS then
+-- 		-- sync has not been answered yet / no one online --> if GL or LO, push all data to guild
+-- 		if SKC.isGL() or SKC.isLO() then
+-- 			SKC:Debug("LoginSyncCheck Timer expired, push data to guild",SKC.DEV.VERBOSE.COMM);
+-- 			-- TODO
+-- 		end
+-- 		-- cancel
+-- 		SKC.Timers.LoginSyncCheck.Ticker:Cancel();
+-- 	end
+-- 	-- check if interval met
+-- 	if SKC:CheckAddonLoaded() and SKC.Timers.LoginSyncCheck.Ticks % SKC.Timers.LoginSyncCheck.UPDATE_INVTL == 0 then
+-- 		SKC:Debug("LoginSyncCheckSend!",SKC.DEV.VERBOSE.COMM);
+-- 		-- construct message
+-- 		local db_lsit = {"GLP","LOP","GD","MSK","TSK","LP"}; -- important that they are requested in precisely this order
+-- 		local msg = SKC.db.char.ADDON_VERSION;
+-- 		for _,db_name in ipairs(db_lsit) do
+-- 			msg = msg..","..db_name..","..SKC:NilToStr(SKC.db.char[db_name].edit_ts_raid)..","..SKC:NilToStr(SKC.db.char[db_name].edit_ts_generic);
+-- 		end
+-- 		-- send message to guild leader and loot officers that are online
+-- 		local syncables = SKC:GetOnlineSyncables();
+-- 		for idx,target in ipairs(syncables) do
+-- 			SKC:Send(msg,CHANNELS.LOGIN_SYNC_CHECK,"WHISPER",target);
+-- 		end
+-- 	end
+-- 	-- update ticker
+-- 	SKC.Timers.LoginSyncCheck.Ticks = SKC.Timers.LoginSyncCheck.Ticks + 1;
+-- 	SKC.Timers.LoginSyncCheck.ElapsedTime = SKC.Timers.LoginSyncCheck.ElapsedTime + SKC.Timers.LoginSyncCheck.TIME_STEP;
+-- 	-- update status
+-- 	SKC:RefreshStatus();
+-- 	return;
+-- end
+
+-- function SKC:StartLoginSyncCheckTicker()
+-- 	-- Create ticker that attempts to sync with guild at each iteration
+-- 	-- once responded to, ticker is cancelled
+-- 	if not self:LoginSyncCheckExists() then
+-- 		-- only create ticker if one doesnt exist
+-- 		self.Timers.LoginSyncCheck.Ticker = C_Timer.NewTicker(self.Timers.LoginSyncCheck.TIME_STEP,OnUpdate_LoginSyncCheckSend,self.Timers.LoginSyncCheck.MAX_TICKS);
+-- 		self:Debug("LoginSyncCheckTicker created",self.DEV.VERBOSE.COMM);
+-- 	end
+-- 	return;
+-- end
 
 -- local function SyncPushSend(db_name,addon_channel,game_channel,name,end_msg_callback_fn)
 -- 	-- send target database to name

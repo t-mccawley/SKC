@@ -32,12 +32,13 @@ SKC.DEV = {
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 2,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 3,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
-		GUI = 3,
+		SYNC = 3,
 		GUILD = 3,
+		GUI = 4,
 		MERGE = 4,
 	}
 };
@@ -92,16 +93,15 @@ SKC.THEME = { -- general color themes
 		WARN = {r = 1, g = 0.8, b = 0, hex = "ffcc00"},
 		ALERT = {r = 1, g = 0, b = 1, hex = "ff00ff"},
 		ERROR = {r = 1, g = 0.2, b = 0, hex = "ff3300"},
-		DEBUG = {r = 204/255, g = 51/255, b = 1, hex = "cc33ff"},
+		DEBUG = {r = 102/255, g = 0/255, b = 204/255, hex = "6600cc"},
 		HELP = {r = 1, g = 204/255, b = 0, hex = "ffcc00"},
 	},
 	STATUS_BAR_COLOR = {0.0,0.6,0.0},
 };
 SKC.CHANNELS = { -- channels for inter addon communication (const)
-	LOGIN_SYNC_CHECK = "?Q!@$8a1pc8QqYyH",
-	LOGIN_SYNC_PUSH = "6-F?832qBmrJE?pR",
-	LOGIN_SYNC_PUSH_RQST = "d$8B=qB4VsW&&Y^D",
-	SYNC_PUSH = "8EtTWxyA$r6xi3=F",
+	SYNC_CHECK = "?Q!@$8a1pc8QqYyH",
+	SYNC_RQST = "6-F?832qBmrJE?pR",
+	SYNC_PUSH = "d$8B=qB4VsW&&Y^D",
 	LOOT = "xBPE9,-Fjsc+A#rm",
 	LOOT_DECISION = "ksg(Ak2.*/@&+`8Q",
 	LOOT_DECISION_PRINT = "xP@&!9hQxY]1K&C4",
@@ -830,10 +830,32 @@ SKC.STATUS_ENUM = {
 		color = {1,0,0},
 	},
 };
+SKC.SYNC_STATUS_ENUM = {
+	COMPLETE = {
+		val = 0,
+		text = "Complete",
+		color = {0,1,0},
+	},
+	IN_PROGRESS = {
+		val = 1,
+		text = "In Progress",
+		color = {1,0,0},
+	},
+};
+SKC.DB_SYNC_ORDER = { -- order in which databases are synchronized
+	"GLP",
+	"GD",
+	"LOP",
+	"MSK",
+	"TSK",
+	"LP",
+}
 --------------------------------------
 -- VARIABLES
 --------------------------------------
 SKC.Status = SKC.STATUS_ENUM.INACTIVE_GL; -- SKC status state enumeration
+SKC.SyncStatus = SKC.SYNC_STATUS_ENUM.COMPLETE; -- Synchronization status state enumeration
+SKC.SyncPartners = {}; -- name of player who we are currently expecting a sync from. nil if no sync expected
 -- local tmp_sync_var = {}; -- temporary variable used to hold incoming data when synchronizing
 SKC.UnFilteredCnt = 0; -- defines max count of sk cards to scroll over (XXX)
 -- local SK_MessagesSent = 0;
@@ -844,35 +866,14 @@ SKC.event_states = { -- tracks if certain events have fired
 	SetSKInProgress = false; -- true when SK position is being set
 	InitGuildSync = false; -- used to control for first time setup
 	LoggingActive = SKC.DEV.LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
-	LoginSyncPartner = nil, -- name of sender who answered LoginSyncCheck first
-	ReadInProgress = {
-		MSK = false,
-		TSK = false,
-		GuildData = false,
-		LootPrio = false,
-		Bench = false,
-		ActiveRaids = false,
-		LootOfficers = false,
-	},
-	PushInProgress = {
-		MSK = false,
-		TSK = false,
-		GuildData = false,
-		LootPrio = false,
-		Bench = false,
-		ActiveRaids = false,
-		LootOfficers = false,
-	},
 };
 -- local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due to addon version or malformed messages)
 SKC.Timers = {
-	LoginSyncCheck = {-- ticker that requests sync each iteration until over or cancelled
-		MAX_TICKS = 60,
-		TIME_STEP = 1,
-		UPDATE_INVTL = 10, -- number of ticks that must elapse for function update
-		Ticker = nil, 
-		Ticks = 0,
-		ElapsedTime = 0,
+	Sync = {-- ticker that requests sync each iteration until over or cancelled
+		TIME_STEP = 5, -- number of seconds between each tick
+		SYNC_TIMEOUT_TICKS = 3, -- number of ticks before an initiated sync will timeout
+		Ticker = nil,
+		SyncTicks = {}, -- number of ticks elapsed since sync started
 	}, 
 	Loot = { -- current loot timer
 		MAX_TICKS = 30,
@@ -882,6 +883,11 @@ SKC.Timers = {
 		ElapsedTime = 0,
 	}, 
 };
+-- initialize all sync state variables
+for _,db in ipairs(SKC.DB_SYNC_ORDER) do
+	SKC.SyncPartners[db] = nil;
+	SKC.Timers.Sync.SyncTicks[db] = 0;
+end
 --------------------------------
 -- DB INIT
 --------------------------------------

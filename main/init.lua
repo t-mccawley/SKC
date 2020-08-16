@@ -11,12 +11,14 @@ function SKC:OnInitialize()
 	self.db.char.LP = LootPrio:new(self.db.char.LP);
 	self.db.char.MSK = SK_List:new(self.db.char.MSK);
 	self.db.char.TSK = SK_List:new(self.db.char.TSK);
-	self.db.char.LootManager = LootManager:new(self.db.char.LootManager);
+	self.db.char.LM = LootManager:new(self.db.char.LM);
 	-- register slash commands
 	self:RegisterChatCommand("rl",ReloadUI);
 	self:RegisterChatCommand("skc","SlashHandler");
 	-- register comms
-	self:RegisterComm(self.CHANNELS.LOGIN_SYNC_CHECK,"LoginSyncCheckRead");
+	self:RegisterComm(self.CHANNELS.SYNC_CHECK,"ReadSyncCheck");
+	self:RegisterComm(self.CHANNELS.SYNC_RQST,"ReadSyncRqst");
+	self:RegisterComm(self.CHANNELS.SYNC_PUSH,"ReadSyncPush");
 	-- LOGIN_SYNC_PUSH = "6-F?832qBmrJE?pR",
 	-- LOGIN_SYNC_PUSH_RQST = "d$8B=qB4VsW&&Y^D",
 	-- SYNC_PUSH = "8EtTWxyA$r6xi3=F",
@@ -29,13 +31,15 @@ function SKC:OnInitialize()
 	-- 	-- TODO, need to make specific callback to read each channel....
 	-- end
 	-- register events
-	self:RegisterEvent("GUILD_ROSTER_UPDATE","ManageGuildData")
+	self:RegisterEvent("GUILD_ROSTER_UPDATE","ManageGuildData");
 	-- create blank main GUI
 	self:CreateMainGUI();
 	-- create blank loot GUI
 	self:CreateLootGUI();
 	-- Populate Data
 	-- self:PopulateData();
+	-- Start sync ticker
+	self:StartSyncTicker();
 	if self.db == nil then
 		self:Alert("Welcome (/skc help)");
 	else
@@ -111,7 +115,7 @@ function SKC:ManageGuildData()
 		self:Debug("Reject ManageGuildData, addon not loaded yet",self.DEV.VERBOSE.GUILD);
 		return;
 	end
-	if self.event_states.ReadInProgress.GuildData or self.event_states.PushInProgress.GuildData then
+	if self.SyncPartners.GD ~= nil then
 		self:Debug("Rejected ManageGuildData, sync in progress",self.DEV.VERBOSE.GUILD);
 		return;
 	end
@@ -119,10 +123,10 @@ function SKC:ManageGuildData()
 		self:Debug("Rejected ManageGuildData, not in guild",self.DEV.VERBOSE.GUILD);
 		return;
 	end
-	if not self:CheckIfAnyGuildMemberOnline() then
-		self:Debug("Rejected ManageGuildData, no online guild members",self.DEV.VERBOSE.GUILD);
-		return;
-	end
+	-- if not self:CheckIfAnyGuildMemberOnline() then
+	-- 	self:Debug("Rejected ManageGuildData, no online guild members",self.DEV.VERBOSE.GUILD);
+	-- 	return;
+	-- end
 	if GetNumGuildMembers() <= 1 then
 		-- guild is only one person, no members to fetch data for
 		self:Debug("Rejected ManageGuildData, no guild members",self.DEV.VERBOSE.GUILD);
@@ -170,11 +174,6 @@ function SKC:ManageGuildData()
 		-- set required version to current version
 		self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
 		self:Debug("ManageGuildData success!",self.DEV.VERBOSE.GUILD);
-	end
-	-- sync with guild (if not already done)
-	if not self:LoginSyncCheckExists() then
-		self:StartLoginSyncCheckTicker();
-		-- C_Timer.After(self.Timers.LoginSyncCheck.INIT_D,StartSyncCheckTimer);
 	end
 	return;
 end

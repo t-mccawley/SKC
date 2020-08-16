@@ -537,19 +537,8 @@ function SKC:RefreshStatus()
 	if not self:CheckMainGUICreated() then return end
 	self.MainGUI["Status_border"]["Status"].Data:SetText(self.Status.text);
 	self.MainGUI["Status_border"]["Status"].Data:SetTextColor(unpack(self.Status.color));
-	if self:CheckIfPushInProgress() then
-		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Pushing");
-		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
-	elseif self:CheckIfReadInProgress() then
-		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Reading");
-		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
-	elseif self:LoginSyncCheckActive() then
-		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Waiting ("..(self.Timers.LoginSyncCheck.TIME_STEP*self.Timers.LoginSyncCheck.MAX_TICKS - self.Timers.LoginSyncCheck.ElapsedTime).."s)");
-		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(1,0,0,1);
-	else
-		self.MainGUI["Status_border"]["Synchronization"].Data:SetText("Complete");
-		self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(0,1,0,1);
-	end
+	self.MainGUI["Status_border"]["Synchronization"].Data:SetText(self.SyncStatus.text);
+	self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(unpack(self.SyncStatus.color));
 	self.MainGUI["Status_border"]["Loot Prio Items"].Data:SetText(self.db.char.LP:length().." items");
 	self.MainGUI["Status_border"]["Loot Officers"].Data:SetText(self.db.char.GLP:GetNumLootOfficers());
 	return;
