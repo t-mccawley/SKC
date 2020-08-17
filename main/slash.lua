@@ -19,16 +19,23 @@ function SKC:SlashHandler(args)
         self:PrintVersion();
     elseif arg1 == "lo" then
         if arg2 == "add" then
-            self:AddLO(arg3);
-            self:ShowLO();
+            if self.db.char.GLP:AddLO(arg3) then self.db.char.GLP:ShowLO() end
         elseif arg2 == "remove" then
-            self:RemoveLO(arg3);
-            self:ShowLO();
+            if self.db.char.GLP:RemoveLO(arg3) then self.db.char.GLP:ShowLO() end
         elseif arg2 == "clear" then
-            self:ClearLO();
-            self:ShowLO();
+            if self.db.char.GLP:ClearLO() then self.db.char.GLP:ShowLO() end
         else
-            self:ShowLO();
+            self.db.char.GLP:ShowLO();
+        end
+    elseif arg1 == "ai" then
+        if arg2 == "add" then
+            if self.db.char.GLP:AddAI(arg3) then self.db.char.GLP:ShowAI() end
+        elseif arg2 == "remove" then
+            if self.db.char.GLP:RemoveAI(arg3) then self.db.char.GLP:ShowAI() end
+        elseif arg2 == "clear" then
+            if self.db.char.GLP:ClearAI() then self.db.char.GLP:ShowAI() end
+        else
+            self.db.char.GLP:ShowAI();
         end
     elseif arg1 == "reset" then
         self:ResetDBs();
@@ -93,30 +100,6 @@ function SKC:ToggleMainGUI(force_show)
 	self:PopulateData();
 	-- make shown
 	self.MainGUI:SetShown(force_show or not self.MainGUI:IsShown());
-	return;
-end
-
-function SKC:ShowLO(name)
-	-- adds name to list of loot officers
-	SKC.db.char.GLP:ShowLO();
-	return;
-end
-
-function SKC:AddLO(name)
-	-- adds name to list of loot officers
-	SKC.db.char.GLP:AddLO(name);
-	return;
-end
-
-function SKC:RemoveLO(name)
-	-- adds name to list of loot officers
-	SKC.db.char.GLP:RemoveLO(name);
-	return;
-end
-
-function SKC:ClearLO()
-	-- adds name to list of loot officers
-	SKC.db.char.GLP:ClearLO();
 	return;
 end
 

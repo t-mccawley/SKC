@@ -20,8 +20,8 @@ function SKC:Activate()
 	else
 		-- Master Looter is Loot Officer
 		local _, _, masterlooterRaidIndex = GetLootMethod();
-		local master_looter_full_name = GetRaidRosterInfo(masterlooterRaidIndex);
-		local loot_officer_check = self.DEV.LOOT_OFFICER_OVRD or self:isLO(self.StripRealmName(master_looter_full_name));
+		local master_looter_name = GetRaidRosterInfo(masterlooterRaidIndex);
+		local loot_officer_check = self.DEV.LOOT_OFFICER_OVRD or self:isLO(master_looter_name);
 		if not loot_officer_check then
 			self.Status = self.STATUS_ENUM.INACTIVE_LO;
 		else
@@ -338,7 +338,7 @@ function SKC:ManageLogging()
 	if self.DEV.LOG_ACTIVE_OVRD or self:CheckActive() then
 		self.event_states.LoggingActive = true;
 		if not prev_log_state then
-			ResetLog();
+			self:ResetLog();
 			self:Print("Loot logging turned on");
 		end
 	else
@@ -374,6 +374,51 @@ end
 
 function SKC:BoolToStr(inpt)
 	if inpt then return "1" else return "0" end
+end
+--------------------------------------
+-- COMMUNICATION
+--------------------------------------
+function SKC:Send(data,addon_channel,wow_channel,target,callback_fn)
+	-- serialize, compress, and send an addon message
+	local data_ser = self.lib_ser:Serialize(data);
+	local data_comp = self.lib_comp:CompressHuffman(data_ser)
+	local msg = self.lib_enc:Encode(data_comp)
+	self:SendCommMessage(addon_channel,msg,wow_channel,target,nil,callback_fn);
+	return;
+end
+
+function SKC:Read(msg)
+	-- decode, decompress, and deserialize data from addon message
+	-- if failed, returns nil
+	-- Decode the compressed data
+	local data_decode = self.lib_enc:Decode(msg);
+		
+	--Decompress the decoded data
+	local data_decomp, err_message = self.lib_comp:Decompress(data_decode);
+	if not data_decomp then
+		self:Error("Error decompressing: "..err_message);
+		return;
+	end
+		
+	-- Deserialize the decompressed data
+	local success, data_out = self.lib_ser:Deserialize(data_decomp);
+	if not success then
+		self:Error("Error deserializing: "..data_out);
+		return;
+	end
+
+	return data_out;
+end
+
+function SKC:SendDB(db_name,game_channel,target)
+	-- package and send table to target
+	local payload = {
+		db_name = db_name,
+		addon_ver = self.db.char.ADDON_VERSION,
+		data = self.db.char[db_name],
+	};
+	self:Send(payload,self.CHANNELS.SYNC_PUSH,game_channel,target);
+	return;
 end
 --------------------------------------
 -- MISC
@@ -439,7 +484,7 @@ function SKC:ManageGuildData()
 					self.db.char.GD:Add(name,class);
 					self.db.char.MSK:PushBack(name);
 					self.db.char.TSK:PushBack(name);
-					if not self.db.char.INIT_SETUP then self:Print(name.." added to databases") end
+					self:Print(name.." added to databases");
 				end
 			end
 		end
@@ -449,21 +494,11 @@ function SKC:ManageGuildData()
 				self.db.char.MSK:Remove(name);
 				self.db.char.TSK:Remove(name);
 				self.db.char.GD:Remove(name);
-				if not self.db.char.INIT_SETUP then self:Print(name.." removed from databases") end
+				self:Warn(name.." removed from databases");
 			end
 		end
-		-- miscellaneous
+		-- prepare filter count for GUI
 		self.UnFilteredCnt = self.db.char.GD:length();
-		if self.db.char.INIT_SETUP and (self.db.char.GD:length() ~= 0) then
-			-- init sync completed
-			self:Warn("Populated fresh GuildData ("..self.db.char.GD:length()..")");
-			self:Debug("Generic TS: "..self.db.char.GD.edit_ts_generic..", Raid TS: "..self.db.char.GD.edit_ts_raid,self.DEV.VERBOSE.GUILD);
-			-- add self (GL) to loot officers
-			self.db.char.GLP:AddLO(UnitName("player"));
-			-- set required version to current version
-			self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
-			self.db.char.INIT_SETUP = false;
-		end
 		self:Debug("ManageGuildData success!",self.DEV.VERBOSE.GUILD);
 	end
 	return;
@@ -499,7 +534,7 @@ function SKC:UpdateLiveList()
 	end
 
 	-- Scan bench and update live list
-	for char_name,_ in pairs(self.db.char.LOP.bench.data) do
+	for char_name,_ in pairs(self.db.char.LOP.bench) do
 		self:ManageLiveLists(char_name,true);
 	end
 

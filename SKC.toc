@@ -17,7 +17,6 @@ main/utils.lua
 # classes
 classes/CharacterData.lua
 classes/GuildData.lua
-# classes/SimpleMap.lua
 classes/GuildLeaderProtected.lua
 classes/LootOfficerProtected.lua
 classes/SK_Node.lua
@@ -30,6 +29,6 @@ classes/LootManager.lua
 main/gui_main.lua
 main/gui_loot.lua
 main/sync.lua
-# main/loot.lua
+main/loot.lua
 main/slash.lua
 main/init.lua

@@ -66,39 +66,42 @@ end
 function GuildLeaderProtected:AddLO(lo_name)
 	if not SKC:isGL() then
 		SKC:Error("You must be guild leader to do that")
-		return;
+		return false;
 	end
 	self.loot_officers[lo_name] = true;
 	self:SetEditTime();
-	return;
+	SKC:RefreshStatus();
+	return true;
 end
 
 function GuildLeaderProtected:RemoveLO(lo_name)
 	if not SKC:isGL() then
 		SKC:Error("You must be guild leader to do that");
-		return;
+		return false;
 	end
 	-- first check if removal candidate is guild leader (cannot remove)
 	if lo_name == UnitName("player") then
 		SKC:Error("The guild leader must be a loot officer");
-		return;
+		return false;
 	end
 	self.loot_officers[lo_name] = nil;
 	self:SetEditTime();
-	return;
+	SKC:RefreshStatus();
+	return true;
 end
 
 function GuildLeaderProtected:ClearLO()
 	if not SKC:isGL() then
 		SKC:Error("You must be guild leader to do that");
-		return;
+		return false;
 	end
 	-- clear data
 	self.loot_officers = {};
 	-- re-add GL
 	self:AddLO(UnitName("player"));
 	self:SetEditTime();
-	return;
+	SKC:RefreshStatus();
+	return true;
 end
 
 function GuildLeaderProtected:ShowLO()
@@ -109,12 +112,61 @@ function GuildLeaderProtected:ShowLO()
 	return;
 end
 
+function GuildLeaderProtected:AddAI(ai_acro)
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that");
+		return false;
+	end
+	-- check if valid acro
+	if SKC.INSTANCE_NAME_MAP[ai_acro] == nil then
+		SKC:Error("That is not a valid acronym. Please choose one of the following:");
+		for acro,full_name in pairs(SKC.INSTANCE_NAME_MAP) do
+			SKC:Print(acro.." ("..full_name..")");
+		end
+		return false;
+	end
+	self.active_instances[ai_acro] = true;
+	self:SetEditTime();
+	SKC:RefreshStatus();
+	return true;
+end
+
+function GuildLeaderProtected:RemoveAI(ai_acro)
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that");
+		return false;
+	end
+	self.active_instances[ai_acro] = nil;
+	self:SetEditTime();
+	SKC:RefreshStatus();
+	return true;
+end
+
+function GuildLeaderProtected:ClearAI()
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that");
+		return false;
+	end
+	-- clear data
+	self.active_instances = {};
+	self:SetEditTime();
+	SKC:RefreshStatus();
+	return true;
+end
+
+function GuildLeaderProtected:ShowAI()
+	SKC:Alert("Active Instances:");
+	for ai_acro,_ in pairs(self.active_instances) do
+		SKC:Print(ai_acro);
+	end
+	return;
+end
+
 function GuildLeaderProtected:IsActiveInstance()
 	-- returns true of current instance is active_instances
-	if self.active_instances == nil or self.active_instances.data == nil then return false end
 	local raid_name = GetInstanceInfo();
-	for active_raid_acro,_ in pairs(self.active_instances.data) do
-		if raid_name == SKC.RAID_NAME_MAP[active_raid_acro] then
+	for ai_acro,_ in pairs(self.active_instances) do
+		if raid_name == SKC.INSTANCE_NAME_MAP[ai_acro] then
 			return true;
 		end
 	end

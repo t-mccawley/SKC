@@ -14,7 +14,6 @@ Loot = {
 	prios = {}, -- map from character name to PRIO_TIERS
 	rolls = {}, -- map from character name to roll
 	sk_pos = {}, -- map from character sk positions at time of decision
-	awarded = false, -- true when loot has been awarded
 }; 
 Loot.__index = Loot;
 
@@ -30,7 +29,6 @@ function Loot:new(loot,item_name,item_link,open_roll,sk_list)
 		obj.prios = {};
 		obj.rolls = {};
 		obj.sk_pos = {};
-		obj.awarded = false;
 		setmetatable(obj,Loot);
 		return obj;
 	else

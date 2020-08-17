@@ -2,8 +2,7 @@
 -- SKC
 --------------------------------------
 -- TODO:
--- Remove entire scan / save of loot from OnOpenMasterLoot, instead just find first elligile item and print raid warning to distribute that
--- Create new function OnOpenLoot, which fires on LOOT_OPENED, and just prints the name of all epic or better items on the corpse to raid
+-- make changes to ChatThrotteLib again to check that player is online before sending (just copy over my version of lib?)
 -- make init slash command for guild data
 --------------------------------------
 -- ADDON CONSTRUCTOR
@@ -26,11 +25,12 @@ SKC.DEV = {
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 4,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 2,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
 		SYNC_TICK = 3,
+		RAID = 4,
 		SYNC_LOW = 4,
 		SYNC_HIGH = 5,
 		GUILD = 5,
@@ -671,7 +671,6 @@ SKC.LOOT_DECISION = {
 	},
 	OPTIONS = {
 		ML_WAIT_BUFFER = 5, -- additional time that master looter waits before triggering auto pass (accounts for transmission delays)
-		KICKOFF_DELAY = 3, -- delay after finishing one loot distribution before next begins
 	},
 };
 SKC.SYNC_PARAMS = {
@@ -773,7 +772,7 @@ SKC.LOG_OPTIONS = {
 		Text = "Item Receiver",
 	},
 };
-SKC.RAID_NAME_MAP = {
+SKC.INSTANCE_NAME_MAP = {
 	RFC = "Ragefire Chasm",
 	WC = "Wailing Caverns",
 	VC = "The Deadmines",
