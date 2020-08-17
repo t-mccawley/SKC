@@ -12,11 +12,26 @@ local too_many_inpts_msg = "Too many inputs";
 -- FUNCTIONS
 --------------------------------------
 function SKC:SlashHandler(args)
-    arg1, arg2, arg3 = self:GetArgs(args,1);
+    arg1, arg2, arg3 = self:GetArgs(args,3);
 	if arg1 == nil then
 		self:ToggleMainGUI();
 	elseif arg1 == "ver" then
         self:PrintVersion();
+    elseif arg1 == "lo" then
+        if arg2 == "add" then
+            self:AddLO(arg3);
+            self:ShowLO();
+        elseif arg2 == "remove" then
+            self:RemoveLO(arg3);
+            self:ShowLO();
+        elseif arg2 == "clear" then
+            self:ClearLO();
+            self:ShowLO();
+        else
+            self:ShowLO();
+        end
+    elseif arg1 == "reset" then
+        self:ResetDBs();
     else
         self:PrintHelp();
     end
@@ -71,6 +86,7 @@ function SKC:PrintVersion()
 end
 
 function SKC:ToggleMainGUI(force_show)
+    -- toggles the main GUI
 	-- create (does nothing if already created)
 	self:CreateMainGUI();
 	-- Refresh Data
@@ -79,6 +95,59 @@ function SKC:ToggleMainGUI(force_show)
 	self.MainGUI:SetShown(force_show or not self.MainGUI:IsShown());
 	return;
 end
+
+function SKC:ShowLO(name)
+	-- adds name to list of loot officers
+	SKC.db.char.GLP:ShowLO();
+	return;
+end
+
+function SKC:AddLO(name)
+	-- adds name to list of loot officers
+	SKC.db.char.GLP:AddLO(name);
+	return;
+end
+
+function SKC:RemoveLO(name)
+	-- adds name to list of loot officers
+	SKC.db.char.GLP:RemoveLO(name);
+	return;
+end
+
+function SKC:ClearLO()
+	-- adds name to list of loot officers
+	SKC.db.char.GLP:ClearLO();
+	return;
+end
+
+function SKC:ResetDBs()
+    -- resets all databases
+    if not self:CheckAddonLoaded() then
+        self:Error("Please wait for the addon to load");
+        return;
+    end
+    self.db.char.GLP = GuildLeaderProtected:new();
+	self.db.char.GD = GuildData:new();
+	self.db.char.LOP = LootOfficerProtected:new();
+	self.db.char.MSK = SK_List:new();
+	self.db.char.TSK = SK_List:new();
+	self.db.char.LP = LootPrio:new();
+    self.db.char.LM = LootManager:new();
+    self.db.char.INIT_SETUP = true;
+    ReloadUI();
+    return;
+end
+
+
+
+
+
+
+
+
+
+
+
 
 -- function SKC:HardReset()
 -- 	-- resets the saved variables completely

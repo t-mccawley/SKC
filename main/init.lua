@@ -4,13 +4,19 @@
 function SKC:OnInitialize()
 	-- initialize saved database
 	self.db = LibStub("AceDB-3.0"):New("SKC_DB",self.DB_DEFAULT);
+	-- determine if fresh
+	if self.db.char.INIT_SETUP then
+		self:Alert("Welcome (/skc help)");
+	else
+		self:Alert("Welcome Back (/skc)");
+	end
 	-- initialize or refresh metatables
 	self.db.char.GLP = GuildLeaderProtected:new(self.db.char.GLP);
-	self.db.char.LOP = LootOfficerProtected:new(self.db.char.LOP);
 	self.db.char.GD = GuildData:new(self.db.char.GD);
-	self.db.char.LP = LootPrio:new(self.db.char.LP);
+	self.db.char.LOP = LootOfficerProtected:new(self.db.char.LOP);
 	self.db.char.MSK = SK_List:new(self.db.char.MSK);
 	self.db.char.TSK = SK_List:new(self.db.char.TSK);
+	self.db.char.LP = LootPrio:new(self.db.char.LP);
 	self.db.char.LM = LootManager:new(self.db.char.LM);
 	-- register slash commands
 	self:RegisterChatCommand("rl",ReloadUI);
@@ -38,14 +44,9 @@ function SKC:OnInitialize()
 	self:CreateLootGUI();
 	-- Populate Data
 	-- self:PopulateData();
+	self.event_states.AddonLoaded = true;
 	-- Start sync ticker
 	self:StartSyncTicker();
-	if self.db == nil then
-		self:Alert("Welcome (/skc help)");
-	else
-		self:Alert("Welcome Back (/skc)");
-	end
-	self.event_states.AddonLoaded = true;
 	return;
 end
 
@@ -108,75 +109,6 @@ end
 -- 	self:PopulateData();
 -- 	return;
 -- end
-
-function SKC:ManageGuildData()
-	-- synchronize GuildData with guild roster
-	if not self:CheckAddonLoaded() then
-		self:Debug("Reject ManageGuildData, addon not loaded yet",self.DEV.VERBOSE.GUILD);
-		return;
-	end
-	if self.SyncPartners.GD ~= nil then
-		self:Debug("Rejected ManageGuildData, sync in progress",self.DEV.VERBOSE.GUILD);
-		return;
-	end
-	if not IsInGuild() then
-		self:Debug("Rejected ManageGuildData, not in guild",self.DEV.VERBOSE.GUILD);
-		return;
-	end
-	-- if not self:CheckIfAnyGuildMemberOnline() then
-	-- 	self:Debug("Rejected ManageGuildData, no online guild members",self.DEV.VERBOSE.GUILD);
-	-- 	return;
-	-- end
-	if GetNumGuildMembers() <= 1 then
-		-- guild is only one person, no members to fetch data for
-		self:Debug("Rejected ManageGuildData, no guild members",self.DEV.VERBOSE.GUILD);
-		return;
-	end
-	if not self:isGL() then
-		-- only fetch data if guild leader
-		self:Debug("Rejected ManageGuildData, not guild leader",self.DEV.VERBOSE.GUILD);
-	else
-		-- Scan guild roster and add new players
-		local guild_roster = {};
-		for idx = 1, GetNumGuildMembers() do
-			local full_name, _, _, level, class = GetGuildRosterInfo(idx);
-			local name = self:StripRealmName(full_name);
-			if level == 60 or self.DEV.GUILD_CHARS_OVRD[name] then
-				guild_roster[name] = true;
-				if not self.db.char.GD:Exists(name) then
-					-- new player, add to DB and SK lists
-					self.db.char.GD:Add(name,class);
-					self.db.char.MSK:PushBack(name);
-					self.db.char.TSK:PushBack(name);
-					if not self.event_states.InitGuildSync then self:Print(name.." added to databases") end
-				end
-			end
-		end
-		-- Scan guild data and remove players
-		for name,data in pairs(self.db.char.GD.data) do
-			if guild_roster[name] == nil then
-				self.db.char.MSK:Remove(name);
-				self.db.char.TSK:Remove(name);
-				self.db.char.GD:Remove(name);
-				if not self.event_states.InitGuildSync then self:Print(name.." removed from databases") end
-			end
-		end
-		-- miscellaneous
-		self.UnFilteredCnt = self.db.char.GD:length();
-		if self.event_states.InitGuildSync and (self.db.char.GD:length() ~= 0) then
-			-- init sync completed
-			self:Warn("Populated fresh GuildData ("..self.db.char.GD:length()..")");
-			self:Debug("Generic TS: "..self.db.char.GD.edit_ts_generic..", Raid TS: "..self.db.char.GD.edit_ts_raid,self.DEV.VERBOSE.GUILD);
-			-- add self (GL) to loot officers
-			self.db.char.GLP:AddLO(UnitName("player"));
-			self.event_states.InitGuildSync = false;
-		end
-		-- set required version to current version
-		self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
-		self:Debug("ManageGuildData success!",self.DEV.VERBOSE.GUILD);
-	end
-	return;
-end
 
 
 

@@ -28,24 +28,27 @@ SKC.DEV = {
     LOOT_DIST_DISABLE = true, -- true if loot distribution is disabled
     LOG_ACTIVE_OVRD = false, -- true to force logging
     GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
-		-- Freznic = true,
+		Freznic = true,
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 3,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 4,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
-		SYNC = 3,
-		GUILD = 3,
-		GUI = 4,
-		MERGE = 4,
+		SYNC_TICK = 3,
+		SYNC_LOW = 4,
+		SYNC_HIGH = 5,
+		GUILD = 5,
+		GUI = 5,
+		MERGE = 5,
 	}
 };
 --------------------------------------
 -- CONSTANTS
 --------------------------------------
 SKC.ADDON_VERSION = GetAddOnMetadata("NovaWorldBuffs", "Version");
+SKC.GUILD_LEADER = nil;
 SKC.DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
 SKC.DAYS_TO_SECS = 86400;
 SKC.UI_DIMS = {
@@ -855,7 +858,8 @@ SKC.DB_SYNC_ORDER = { -- order in which databases are synchronized
 --------------------------------------
 SKC.Status = SKC.STATUS_ENUM.INACTIVE_GL; -- SKC status state enumeration
 SKC.SyncStatus = SKC.SYNC_STATUS_ENUM.COMPLETE; -- Synchronization status state enumeration
-SKC.SyncPartners = {}; -- name of player who we are currently expecting a sync from. nil if no sync expected
+SKC.SyncPartner = {}; -- name of player who we are currently expecting a sync from. nil if no sync expected
+SKC.SyncCandidate = {}; -- map of db to name of candidate sync partner
 -- local tmp_sync_var = {}; -- temporary variable used to hold incoming data when synchronizing
 SKC.UnFilteredCnt = 0; -- defines max count of sk cards to scroll over (XXX)
 -- local SK_MessagesSent = 0;
@@ -864,14 +868,13 @@ SKC.event_states = { -- tracks if certain events have fired
 	AddonLoaded = false,
 	DropDownID = 0, -- used to track state of drop down menu
 	SetSKInProgress = false; -- true when SK position is being set
-	InitGuildSync = false; -- used to control for first time setup
 	LoggingActive = SKC.DEV.LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
 };
 -- local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due to addon version or malformed messages)
 SKC.Timers = {
 	Sync = {-- ticker that requests sync each iteration until over or cancelled
 		TIME_STEP = 5, -- number of seconds between each tick
-		SYNC_TIMEOUT_TICKS = 3, -- number of ticks before an initiated sync will timeout
+		SYNC_TIMEOUT_TICKS = 6, -- number of ticks before an initiated sync will timeout
 		Ticker = nil,
 		SyncTicks = {}, -- number of ticks elapsed since sync started
 	}, 
@@ -885,14 +888,19 @@ SKC.Timers = {
 };
 -- initialize all sync state variables
 for _,db in ipairs(SKC.DB_SYNC_ORDER) do
-	SKC.SyncPartners[db] = nil;
+	SKC.SyncPartner[db] = nil;
 	SKC.Timers.Sync.SyncTicks[db] = 0;
+	SKC.SyncCandidate[db] = {};
+	SKC.SyncCandidate[db].name = UnitName("player");
+	SKC.SyncCandidate[db].edit_ts_raid = 0;
+	SKC.SyncCandidate[db].edit_ts_generic = 0;
 end
 --------------------------------
 -- DB INIT
 --------------------------------------
 SKC.DB_DEFAULT = {
     char = {
+		INIT_SETUP = true,
 		ENABLED = true,
         ADDON_VERSION = GetAddOnMetadata("SKC","Version"),
 		GLP = nil, -- GuildLeaderProtected

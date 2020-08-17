@@ -52,7 +52,7 @@ function GuildLeaderProtected:SetAddonVer(ver)
 	return;
 end
 
-function GuildLeaderProtected:GetGLAddonVer()
+function GuildLeaderProtected:GetAddonVer()
 	-- returns guild leader addon version
 	return self.addon_ver;
 end
@@ -61,42 +61,12 @@ function GuildLeaderProtected:GetNumLootOfficers()
 	return(#self.loot_officers);
 end
 
-function GuildLeaderProtected:SetGLAddonVer(ver)
-	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that")
-		return;
-	end
-	-- updates GL version if it is different than previous version
-	if self.addon_ver ~= ver then
-		self.addon_ver = ver;
-		self:SetEditTime();
-	end
-	return;
-end
-
-function GuildLeaderProtected:SetActivityThreshold(new_thresh)
-	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that")
-		return;
-	end
-	-- sets new activity threshold (input days, stored as seconds)
-	self.activity_thresh = new_thresh;
-	SKC_Main:RefreshStatus();
-	self:SetEditTime();
-	return;
-end
-
-function GuildLeaderProtected:GetActivityThreshold()
-	-- returns activity threshold in days
-	return self.activity_thresh;
-end
-
 function GuildLeaderProtected:AddLO(lo_name)
 	if not SKC:isGL() then
 		SKC:Error("You must be guild leader to do that")
 		return;
 	end
-	self.loot_officers:Add(lo_name);
+	self.loot_officers[lo_name] = true;
 	self:SetEditTime();
 	return;
 end
@@ -108,10 +78,10 @@ function GuildLeaderProtected:RemoveLO(lo_name)
 	end
 	-- first check if removal candidate is guild leader (cannot remove)
 	if lo_name == UnitName("player") then
-		SKC:Error("You cannot remove the guild leader as a loot officer");
+		SKC:Error("The guild leader must be a loot officer");
 		return;
 	end
-	self.loot_officers:Remove(lo_name);
+	self.loot_officers[lo_name] = nil;
 	self:SetEditTime();
 	return;
 end
@@ -122,15 +92,18 @@ function GuildLeaderProtected:ClearLO()
 		return;
 	end
 	-- clear data
-	self.loot_officers:Clear();
+	self.loot_officers = {};
 	-- re-add GL
-	self.loot_officers:Add(UnitName("player"));
+	self:AddLO(UnitName("player"));
 	self:SetEditTime();
 	return;
 end
 
 function GuildLeaderProtected:ShowLO()
-	self.loot_officers:Show();
+	SKC:Alert("Loot Officers:");
+	for lo_name,_ in pairs(self.loot_officers) do
+		SKC:Print(lo_name);
+	end
 	return;
 end
 
@@ -146,9 +119,9 @@ function GuildLeaderProtected:IsActiveInstance()
 	return false;
 end
 
-function GuildLeaderProtected:IsAddonVerMatch()
+function GuildLeaderProtected:IsAddonVerMatch(ver)
 	-- returns true if this client has addon version that matches guild leader version
-	return(SKC_DB.ADDON_VERSION == self:GetGLAddonVer());
+	return(self.addon_ver == ver);
 end
 
 function GuildLeaderProtected:CheckIfLO(full_name)

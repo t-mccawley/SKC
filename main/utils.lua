@@ -9,9 +9,9 @@ function SKC:Activate()
 	if not self:CheckAddonLoaded() then return end
 	if not self.db.char.ENABLED then
 		self.Status = self.STATUS_ENUM.DISABLED;
-	elseif self.db.char.GLP:GetGLAddonVer() == nil then
+	elseif self.db.char.GLP:GetAddonVer() == nil then
 		self.Status = self.STATUS_ENUM.INACTIVE_GL;
-	elseif not self:CheckAddonVerMatch() then
+	elseif not self:CheckAddonVerMatch(self.db.char.ADDON_VERSION) then
 		self.Status = self.STATUS_ENUM.INACTIVE_VER;
 	elseif not UnitInRaid("player") then
 		self.Status = self.STATUS_ENUM.INACTIVE_RAID;
@@ -108,8 +108,7 @@ function SKC:isGL(name)
 	if name == nil then
 		return(UnitName("player") == self.DEV.GL_OVRD or IsGuildLeader());
 	else
-		local _,_,guildRankIndex = GetGuildInfo(name);
-		return(guildRankIndex == 0)
+		return(self.GUILD_LEADER == name)
 	end
 end
 
@@ -143,11 +142,10 @@ end
 --------------------------------------
 function SKC:CheckDatabasePopulated(db_target)
 	-- returns true of target database has been populated
-	local output = self.db ~= nil and self.db.char ~= nil;
-	if output and db_target ~= nil then
-		output = output and self.db.char[db_target] ~= nil
+	if self.db == nil or self.db.char == nil or db_target == nil or self.db.char[db_target] == nil then
+		return(false);
 	end
-	return(output);
+	return(true);
 end
 
 function SKC:CheckMainGUICreated()
@@ -174,10 +172,10 @@ function SKC:CheckAddonLoaded()
 	end
 end
 
-function SKC:CheckAddonVerMatch()
+function SKC:CheckAddonVerMatch(ver)
 	-- returns true if client addon version matches required version
-	if not self:CheckDatabasePopulated("GLP") then return false end
-	return(self.db.char.GLP:IsAddonVerMatch());
+	if not self:CheckDatabasePopulated("GLP") then return(false) end
+	return(self.db.char.GLP:IsAddonVerMatch(ver));
 end
 
 function SKC:CheckIfReadInProgress()
@@ -380,7 +378,7 @@ end
 --------------------------------------
 -- MISC
 --------------------------------------
-function SKC:DeepCopy(obj, seen)
+function SKC:DeepCopy(obj,seen)
 	-- credit: https://gist.github.com/tylerneylon/81333721109155b2d244
     -- Handle non-tables and previously-seen tables.
     if type(obj) ~= 'table' then return obj end
@@ -402,6 +400,73 @@ function SKC:GetSpecClassColor(spec_class)
 		end
 	end
 	return nil,nil,nil,nil;
+end
+
+function SKC:ManageGuildData()
+	-- synchronize GuildData with guild roster
+	if not self:CheckAddonLoaded() then
+		self:Debug("Reject ManageGuildData, addon not loaded yet",self.DEV.VERBOSE.GUILD);
+		return;
+	end
+	if not IsInGuild() then
+		self:Debug("Rejected ManageGuildData, not in guild",self.DEV.VERBOSE.GUILD);
+		return;
+	end
+	if GetNumGuildMembers() <= 1 then
+		-- guild is only one person, no members to fetch data for
+		self:Debug("Rejected ManageGuildData, no guild members",self.DEV.VERBOSE.GUILD);
+		return;
+	end
+	-- store name of guild leader
+	self.GUILD_LEADER = self:GetGuildLeader();
+	if self.SyncPartner.GD ~= nil then
+		self:Debug("Rejected ManageGuildData, sync in progress",self.DEV.VERBOSE.GUILD);
+		return;
+	end
+	if not self:isGL() then
+		-- only fetch data if guild leader
+		self:Debug("Rejected ManageGuildData, not guild leader",self.DEV.VERBOSE.GUILD);
+	else
+		-- Scan guild roster and add new players
+		local guild_roster = {};
+		for idx = 1, GetNumGuildMembers() do
+			local full_name, _, _, level, class = GetGuildRosterInfo(idx);
+			local name = self:StripRealmName(full_name);
+			if level == 60 or self.DEV.GUILD_CHARS_OVRD[name] then
+				guild_roster[name] = true;
+				if not self.db.char.GD:Exists(name) then
+					-- new player, add to DB and SK lists
+					self.db.char.GD:Add(name,class);
+					self.db.char.MSK:PushBack(name);
+					self.db.char.TSK:PushBack(name);
+					if not self.db.char.INIT_SETUP then self:Print(name.." added to databases") end
+				end
+			end
+		end
+		-- Scan guild data and remove players
+		for name,data in pairs(self.db.char.GD.data) do
+			if guild_roster[name] == nil then
+				self.db.char.MSK:Remove(name);
+				self.db.char.TSK:Remove(name);
+				self.db.char.GD:Remove(name);
+				if not self.db.char.INIT_SETUP then self:Print(name.." removed from databases") end
+			end
+		end
+		-- miscellaneous
+		self.UnFilteredCnt = self.db.char.GD:length();
+		if self.db.char.INIT_SETUP and (self.db.char.GD:length() ~= 0) then
+			-- init sync completed
+			self:Warn("Populated fresh GuildData ("..self.db.char.GD:length()..")");
+			self:Debug("Generic TS: "..self.db.char.GD.edit_ts_generic..", Raid TS: "..self.db.char.GD.edit_ts_raid,self.DEV.VERBOSE.GUILD);
+			-- add self (GL) to loot officers
+			self.db.char.GLP:AddLO(UnitName("player"));
+			self.db.char.INIT_SETUP = false;
+		end
+		-- set required version to current version
+		self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
+		self:Debug("ManageGuildData success!",self.DEV.VERBOSE.GUILD);
+	end
+	return;
 end
 
 

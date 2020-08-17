@@ -201,6 +201,23 @@ function OnClick_NumberCard(self)
 	end
 	return;
 end
+
+
+local function OnClick_SKListCycle()
+	-- cycle SK list when click title
+	if SKC.event_states.SetSKInProgress then return end -- reject cycle if SK is being set
+	-- cycle through SK lists
+	local sk_list = SKC.MainGUI["sk_list_border"].Title.Text:GetText();
+	if sk_list == "MSK" then
+		SKC.MainGUI["sk_list_border"].Title.Text:SetText("TSK");
+	else
+		SKC.MainGUI["sk_list_border"].Title.Text:SetText("MSK");
+	end
+	-- populate data
+	SKC:PopulateData();
+	-- enable / disable details buttons
+	SKC:UpdateDetailsButtons(true);
+end
 --------------------------------------
 -- GUI
 --------------------------------------
@@ -330,7 +347,7 @@ function SKC:CreateMainGUI()
 	-- Create SK cards
 	self.MainGUI.sk_list.NumberFrame = {};
 	self.MainGUI.sk_list.NameFrame = {};
-	for idx = 1, GetNumGuildMembers() do
+	for idx = 1, 500 do -- use hard coded max guild size of 500
 		-- Create number frames
 		self.MainGUI.sk_list.NumberFrame[idx] = CreateFrame("Frame",nil,self.MainGUI.sk_list.SK_List_SF,"InsetFrameTemplate");
 		self.MainGUI.sk_list.NumberFrame[idx]:SetSize(30,self.UI_DIMS.SK_CARD_HEIGHT);
@@ -447,22 +464,6 @@ function SKC:CreateUIBorder(title,width,height)
 	return border_key
 end
 
-function SKC:OnClick_SKListCycle()
-	-- cycle SK list when click title
-	if self.event_states.SetSKInProgress then return end -- reject cycle if SK is being set
-	-- cycle through SK lists
-	local sk_list = self.MainGUI["sk_list_border"].Title.Text:GetText();
-	if sk_list == "MSK" then
-		self.MainGUI["sk_list_border"].Title.Text:SetText("TSK");
-	else
-		self.MainGUI["sk_list_border"].Title.Text:SetText("MSK");
-	end
-	-- populate data
-	self:PopulateData();
-	-- enable / disable details buttons
-	self:UpdateDetailsButtons(true);
-end
-
 function SKC:GetScrollMax()
 	return((self.UnFilteredCnt)*(self.UI_DIMS.SK_CARD_HEIGHT + self.UI_DIMS.SK_CARD_SPACING));
 end
@@ -567,7 +568,7 @@ function SKC:RefreshDetails(name)
 end
 
 function SKC:PopulateData(name)
-	-- Populates GUI with data if it already exists
+	-- Populates GUI with data (if GUI already exists)
 	self:Debug("PopulateData()",self.DEV.VERBOSE.GUI);
 	if not self:CheckAddonLoaded() then return end
 	if not self:CheckMainGUICreated() then return end
