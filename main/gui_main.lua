@@ -107,7 +107,7 @@ local function OnClick_FullSK(self)
 			);
 			SKC:Print("Full SK on "..SKC:FormatWithClassColor(name));
 			-- send SK data to all players
-			-- SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil); TODO
+			SKC:SendDB(sk_list,"GUILD");
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
@@ -144,7 +144,7 @@ local function OnClick_SingleSK(self)
 			);
 			SKC:Print("Single SK on "..SKC:FormatWithClassColor(name));
 			-- send SK data to all players
-			-- SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil); TODO
+			SKC:SendDB(sk_list,"GUILD");
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
@@ -191,7 +191,7 @@ function OnClick_NumberCard(self)
 			);
 			SKC:Print("Set SK position of "..SKC:FormatWithClassColor(name).." to "..SKC.db.char[sk_list]:GetPos(name));
 			-- send SK data to all players
-			-- SyncPushSend(sk_list,CHANNELS.SYNC_PUSH,"GUILD",nil); TODO
+			SKC:SendDB(sk_list,"GUILD");
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
@@ -538,8 +538,9 @@ function SKC:RefreshStatus()
 	if not self:CheckMainGUICreated() then return end
 	self.MainGUI["Status_border"]["Status"].Data:SetText(self.Status.text);
 	self.MainGUI["Status_border"]["Status"].Data:SetTextColor(unpack(self.Status.color));
-	self.MainGUI["Status_border"]["Synchronization"].Data:SetText(self.SyncStatus.text);
-	self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(unpack(self.SyncStatus.color));
+	local sync_status = self:GetSyncStatus();
+	self.MainGUI["Status_border"]["Synchronization"].Data:SetText(sync_status.text);
+	self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(unpack(sync_status.color));
 	self.MainGUI["Status_border"]["Loot Prio Items"].Data:SetText(self.db.char.LP:length().." items");
 	self.MainGUI["Status_border"]["Loot Officers"].Data:SetText(self.db.char.GLP:GetNumLootOfficers());
 	return;
@@ -582,8 +583,6 @@ function SKC:PopulateData(name)
 	self.event_states.SetSKInProgress = false;
 	return;
 end
-
-
 
 function SKC:UpdateDetailsButtons(disable)
 	-- disable / enable buttons in details frame appropriately for player privileges

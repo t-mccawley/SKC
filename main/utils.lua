@@ -460,56 +460,50 @@ function SKC:ManageGuildData()
 			self:Debug("Generic TS: "..self.db.char.GD.edit_ts_generic..", Raid TS: "..self.db.char.GD.edit_ts_raid,self.DEV.VERBOSE.GUILD);
 			-- add self (GL) to loot officers
 			self.db.char.GLP:AddLO(UnitName("player"));
+			-- set required version to current version
+			self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
 			self.db.char.INIT_SETUP = false;
 		end
-		-- set required version to current version
-		self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
 		self:Debug("ManageGuildData success!",self.DEV.VERBOSE.GUILD);
 	end
 	return;
 end
 
+function SKC:ManageRaidChanges()
+	self:UpdateLiveList();
+	self:UpdateDetailsButtons();
+	return;
+end
 
+function SKC:ManageLiveLists(name,live_status)
+	-- adds / removes player to live lists and records time in guild data
+	local sk_lists = {"MSK","TSK"};
+	for _,sk_list in pairs(sk_lists) do
+		local success = self.db.char[sk_list]:SetLive(name,live_status);
+	end
+	return;
+end
 
--- local function PrintSyncMsgStart(db_name,push,sender)
--- 	if COMM_VERBOSE then 
--- 		if push then
--- 			DEBUG.PushTime[db_name] = time();
--- 			self:Print("IMPORTANT","["..DEBUG.PushTime[db_name].."] Pushing "..db_name.."...");
--- 		else
--- 			DEBUG.ReadTime[db_name] = time();
--- 			self:Print("IMPORTANT","["..DEBUG.ReadTime[db_name].."] Reading "..db_name.." from "..sender.."...");
--- 		end
--- 	end
--- 	if push then
--- 		event_states.PushInProgress[db_name] = true;
--- 	else
--- 		event_states.ReadInProgress[db_name] = true;
--- 	end
--- 	self:RefreshStatus();
--- 	return;
--- end
+function SKC:UpdateLiveList()
+	-- Adds every player in raid to live list
+	-- All players update their own local live lists
+	if not self:CheckAddonLoaded() then return end
+	self:Debug("Updating live list",self.DEV.VERBOSE.RAID);
 
--- local function PrintSyncMsgEnd(db_name,push)
--- 	if COMM_VERBOSE then 
--- 		if push then
--- 			DEBUG.PushTime[db_name] = time() - DEBUG.PushTime[db_name];
--- 			self:Print("IMPORTANT","["..DEBUG.PushTime[db_name].."] "..db_name.." push complete!");
--- 		else
--- 			DEBUG.ReadTime[db_name] = time() - DEBUG.ReadTime[db_name];
--- 			self:Print("IMPORTANT","["..DEBUG.ReadTime[db_name].."] "..db_name.." read complete!");
--- 		end
--- 	end
--- 	if push then
--- 		event_states.PushInProgress[db_name] = false;
--- 	else
--- 		event_states.ReadInProgress[db_name] = false;
--- 	end
--- 	self:RefreshStatus();
--- 	return;
--- end
+	-- Activate SKC
+	self:RefreshStatus();
 
+	-- Scan guild data and update live list if in raid
+	for char_name,_ in pairs(self.db.char.GD.data) do
+		self:ManageLiveLists(char_name,UnitInRaid(char_name) ~= nil);
+	end
 
+	-- Scan bench and update live list
+	for char_name,_ in pairs(self.db.char.LOP.bench.data) do
+		self:ManageLiveLists(char_name,true);
+	end
 
-
-
+	-- populate data
+	self:PopulateData();
+	return;
+end

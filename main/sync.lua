@@ -33,6 +33,26 @@ function SKC:Read(msg)
 	return data_out;
 end
 
+function SKC:GetSyncStatus()
+	-- scan all databases and return sync status
+	for _,db in ipairs(self.DB_SYNC_ORDER) do
+		if self.SyncStatus[db].val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val then
+			return(self.SYNC_STATUS_ENUM.IN_PROGRESS);
+		end
+	end
+	return(self.SYNC_STATUS_ENUM.COMPLETE);
+end
+
+function SKC:CheckSyncInProgress()
+	-- scan all databases and return true if sync is in progress
+	for _,db in ipairs(self.DB_SYNC_ORDER) do
+		if self.SyncStatus[db].val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val then
+			return(true);
+		end
+	end
+	return(false);
+end
+
 local function SyncTickHandle()
 	-- wrapper for main logic
 	SKC:SyncTick();
@@ -42,7 +62,7 @@ end
 function SKC:StartSyncTicker()
 	-- Main ticker that periodically provides data to sync with guild
 	-- prepare variables
-	for _,db in ipairs(self.DB_SYNC_ORDER) do self:ResetSyncTracking(db) end
+	for _,db in ipairs(self.DB_SYNC_ORDER) do self:MarkSyncComplete(db) end
 	-- start ticker
 	self.Timers.Sync.Ticker = C_Timer.NewTicker(self.Timers.Sync.TIME_STEP,SyncTickHandle);
 	self:Debug("Sync Ticker created!",self.DEV.VERBOSE.SYNC_TICK);
@@ -53,13 +73,10 @@ function SKC:SyncTick()
 	-- function called periodically to synchronize with guild
 	-- synchronization is performed individually for each db
 	self:Debug("SyncTick",self.DEV.VERBOSE.SYNC_TICK);
-	-- initialize with completed sync overall
-	self.SyncStatus = self.SYNC_STATUS_ENUM.COMPLETE;
 	for _,db in ipairs(self.DB_SYNC_ORDER) do
 		-- check if need to increment in progress count
 		if self.SyncPartner[db] ~= nil then
 			-- sync in progress, increment counter
-			self.SyncStatus = self.SYNC_STATUS_ENUM.IN_PROGRESS;
 			self.Timers.Sync.SyncTicks[db] = self.Timers.Sync.SyncTicks[db] + 1;
 			self:Debug("IN PROGRESS ["..self.Timers.Sync.SyncTicks[db].."]: "..db.." , "..self.SyncPartner[db],self.DEV.VERBOSE.SYNC_TICK);
 		end
@@ -67,7 +84,7 @@ function SKC:SyncTick()
 		if self.Timers.Sync.SyncTicks[db] >= self.Timers.Sync.SYNC_TIMEOUT_TICKS then
 			-- sync has timed out, reset
 			self:Debug("TIMEOUT: "..db.." , "..self.SyncPartner[db],self.DEV.VERBOSE.SYNC_TICK);
-			self:ResetSyncTracking(db);
+			self:MarkSyncComplete(db);
 		end
 		-- check if ready for new sync (no current sync partner)
 		if self.SyncPartner[db] == nil then
@@ -76,14 +93,14 @@ function SKC:SyncTick()
 			if self.SyncPartner[db] ~= nil then
 				-- request sync from sync partner
 				self:Debug("REQUEST: "..db.." , "..self.SyncPartner[db],self.DEV.VERBOSE.SYNC_TICK);
-				self.SyncStatus = self.SYNC_STATUS_ENUM.IN_PROGRESS;
+				self.SyncStatus[db] = self.SYNC_STATUS_ENUM.IN_PROGRESS;
 				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db;
 				self:Send(msg,self.CHANNELS.SYNC_RQST,"WHISPER",self.SyncPartner[db]);
 			else
 				-- send out sync check to guild
 				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db..","..self:NilToStr(self.db.char[db].edit_ts_raid)..","..self:NilToStr(self.db.char[db].edit_ts_generic);
 				self:Send(msg,self.CHANNELS.SYNC_CHECK,"GUILD");
-				self:ResetSyncTracking(db);
+				self:MarkSyncComplete(db);
 			end
 		end
 	end
@@ -92,8 +109,9 @@ function SKC:SyncTick()
 	return;
 end
 
-function SKC:ResetSyncTracking(db)
-	-- resets variables used to track the state of a sync for given db
+function SKC:MarkSyncComplete(db)
+	-- resets variables used to track the state of a sync for given db and marks complete
+	self.SyncStatus[db] = self.SYNC_STATUS_ENUM.COMPLETE;
 	self.Timers.Sync.SyncTicks[db] = 0;
 	self.SyncPartner[db] = nil;
 	-- initialize sync candidate with self data
@@ -198,12 +216,18 @@ function SKC:ReadSyncRqst(addon_channel,msg,game_channel,sender)
 	end
 	-- send requested database
 	self:Debug("Sending "..db_name.." to "..sender,self.DEV.VERBOSE.SYNC_LOW);
+	self:SendDB(db_name,"WHISPER",sender);
+	return;
+end
+
+function SKC:SendDB(db_name,game_channel,target)
+	-- package and send table to target
 	local payload = {
 		db_name = db_name,
 		addon_ver = self.db.char.ADDON_VERSION,
 		data = self.db.char[db_name]
 	};
-	self:Send(payload,self.CHANNELS.SYNC_PUSH,"WHISPER",sender);
+	self:Send(payload,self.CHANNELS.SYNC_PUSH,game_channel,target);
 	return;
 end
 
@@ -239,7 +263,7 @@ function SKC:ReadSyncPush(addon_channel,msg,game_channel,sender)
 	self:CopyDB(db_name,payload.data)
 	self:Debug("Copied "..db_name.." from "..sender,self.DEV.VERBOSE.SYNC_LOW);
 	-- mark sync as completed
-	self:ResetSyncTracking(db_name);
+	self:MarkSyncComplete(db_name);
 	-- refresh GUI
 	self:PopulateData();
 	return;

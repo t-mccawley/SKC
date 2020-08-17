@@ -2,14 +2,8 @@
 -- SKC
 --------------------------------------
 -- TODO:
--- Change SaveLoot name to OnOpenMasterLoot
 -- Remove entire scan / save of loot from OnOpenMasterLoot, instead just find first elligile item and print raid warning to distribute that
 -- Create new function OnOpenLoot, which fires on LOOT_OPENED, and just prints the name of all epic or better items on the corpse to raid
--- package AI and LO with GuildData instead (GuildData is all data that only GL can send / must be verified to come from GL)
--- serialize communications
--- make loot officers only ones able to push (client checks that sender is loot officer)
--- make guild leader only one that sends LootOfficers and ActiveRaids (change name) i.e. not auto sync based on time stamps
--- client chekcs that sender of GuildData is in fact the guild leader
 -- make init slash command for guild data
 --------------------------------------
 -- ADDON CONSTRUCTOR
@@ -857,7 +851,7 @@ SKC.DB_SYNC_ORDER = { -- order in which databases are synchronized
 -- VARIABLES
 --------------------------------------
 SKC.Status = SKC.STATUS_ENUM.INACTIVE_GL; -- SKC status state enumeration
-SKC.SyncStatus = SKC.SYNC_STATUS_ENUM.COMPLETE; -- Synchronization status state enumeration
+SKC.SyncStatus = {}; -- Synchronization status state enumeration (per database)
 SKC.SyncPartner = {}; -- name of player who we are currently expecting a sync from. nil if no sync expected
 SKC.SyncCandidate = {}; -- map of db to name of candidate sync partner
 -- local tmp_sync_var = {}; -- temporary variable used to hold incoming data when synchronizing
@@ -888,6 +882,7 @@ SKC.Timers = {
 };
 -- initialize all sync state variables
 for _,db in ipairs(SKC.DB_SYNC_ORDER) do
+	SKC.SyncStatus[db] = SKC.SYNC_STATUS_ENUM.COMPLETE;
 	SKC.SyncPartner[db] = nil;
 	SKC.Timers.Sync.SyncTicks[db] = 0;
 	SKC.SyncCandidate[db] = {};

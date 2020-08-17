@@ -47,8 +47,10 @@ function GuildLeaderProtected:SetAddonVer(ver)
 		SKC:Error("You must be guild leader to do that")
 		return;
 	end
-	self.addon_ver = ver;
-	self:SetEditTime();
+	if ver ~= self.addon_ver then
+		self.addon_ver = ver;
+		self:SetEditTime();
+	end
 	return;
 end
 
