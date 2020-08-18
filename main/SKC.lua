@@ -25,7 +25,7 @@ SKC.DEV = {
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 2,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 4,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
@@ -673,11 +673,6 @@ SKC.LOOT_DECISION = {
 		ML_WAIT_BUFFER = 5, -- additional time that master looter waits before triggering auto pass (accounts for transmission delays)
 	},
 };
-SKC.SYNC_PARAMS = {
-	-- LoginSyncCheckTicker_InitDelay = 5, -- seconds
-	-- LoginSyncCheckTicker_Intvl = 10, -- seconds between function calls
-	-- LoginSyncCheckTicker_MaxTicks = 59, -- 1 tick = 1 sec
-};
 SKC.PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
 	SK = {
 		Main = {
@@ -879,6 +874,7 @@ SKC.Timers = {
 		ElapsedTime = 0,
 	}, 
 };
+SKC.CSVGUI = {}; -- table of CSV frame objects
 -- initialize all sync state variables
 for _,db in ipairs(SKC.DB_SYNC_ORDER) do
 	SKC.SyncStatus[db] = SKC.SYNC_STATUS_ENUM.COMPLETE;
@@ -895,7 +891,6 @@ end
 SKC.DB_DEFAULT = {
     char = {
 		INIT_SETUP = true,
-		ENABLED = true,
         ADDON_VERSION = GetAddOnMetadata("SKC","Version"),
 		GLP = nil, -- GuildLeaderProtected
 		LOP = nil, -- LootOfficersProtected

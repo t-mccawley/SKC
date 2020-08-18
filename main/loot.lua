@@ -9,7 +9,6 @@ function SKC:LootDistValid()
 	end
 
 	if LOOT_SAFE_MODE then 
-		self:Warn("Loot Safe Mode");
 		return(false);
 	end
 
@@ -17,7 +16,6 @@ function SKC:LootDistValid()
 	self:RefreshStatus();
 
 	if not self:CheckActive() then
-		self:Warn("SKC not active. Skipping loot distribution.");
 		return(false);
 	end
 
@@ -44,9 +42,9 @@ function SKC:OnOpenLoot()
 		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot);
 		if lootName ~= nil then
 			-- Only perform SK for items if they are found in loot prio
+			local lootLink = GetLootSlotLink(i_loot);
 			if self.db.char.LP:Exists(lootName) then
 				-- Valid item
-				local lootLink = GetLootSlotLink(i_loot);
 				-- Alert raid of new item
 				local msg = "SKC: ["..loot_cnt.."] "..lootLink;
 				SendChatMessage(msg,"RAID");
@@ -69,7 +67,7 @@ function SKC:OnOpenLoot()
 					self.db.char.LM:GiveLootToML(lootName,lootLink);
 					self:WriteToLog( 
 						self.LOG_OPTIONS["Event Type"].Options.NE,
-						"",
+						UnitName("player"),
 						"ML",
 						lootName,
 						"",
@@ -83,10 +81,10 @@ function SKC:OnOpenLoot()
 			else
 				self:Debug("Item not in Loot Prio. Giving directly to ML",self.DEV.VERBOSE.LOOT);
 				-- give directly to ML
-				self.db.char.LM:GiveLootToML(lootName,GetLootSlotLink(i_loot));
+				self.db.char.LM:GiveLootToML(lootName,lootLink);
 				self:WriteToLog( 
 					self.LOG_OPTIONS["Event Type"].Options.AL,
-					"",
+					UnitName("player"),
 					"ML",
 					lootName,
 					"",
@@ -122,11 +120,11 @@ function SKC:OnOpenMasterLoot()
 		-- get item data
 		-- local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
 		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot);
+		local lootLink = GetLootSlotLink(i_loot);
 		if lootName ~= nil then
 			-- Only perform SK for items if they are found in loot prio
 			if self.db.char.LP:Exists(lootName) then
 				-- Valid item
-				local lootLink = GetLootSlotLink(i_loot);
 				-- Store item
 				local loot_idx = self.db.char.LM:AddLoot(lootName,lootLink);
 				-- Alert raid of new item
@@ -155,7 +153,7 @@ function SKC:OnOpenMasterLoot()
 					self.db.char.LM:Reset();
 					self:WriteToLog( 
 						self.LOG_OPTIONS["Event Type"].Options.NE,
-						"",
+						UnitName("player"),
 						"ML",
 						lootName,
 						"",
@@ -169,11 +167,11 @@ function SKC:OnOpenMasterLoot()
 			else
 				self:Debug("Item not in Loot Prio. Giving directly to ML",self.DEV.VERBOSE.LOOT);
 				-- give directly to ML
-				self.db.char.LM:GiveLootToML(lootName,GetLootSlotLink(i_loot));
+				self.db.char.LM:GiveLootToML(lootName,lootLink);
 				self.db.char.LM:Reset();
 				self:WriteToLog( 
 					self.LOG_OPTIONS["Event Type"].Options.AL,
-					"",
+					UnitName("player"),
 					"ML",
 					lootName,
 					"",

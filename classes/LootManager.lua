@@ -249,7 +249,7 @@ function LootManager:GiveLoot(loot_name,loot_link,winner)
 			-- find character in raid
 			for i_char = 1,40 do
 				if GetMasterLootCandidate(i_loot, i_char) == winner then
-					if LOOT_DIST_DISABLE or LOOT_SAFE_MODE then
+					if SKC.DEV.LOOT_DIST_DISABLE or SKC.DEV.LOOT_SAFE_MODE then
 						SKC:Alert("Faux distribution of loot successful!");
 					else 
 						GiveMasterLoot(i_loot,i_char);

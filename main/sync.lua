@@ -1,16 +1,6 @@
 --------------------------------------
 -- SYNCHRONIZATION
 --------------------------------------
-function SKC:GetSyncStatus()
-	-- scan all databases and return sync status
-	for _,db in ipairs(self.DB_SYNC_ORDER) do
-		if self.SyncStatus[db].val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val then
-			return(self.SYNC_STATUS_ENUM.IN_PROGRESS);
-		end
-	end
-	return(self.SYNC_STATUS_ENUM.COMPLETE);
-end
-
 function SKC:CheckSyncInProgress()
 	-- scan all databases and return true if sync is in progress
 	for _,db in ipairs(self.DB_SYNC_ORDER) do
@@ -231,10 +221,12 @@ function SKC:CopyDB(db_name,data)
 	self.db.char[db_name] = self:DeepCopy(data);
 	if db_name == "GLP" then
 		self.db.char.GLP = GuildLeaderProtected:new(self.db.char.GLP);
+		self:ManageRaidChanges();
 	elseif db_name == "GD" then
 		self.db.char.GD = GuildData:new(self.db.char.GD);
 	elseif db_name == "LOP" then
 		self.db.char.LOP = LootOfficerProtected:new(self.db.char.LOP);
+		self:ManageRaidChanges();
 	elseif db_name == "MSK" then
 		self.db.char.MSK = SK_List:new(self.db.char.MSK);
 	elseif db_name == "TSK" then

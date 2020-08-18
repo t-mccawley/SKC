@@ -76,19 +76,12 @@ end
 
 function LootPrio:IsElligible(lootName,char_name)
 	-- character is elligible if their spec is non null in the loot prio
-	local spec_idx = SKC_DB.GuildData:GetSpecIdx(char_name);
+	local spec_idx = SKC.db.char.GD:GetSpecIdx(char_name);
 	local elligible = false;
 	if spec_idx == nil then 
 		elligible = false;
 	else
-		elligible = self:GetPrio(lootName,spec_idx) ~= PRIO_TIERS.PASS;
-	end
-	if LOOT_VERBOSE then
-		if elligible then 
-			SKC_Main:Print("NORMAL",char_name.." is elligible for "..lootName);
-		else
-			SKC_Main:Print("ERROR",char_name.." is not elligible for "..lootName);
-		end
+		elligible = self:GetPrio(lootName,spec_idx) ~= SKC.PRIO_TIERS.PASS;
 	end
 	return elligible;
 end
@@ -97,39 +90,38 @@ function LootPrio:PrintPrio(lootName,lootLink)
 	-- prints the prio of given item (or item link)
 	local data;
 	if lootName == nil then
-		SKC_Main:Print("NORMAL","Loot Prio contains "..self:length().." items");
+		SKC:Print("Loot Prio contains "..self:length().." items");
 		return;
 	elseif self.items[lootName] == nil then
-		SKC_Main:Print("ERROR","Item name not found in prio database");
+		SKC:Error("Item not found in Loot Prio");
 		return;
 	else
 		data = self.items[lootName];
-		print(" ");
 		if lootLink == nil then 
-			SKC_Main:Print("IMPORTANT",lootName);
+			SKC:Alert(lootName);
 		else
-			SKC_Main:Print("IMPORTANT",lootLink);
+			SKC:Alert(lootLink);
 		end
 	end
 	-- print associated sk list
-	SKC_Main:Print("NORMAL","SK List: "..data.sk_list);
+	print("|cff"..SKC.THEME.PRINT.HELP.hex.."SK List:|r "..data.sk_list);
 	-- print reserved states
 	if data.reserved then
-		SKC_Main:Print("NORMAL","Reserved: TRUE");
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Reserved:|r TRUE");
 	else
-		SKC_Main:Print("NORMAL","Reserved: FALSE");
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Reserved:|r FALSE");
 	end
 	-- print disenchant or guild bank default
 	if data.DE then
-		SKC_Main:Print("NORMAL","All Pass: Disenchant");
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."All Pass:|r Disenchant");
 	else
-		SKC_Main:Print("NORMAL","All Pass: Guild Bank");
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."All Pass:|r Guild Bank");
 	end
 	-- print open roll
 	if data.open_roll then
-		SKC_Main:Print("NORMAL","Open Roll: TRUE");
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Open Roll:|r TRUE");
 	else
-		SKC_Main:Print("NORMAL","Open Roll: FALSE");
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Open Roll:|r FALSE");
 	end
 	-- create map from prio level to concatenated string of SpecClass's
 	local spec_class_map = {};
@@ -137,19 +129,18 @@ function LootPrio:PrintPrio(lootName,lootLink)
 		spec_class_map[i] = {};
 	end
 	for spec_class_idx,plvl in pairs(data.prio) do
-		if plvl ~= PRIO_TIERS.PASS then spec_class_map[plvl][#(spec_class_map[plvl]) + 1] = CLASS_SPEC_MAP[spec_class_idx] end
+		if plvl ~= SKC.PRIO_TIERS.PASS then spec_class_map[plvl][#(spec_class_map[plvl]) + 1] = SKC.CLASS_SPEC_MAP[spec_class_idx] end
 	end
 	for plvl,tbl in ipairs(spec_class_map) do
 		if plvl == 6 then
-			SKC_Main:Print("NORMAL","OS Prio:");
+			print("|cff"..SKC.THEME.PRINT.HELP.hex.."OS Prio:|r");
 		else
-			SKC_Main:Print("NORMAL","MS Prio "..plvl..":");
+			print("|cff"..SKC.THEME.PRINT.HELP.hex.."MS Prio "..plvl..":|r");
 		end
 		for _,spec_class in pairs(tbl) do
-			local hex = select(4, GetSpecClassColor(spec_class));
-			DEFAULT_CHAT_FRAME:AddMessage("         "..string.format("|cff%s%s|r",hex:upper(),spec_class));
+			local hex = select(4, SKC:GetSpecClassColor(spec_class));
+			DEFAULT_CHAT_FRAME:AddMessage("        "..string.format("|cff%s%s|r",hex:upper(),spec_class));
 		end
 	end
-	print(" ");
 	return;
 end

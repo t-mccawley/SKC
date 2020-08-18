@@ -7,7 +7,7 @@
 function SKC:Activate()
 	-- master control for wheter or not loot is managed with SKC
 	if not self:CheckAddonLoaded() then return end
-	if not self.db.char.ENABLED then
+	if not self.db.char.LOP:IsEnabled() then
 		self.Status = self.STATUS_ENUM.DISABLED;
 	elseif self.db.char.GLP:GetAddonVer() == nil then
 		self.Status = self.STATUS_ENUM.INACTIVE_GL;
@@ -98,9 +98,16 @@ end
 --------------------------------------
 -- PERMISSIONS
 --------------------------------------
-function SKC:isML()
-	-- Check if current player is master looter
-	return(UnitName("player") == self.DEV.ML_OVRD or IsMasterLooter());
+function SKC:isML(name)
+	-- Check if name or current player is master looter
+	local check;
+	if name == nil then
+		check = UnitName("player") == self.DEV.ML_OVRD or IsMasterLooter();
+	else
+		local _, _, masterlooterRaidIndex = GetLootMethod();
+		check = name == self.DEV.ML_OVRD or (masterlooterRaidIndex ~= nil and name == GetRaidRosterInfo(masterlooterRaidIndex));
+	end
+	return(check);
 end
 
 function SKC:isGL(name)
@@ -116,6 +123,12 @@ function SKC:isLO(name)
 	-- returns true if given name (current player if nil) is a loot officer
 	if name == nil then name = UnitName("player") end
 	return(self:CheckDatabasePopulated("GLP") and self.db.char.GLP:CheckIfLO(name));
+end
+
+function SKC:isMLO(name)
+	-- returns true if given name (current player if nil) is a loot officer AND master looter
+	if name == nil then name = UnitName("player") end
+	return(self:isLO(name) and self:isML(name));
 end
 
 function SKC:GetGuildLeader()
@@ -178,20 +191,9 @@ function SKC:CheckAddonVerMatch(ver)
 	return(self.db.char.GLP:IsAddonVerMatch(ver));
 end
 
-function SKC:CheckIfReadInProgress()
-	-- return true of any database is currently being read from
-	for db_name,read in pairs(self.event_states.ReadInProgress) do
-		if read then return true end
-	end
-	return false;
-end
-
-function SKC:CheckIfPushInProgress()
-	-- return true of any database is currently being read from
-	for db_name,push in pairs(self.event_states.PushInProgress) do
-		if push then return true end
-	end
-	return false;
+function SKC:CheckIfSyncInProgress()
+	-- returns true if addon is currently syncing
+	return((self:GetSyncStatus()).val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val);
 end
 
 function SKC:GetOnlineSyncables()
@@ -252,7 +254,23 @@ end
 --------------------------------------
 -- LOGGING
 --------------------------------------
-function SKC:WriteToLog(event_type,subject,action,item,sk_list,prio,current_sk_pos,new_sk_pos,roll,item_rec,time_txt,master_looter_txt,class_txt,spec_txt,status_txt)
+function SKC:WriteToLog(
+	event_type,
+	subject,
+	action,
+	item,
+	sk_list,
+	prio,
+	current_sk_pos,
+	new_sk_pos,
+	roll,
+	item_rec,
+	time_txt,
+	master_looter_txt,
+	class_txt,
+	spec_txt,
+	status_txt
+)
 	-- writes new log entry (if raid logging active)
 	if not self.event_states.LoggingActive then return end
 	local idx = #self.db.char.LOG + 1;
@@ -420,6 +438,16 @@ function SKC:SendDB(db_name,game_channel,target)
 	self:Send(payload,self.CHANNELS.SYNC_PUSH,game_channel,target);
 	return;
 end
+
+function SKC:GetSyncStatus()
+	-- scan all databases and return sync status
+	for _,db in ipairs(self.DB_SYNC_ORDER) do
+		if self.SyncStatus[db].val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val then
+			return(self.SYNC_STATUS_ENUM.IN_PROGRESS);
+		end
+	end
+	return(self.SYNC_STATUS_ENUM.COMPLETE);
+end
 --------------------------------------
 -- MISC
 --------------------------------------
@@ -439,7 +467,7 @@ end
 
 function SKC:GetSpecClassColor(spec_class)
 	-- Returns color code for given SpecClass
-	for class,tbl in pairs(self.self.CLASSES) do
+	for class,tbl in pairs(self.CLASSES) do
 		if string.find(spec_class,class) ~= nil then
 			return tbl.color.r, tbl.color.g, tbl.color.b, tbl.color.hex;
 		end
@@ -512,6 +540,7 @@ end
 
 function SKC:ManageLiveLists(name,live_status)
 	-- adds / removes player to live lists and records time in guild data
+	-- NOTE: this method does not change the edit timestamp of the SK lists to avoid constant syncing
 	local sk_lists = {"MSK","TSK"};
 	for _,sk_list in pairs(sk_lists) do
 		local success = self.db.char[sk_list]:SetLive(name,live_status);
