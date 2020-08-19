@@ -251,6 +251,21 @@ function SKC:CheckActiveInstance()
 	if not self:CheckDatabasePopulated("GLP") then return false end
 	return(self.db.char.GLP:IsActiveInstance());
 end
+
+function SKC:CheckSyncInProgress()
+	-- scan all databases and return true if sync is in progress
+	for _,db in ipairs(self.DB_SYNC_ORDER) do
+		if self.SyncStatus[db].val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val then
+			return(true);
+		end
+	end
+	return(false);
+end
+
+function SKC:CheckIfEffectivelyNil(str)
+	-- check if string is effectively nil
+	return(str == nil or str == " " or str == "");
+end
 --------------------------------------
 -- LOGGING
 --------------------------------------
@@ -419,17 +434,6 @@ function SKC:Read(msg)
 	end
 
 	return data_out;
-end
-
-function SKC:SendDB(db_name,game_channel,target)
-	-- package and send table to target
-	local payload = {
-		db_name = db_name,
-		addon_ver = self.db.char.ADDON_VERSION,
-		data = self.db.char[db_name],
-	};
-	self:Send(payload,self.CHANNELS.SYNC_PUSH,game_channel,target);
-	return;
 end
 
 function SKC:GetSyncStatus()

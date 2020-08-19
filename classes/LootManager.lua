@@ -424,8 +424,8 @@ function LootManager:DeterminePrio(char_name)
 	-- get character spec
 	local spec = SKC.db.char.GD:GetSpecIdx(char_name);
 	-- start with base prio of item for given spec, then adjust based on character attributes
-	local prio = SKC.db.char.LP:GetPrio(self.current_loot.lootName,spec);
 	local loot_name = self.current_loot.lootName;
+	local prio = SKC.db.char.LP:GetPrio(loot_name,spec);
 	local reserved = SKC.db.char.LP:GetReserved(loot_name);
 	local spec_type = "MS";
 	if prio == SKC.PRIO_TIERS.SK.Main.OS then spec_type = "OS" end

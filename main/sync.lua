@@ -1,16 +1,6 @@
 --------------------------------------
 -- SYNCHRONIZATION
 --------------------------------------
-function SKC:CheckSyncInProgress()
-	-- scan all databases and return true if sync is in progress
-	for _,db in ipairs(self.DB_SYNC_ORDER) do
-		if self.SyncStatus[db].val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val then
-			return(true);
-		end
-	end
-	return(false);
-end
-
 local function SyncTickHandle()
 	-- wrapper for main logic
 	SKC:SyncTick();
@@ -94,7 +84,7 @@ function SKC:DetermineSyncPartner(db)
 end
 
 function SKC:ReadSyncCheck(addon_channel,msg,game_channel,sender)
-	-- read SYNC_CHECK and save msg (if they have newer data)
+	-- read SYNC_CHECK and save msg (if they have sync permission and have newer data)
 	-- reject self messages
 	if sender == UnitName("player") then return end
 	self:Debug("ReadSyncCheck",self.DEV.VERBOSE.SYNC_HIGH);
@@ -103,14 +93,23 @@ function SKC:ReadSyncCheck(addon_channel,msg,game_channel,sender)
 	if data == nil then return end
 	-- parse
 	local their_addon_ver, db_name, their_edit_ts_raid, their_edit_ts_generic = strsplit(",",data,4);
-	-- check that not already syncing for this database
-	if self.SyncPartner[db_name] ~= nil then
-		self:Debug("Reject ReadSyncCheck, already sync in progress for "..db_name,self.DEV.VERBOSE.SYNC_HIGH);
+	-- check for malformed message
+	if 
+	self:CheckIfEffectivelyNil(their_addon_ver) or 
+	self:CheckIfEffectivelyNil(db_name) or 
+	self:CheckIfEffectivelyNil(their_edit_ts_raid) or 
+	self:CheckIfEffectivelyNil(their_edit_ts_generic) then
+		self:Debug("Reject ReadSyncCheck, malformed message",self.DEV.VERBOSE.SYNC_LOW);
 		return;
-	end
+	 end
 	-- check addon version
 	if their_addon_ver ~= self.db.char.ADDON_VERSION then
 		self:Debug("Reject ReadSyncCheck, mismatch addon version",self.DEV.VERBOSE.SYNC_HIGH);
+		return;
+	end
+	-- check that not already syncing for this database
+	if self.SyncPartner[db_name] ~= nil then
+		self:Debug("Reject ReadSyncCheck, already sync in progress for "..db_name,self.DEV.VERBOSE.SYNC_HIGH);
 		return;
 	end
 	-- check that sender has correct permissions
@@ -118,13 +117,18 @@ function SKC:ReadSyncCheck(addon_channel,msg,game_channel,sender)
 		self:Debug("Reject ReadSyncCheck for "..db_name..", sender is nil",self.DEV.VERBOSE.SYNC_HIGH);
 		return;
 	end
-	if db_name == "GLP" and not self:isGL(sender) then
-		self:Debug("Reject ReadSyncCheck for GLP, "..sender.." is not the Guild Leader",self.DEV.VERBOSE.SYNC_HIGH);
-		return;
-	end
-	if db_name ~= "GLP" and not self:isLO(sender) then
-		self:Debug("Reject ReadSyncCheck for "..db_name..", "..sender.." is not a Loot Officer",self.DEV.VERBOSE.SYNC_HIGH);
-		return;
+	if db_name == "GLP" then
+		-- GLP is GL protected
+		if not self:isGL(sender) then
+			self:Debug("Reject ReadSyncCheck for GLP, "..sender.." is not the Guild Leader",self.DEV.VERBOSE.SYNC_HIGH);
+			return;
+		end
+	else
+		-- all other databases are LO protected
+		if not self:isLO(sender) then
+			self:Debug("Reject ReadSyncCheck for "..db_name..", "..sender.." is not a Loot Officer",self.DEV.VERBOSE.SYNC_HIGH);
+			return;
+		end
 	end
 	-- determine if their database is newer than sync candidate
 	their_edit_ts_raid = self:NumOut(their_edit_ts_raid);
@@ -237,5 +241,16 @@ function SKC:CopyDB(db_name,data)
 		self:Error("CopyDB: db_name not recognized");
 		self.db.char[db_name] = nil;
 	end
+	return;
+end
+
+function SKC:SendDB(db_name,game_channel,target)
+	-- package and send table to target
+	local payload = {
+		db_name = db_name,
+		addon_ver = self.db.char.ADDON_VERSION,
+		data = self.db.char[db_name],
+	};
+	self:Send(payload,self.CHANNELS.SYNC_PUSH,game_channel,target);
 	return;
 end
