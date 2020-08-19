@@ -65,6 +65,12 @@ function GuildLeaderProtected:GetNumLootOfficers()
 	return(cnt);
 end
 
+function GuildLeaderProtected:GetNumActiveInstances()
+	local cnt = 0;
+	for _,_ in pairs(self.active_instances) do cnt = cnt + 1 end
+	return(cnt);
+end
+
 function GuildLeaderProtected:AddLO(lo_name)
 	if not SKC:isGL() then
 		SKC:Error("You must be guild leader to do that")

@@ -3,7 +3,7 @@
 --
 -- Manages AddOn chat output to keep player from getting kicked off.
 --
--- ChatThrottleLib:SendChatMessage/:SendAddonMessage functions that accept
+-- ChatThrottleLib:SendChatMessage/:SendAddonMessage functions that accept 
 -- a Priority ("BULK", "NORMAL", "ALERT") as well as prefix for SendChatMessage.
 --
 -- Priorities get an equal share of available bandwidth when fully loaded.
@@ -23,7 +23,8 @@
 -- LICENSE: ChatThrottleLib is released into the Public Domain
 --
 
-local CTL_VERSION = 24
+-- local CTL_VERSION = 24
+local CTL_VERSION = 25
 
 local _G = _G
 
@@ -118,7 +119,7 @@ end
 
 
 -----------------------------------------------------------------------
--- Recycling bin for pipes
+-- Recycling bin for pipes 
 -- A pipe is a plain integer-indexed queue of messages
 -- Pipes normally live in Rings of pipes  (3 rings total, one per priority)
 
@@ -291,6 +292,27 @@ end
 -- - We have 3 Priorities, each containing a "Ring" construct ...
 -- - ... made up of N "Pipe"s (1 for each destination/pipename)
 -- - and each pipe contains messages
+local function StripRealmName(full_name)
+	local name,_ = strsplit("-",full_name,2);
+	return(name);
+end
+
+local function CheckIfGuildMemberOnline(target,verbose)
+	-- checks if given guild member (target) is online
+	-- prevents sending message to offline member and prevents that annoying spam
+	if verbose then print("Checking online status for "..target) end
+	for idx = 1, GetNumGuildMembers() do
+		local full_name, _, _, _, _, _, _, _, online = GetGuildRosterInfo(idx);
+		if StripRealmName(full_name) == target then
+			if verbose then
+				if online then print("online") else print("offline") end
+			end
+			return(online);
+		end
+	end
+	if verbose then print("unknown") end
+	return(false);
+end
 
 function ChatThrottleLib:Despool(Prio)
 	local ring = Prio.Ring
@@ -306,18 +328,26 @@ function ChatThrottleLib:Despool(Prio)
 		end
 		local didSend=false
 		local lowerDest = strlower(msg[3] or "")
+		local target = msg[4]
 		if lowerDest == "raid" and not UnitInRaid("player") then
 			-- do nothing
 		elseif lowerDest == "party" and not UnitInParty("player") then
 			-- do nothing
 		else
-			Prio.avail = Prio.avail - msg.nSize
-			bMyTraffic = true
-			msg.f(unpack(msg, 1, msg.n))
-			bMyTraffic = false
-			Prio.nTotalSent = Prio.nTotalSent + msg.nSize
-			DelMsg(msg)
-			didSend = true
+			-- XXX Added for SKC
+			-- this only works because whispers are only going to guild members.
+			-- check if trying to whisper an offline player
+			if target ~= nil and lowerDest == "whisper" and not CheckIfGuildMemberOnline(target) then
+				-- do nothing
+			else
+				Prio.avail = Prio.avail - msg.nSize
+				bMyTraffic = true
+				msg.f(unpack(msg, 1, msg.n))
+				bMyTraffic = false
+				Prio.nTotalSent = Prio.nTotalSent + msg.nSize
+				DelMsg(msg)
+				didSend = true
+			end
 		end
 		-- notify caller of delivery (even if we didn't send it)
 		if msg.callbackFn then
@@ -356,8 +386,8 @@ function ChatThrottleLib.OnUpdate(this,delay)
 	-- See how many of our priorities have queued messages (we only have 3, don't worry about the loop)
 	local n = 0
 	for prioname,Prio in pairs(self.Prio) do
-		if Prio.Ring.pos or Prio.avail < 0 then
-			n = n + 1
+		if Prio.Ring.pos or Prio.avail < 0 then 
+			n = n + 1 
 		end
 	end
 
@@ -481,6 +511,15 @@ function ChatThrottleLib:SendAddonMessage(prio, prefix, text, chattype, target, 
 	nSize = nSize + self.MSG_OVERHEAD;
 
 	-- Check if there's room in the global available bandwidth gauge to send directly
+	-- XXX Check if guild member is offline
+	if target ~= nil and chattype == "WHISPER" and not CheckIfGuildMemberOnline(target) then
+		-- call the callback function, but dont send the message
+		if callbackFn then
+			callbackFn (callbackArg, true)
+		end
+		return;
+	end
+	-- XXX
 	if not self.bQueueing and nSize < self:UpdateAvail() then
 		self.avail = self.avail - nSize
 		bMyTraffic = true
@@ -530,5 +569,3 @@ if(WOWB_VER) then
 	ChatThrottleLib.Frame:RegisterEvent("CHAT_MSG_SAY")
 end
 ]]
-
-

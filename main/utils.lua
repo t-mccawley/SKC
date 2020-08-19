@@ -240,7 +240,7 @@ function SKC:CheckSKinGuildData(sk_list,sk_list_data)
 	end
 	for pos,name in ipairs(sk_list_data) do
 		if not self.db.char.GD:Exists(name) then
-			self:Debug(name.." in "..sk_list.." but not in GuildData",self.DEV.VERBOSE.COMM)
+			self:Warn(name.." in "..sk_list.." but not in GuildData");
 			return false;
 		end
 	end
@@ -272,7 +272,7 @@ function SKC:WriteToLog(
 	status_txt
 )
 	-- writes new log entry (if raid logging active)
-	if not self.event_states.LoggingActive then return end
+	if not self.db.char.LoggingActive then return end
 	local idx = #self.db.char.LOG + 1;
 	self.db.char.LOG[idx] = {};
 	if time_txt == nil then
@@ -345,15 +345,15 @@ function SKC:ManageLogging()
 	-- activate SKC / update GUI
 	self:RefreshStatus();
 	-- check if SKC is active, if so start loot logging
-	local prev_log_state = self.event_states.LoggingActive;
+	local prev_log_state = self.db.char.LoggingActive;
 	if self.DEV.LOG_ACTIVE_OVRD or self:CheckActive() then
-		self.event_states.LoggingActive = true;
+		self.db.char.LoggingActive = true;
 		if not prev_log_state then
 			self:ResetLog();
 			self:Print("Loot logging turned on");
 		end
 	else
-		self.event_states.LoggingActive = false;
+		self.db.char.LoggingActive = false;
 		if prev_log_state then self:Print("Loot logging turned off") end
 	end
 	return;

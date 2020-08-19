@@ -2,8 +2,6 @@
 -- SKC
 --------------------------------------
 -- TODO:
--- make changes to ChatThrotteLib again to check that player is online before sending (just copy over my version of lib?)
--- make init slash command for guild data
 --------------------------------------
 -- ADDON CONSTRUCTOR
 --------------------------------------
@@ -25,7 +23,7 @@ SKC.DEV = {
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 0,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 4,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
@@ -55,10 +53,10 @@ SKC.UI_DIMS = {
 	LOOT_GUI_TITLE_CARD_WIDTH = 80,
 	LOOT_GUI_TITLE_CARD_HEIGHT = 40,
 	SK_FILTER_WIDTH = 255,
-	SK_FILTER_HEIGHT = 205,
-	SK_FILTER_Y_OFFST = -35,
+	SK_FILTER_HEIGHT = 185,
+	SK_FILTER_Y_OFFST = -34,
 	SKC_STATUS_WIDTH = 255,
-	SKC_STATUS_HEIGHT = 115,
+	SKC_STATUS_HEIGHT = 135,
 	DECISION_WIDTH = 250,
 	DECISION_HEIGHT = 160,
 	SK_DETAILS_WIDTH = 270,
@@ -115,8 +113,6 @@ function OnClick_EditDropDownOption(field,value) -- Must be global
 	SKC:PopulateData(name);
 	-- Reset menu toggle
 	SKC.event_states.DropDownID = 0;
-	-- send GuildData to all players
-	SKC:SendDB("GD","GUILD");
 	return;
 end
 SKC.CLASSES = { -- wow classes
@@ -853,7 +849,6 @@ SKC.event_states = { -- tracks if certain events have fired
 	AddonLoaded = false,
 	DropDownID = 0, -- used to track state of drop down menu
 	SetSKInProgress = false; -- true when SK position is being set
-	LoggingActive = SKC.DEV.LOG_ACTIVE_OVRD, -- latches true when raid is entered (controls RaidLog)
 };
 -- local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due to addon version or malformed messages)
 SKC.Timers = {
@@ -888,7 +883,7 @@ end
 SKC.DB_DEFAULT = {
     char = {
 		INIT_SETUP = true,
-        ADDON_VERSION = GetAddOnMetadata("SKC","Version"),
+		ADDON_VERSION = GetAddOnMetadata("SKC","Version"),
 		GLP = nil, -- GuildLeaderProtected
 		LOP = nil, -- LootOfficersProtected
 		GD = nil, -- GuildData
@@ -913,6 +908,7 @@ SKC.DB_DEFAULT = {
 			Warlock = true,
 			Warrior = true,
 		},
+		LoggingActive = SKC.DEV.LOG_ACTIVE_OVRD, -- latches true when SKC is activated (controls LOG)
 		LOG = {}, -- data logging
     },
 };

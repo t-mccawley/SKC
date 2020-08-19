@@ -86,11 +86,11 @@ function GuildData:GetData(name,field)
 end
 
 function GuildData:SetData(name,field,value)
+	-- assigns data based on field and string name of value
 	if not SKC:isGL() then
 		SKC:Error("You must be guild leader to do that")
 		return;
 	end
-	-- assigns data based on field and string name of value
 	if field == "Name" or field == "Class" then
 		self.data[name][field] = value;
 	elseif field == "Spec" then
@@ -137,7 +137,7 @@ function GuildData:Remove(name)
 end
 
 function GuildData:GetClass(name)
-	-- gets SpecClass of given name
+	-- gets Class of given name
 	if not self:Exists(name) then return nil end
 	return self.data[name].Class;
 end
@@ -149,7 +149,7 @@ function GuildData:GetSpecIdx(name)
 end
 
 function GuildData:GetSpecName(name)
-	-- gets spec value of given name
+	-- gets spec text name of given name
 	if not self:Exists(name) then return nil end
 	return SKC.SPEC_MAP[self:GetSpecIdx(name)];
 end

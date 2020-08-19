@@ -254,7 +254,7 @@ function SKC:CreateMainGUI()
 	-- set position
 	self.MainGUI[status_border_key]:SetPoint("TOPLEFT", MainGUITitleBG, "TOPLEFT", self.UI_DIMS.MAIN_BORDER_PADDING+5, self.UI_DIMS.MAIN_BORDER_Y_TOP);
 	-- create status fields
-	local status_fields = {"Status","Synchronization","Loot Prio Items","Loot Officers"};
+	local status_fields = {"Status","Synchronization","Loot Prio Items","Loot Officers","Active Instances"};
 	for idx,value in ipairs(status_fields) do
 		-- fields
 		self.MainGUI[status_border_key][value] = CreateFrame("Frame",self.MainGUI[status_border_key])
@@ -543,6 +543,7 @@ function SKC:RefreshStatus()
 	self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(unpack(sync_status.color));
 	self.MainGUI["Status_border"]["Loot Prio Items"].Data:SetText(self.db.char.LP:length().." items");
 	self.MainGUI["Status_border"]["Loot Officers"].Data:SetText(self.db.char.GLP:GetNumLootOfficers());
+	self.MainGUI["Status_border"]["Active Instances"].Data:SetText(self.db.char.GLP:GetNumActiveInstances());
 	return;
 end
 

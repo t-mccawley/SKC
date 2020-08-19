@@ -70,7 +70,7 @@ function SKC:SlashHandler(args)
                 self:Error("You must be guild leader to do that");
             end
             -- Initializes the loot prio with a CSV pasted into a window
-            self:CSVImport("Loot Priority Import"); 
+            self:CSVImport("Loot Prio Import"); 
         elseif string.sub(arg2,1,1) == "|" then
             -- argument is item link
             local item = Item:CreateFromItemLink(arg2)
@@ -84,7 +84,9 @@ function SKC:SlashHandler(args)
         if arg2 == "sk" then
             self:ExportSK();
         elseif arg2 == "log" then
-            self:ExportLog();
+			self:ExportLog();
+		elseif arg2 == "g" then
+			self:ExportGuildData();
         else
             self:Error("Not a valid export command");
         end
@@ -92,7 +94,12 @@ function SKC:SlashHandler(args)
         if not self:isGL() then
             self:Error("You must be guild leader to do that");
         end
-        self:CSVImport("SK List Import",string.upper(arg1)); 
+		self:CSVImport("SK List Import",string.upper(arg1));
+	elseif arg1 == "g" and arg2 == "init" then
+        if not self:isGL() then
+            self:Error("You must be guild leader to do that");
+        end
+        self:CSVImport("Guild Data Import"); 
     elseif arg1 == "reset" then
         self:ResetDBs();
     elseif arg1 == "enable" then
@@ -118,7 +125,8 @@ function SKC:PrintHelp()
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc b|r - Displays the Bench");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc ai|r - Displays Active Instances");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lo|r - Displays Loot Officers");
-    print("|cff"..self.THEME.PRINT.HELP.hex.."/skc export sk|r - Export (CSV) current sk lists");
+	print("|cff"..self.THEME.PRINT.HELP.hex.."/skc export sk|r - Export (CSV) current SK lists");
+	print("|cff"..self.THEME.PRINT.HELP.hex.."/skc export g|r - Export (CSV) current Guild Data");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc reset|r - Resets local SKC data and reloads ui");
     if self:isLO() then
         print("|cff"..self.THEME.PRINT.NORMAL.hex.."Loot Officer Only:|r");
@@ -232,22 +240,23 @@ end
 
 local function OnClick_ImportLootPrio()
 	-- imports loot prio CSV to database
-	-- reset database
-	SKC.db.char.LP = LootPrio:new();
+	-- create temporary db
+	temp_lp = LootPrio:new();
 	-- get text
-	local name = "Loot Priority Import";
+	local name = "Loot Prio Import";
 	local txt = SKC.CSVGUI[name].EditBox:GetText();
 	local line = nil;
 	local txt_rem = txt;
+	local line_count = 1;
 	-- check if first row is header
 	line = strsplit(",",txt_rem,2);
 	if line == "Item" then
 		-- header --> skip
 		line, txt_rem = strsplit("\n",txt_rem,2);
+		line_count = line_count + 1;
 	end
 	-- read data
 	local valid = true;
-	local line_count = 2; -- account for header
 	while txt_rem ~= nil do
 		line, txt_rem = strsplit("\n",txt_rem,2);
 		local item, sk_list, res, de, open_roll, prios_txt = strsplit(",",line,6);
@@ -277,11 +286,11 @@ local function OnClick_ImportLootPrio()
 			break;
 		end
 		-- write meta data for item
-		SKC.db.char.LP.items[item] = Prio:new(nil);
-		SKC.db.char.LP.items[item].sk_list = sk_list;
-		SKC.db.char.LP.items[item].reserved = SKC:BoolOut(res);
-		SKC.db.char.LP.items[item].DE = SKC:BoolOut(de);
-		SKC.db.char.LP.items[item].open_roll = SKC:BoolOut(open_roll);
+		temp_lp.items[item] = Prio:new(nil);
+		temp_lp.items[item].sk_list = sk_list;
+		temp_lp.items[item].reserved = SKC:BoolOut(res);
+		temp_lp.items[item].DE = SKC:BoolOut(de);
+		temp_lp.items[item].open_roll = SKC:BoolOut(open_roll);
 		-- read prios
 		local spec_class_cnt = 0;
 		while prios_txt ~= nil do
@@ -310,7 +319,7 @@ local function OnClick_ImportLootPrio()
 				break;
 			end
 			-- write prio value
-			SKC.db.char.LP.items[item].prio[spec_class_cnt] = val;
+			temp_lp.items[item].prio[spec_class_cnt] = val;
 			-- increment spec class counter
 		end
 		-- check that all expected columns were scanned (1 past actual count)
@@ -325,22 +334,23 @@ local function OnClick_ImportLootPrio()
 			local armor_set = item;
 			-- scan through armor set and individually add each item
 			for _,set_item in ipairs(SKC.TIER_ARMOR_SETS[armor_set]) do
-				SKC.db.char.LP.items[set_item] = SKC:DeepCopy(SKC.db.char.LP.items[armor_set]);
+				temp_lp.items[set_item] = SKC:DeepCopy(temp_lp.items[armor_set]);
 			end
 			-- remove armor set itself from database
-			SKC.db.char.LP.items[armor_set] = nil;
+			temp_lp.items[armor_set] = nil;
 		end
 		line_count = line_count + 1;
 	end
 	if not valid then
-		SKC.db.char.LP = LootPrio:new();
 		return;
 	end
+	-- copy temp variable
+	SKC.db.char.LP = DeepCopy(temp_lp)
 	-- update edit timestamp
 	local ts = time();
 	SKC.db.char.LP.edit_ts_raid = ts;
 	SKC.db.char.LP.edit_ts_generic = ts;
-	SKC:Print("Loot Priority Import Complete");
+	SKC:Print("Loot Prio Import Complete");
 	SKC:Print(SKC.db.char.LP:length().." items added");
 	SKC:RefreshStatus();
     -- push new loot prio to guild
@@ -416,6 +426,117 @@ local function OnClick_ImportSKList(sk_list)
 	return;
 end
 
+local function OnClick_ImportGuildData()
+	-- imports GuildData CSV to database
+	-- get text
+	local name = "Guild Data Import";
+	local txt = SKC.CSVGUI[name].EditBox:GetText();
+	local line = nil;
+	local txt_rem = txt;
+	local line_count = 1;
+	-- check if first row is header
+	line = strsplit(",",txt_rem,2);
+	if line == "Character Name" then
+		-- header --> skip
+		line, txt_rem = strsplit("\n",txt_rem,2);
+		line_count = line_count + 1;
+	end
+	-- collect data and verify
+	local valid = true;
+	local char_name_array = {};
+	local char_name_map = {};
+	local class_array = {};
+	local spec_array = {};
+	local guild_role_array = {};
+	local status_array = {};
+	local import_cnt = 0;
+	while txt_rem ~= nil do
+		line, txt_rem = strsplit("\n",txt_rem,2);
+		local char_name, spec, guild_role, status = strsplit(",",line,4);
+		-- check validity of char_name
+		if char_name == nil or char_name == "" or char_name == " " then
+			SKC:Error("Missing character name on line "..line_count);
+			valid = false;
+		elseif not SKC.db.char.GD:Exists(char_name) then
+			SKC:Error(char_name.." is not in the current GuildData");
+			valid = false;
+		else
+			char_name_map[char_name] = true;
+			-- get class
+			local class = SKC.db.char.GD:GetClass(char_name);
+			-- check validity of spec
+			if spec == nil or spec == "" or spec == " " then
+				SKC:Error("Spec is missing for character "..char_name);
+				valid = false;
+			elseif SKC.CLASSES[class].Specs[spec] == nil then
+				SKC:Error(spec.." is not a valid Spec for character "..char_name.." of class "..class);
+				valid = false;
+			else
+				-- check validity of guild_role
+				if guild_role == nil or guild_role == "" or guild_role == "" then
+					SKC:Error("Guild Role is missing for character "..char_name);
+					valid = false;
+				elseif SKC.CHARACTER_DATA["Guild Role"].OPTIONS[guild_role] == nil then
+					SKC:Error(guild_role.." is not a valid Guild Role for character "..char_name);
+					valid = false;
+				else
+					-- check validity of status
+					if status == nil or status == "" or status == " " then
+						SKC:Error("Status is missing for character "..char_name);
+						valid = false;
+					elseif SKC.CHARACTER_DATA["Status"].OPTIONS[status] == nil then
+						SKC:Error(status.." is not a valid Status for character "..char_name);
+						valid = false;
+					else
+						-- valid -> store
+						import_cnt = import_cnt + 1;
+						char_name_array[import_cnt] = char_name;
+						class_array[import_cnt] = class;
+						spec_array[import_cnt] = spec;
+						guild_role_array[import_cnt] = guild_role;
+						status_array[import_cnt] = status;
+					end
+				end
+			end			
+		end
+		-- increment line
+		line_count = line_count + 1;
+	end
+	-- confirm that every member of current GuildData is in import
+	local guild_cnt = 0;
+	for char_name_gd,_ in pairs(SKC.db.char.GD.data) do
+		guild_cnt = guild_cnt + 1;
+		if not char_name_map[char_name_gd] then
+			SKC:Error(char_name_gd.." is missing from your import");
+			valid = false;
+		end
+	end
+	if not valid then
+		SKC:Error("Guild Data not imported");
+		return;
+	end
+	if import_cnt ~= guild_cnt then
+		SKC:Error("Import has "..import_cnt.." members but Guild Data has "..guild_cnt.." members");
+		SKC:Error("Guild Data not imported");
+		return;
+	end
+	-- completely valid, store into guild data
+	SKC.db.char.GD = GuildData:new();
+	for idx,char_name in ipairs(char_name_array) do
+		SKC.db.char.GD:Add(char_name,class_array[idx]);
+		SKC.db.char.GD:SetData(char_name,"Spec",spec_array[idx]);
+		SKC.db.char.GD:SetData(char_name,"Guild Role",guild_role_array[idx]);
+		SKC.db.char.GD:SetData(char_name,"Status",status_array[idx]);
+	end
+	SKC:Print("Guild Data Import Complete");
+	SKC:PopulateData();
+    -- push new GuildData to guild
+    SKC:SendDB("GD","GUILD");
+	-- close import GUI
+	SKC.CSVGUI[name]:Hide();
+	return;
+end
+
 function SKC:CSVImport(name,sk_list)
 	-- error checking + bind function for import button
 	-- confirm that addon loaded and ui created
@@ -427,7 +548,7 @@ function SKC:CSVImport(name,sk_list)
 		self:Error("Please wait for sync to complete");
 		return;
 	end
-	if name == "Loot Priority Import" then
+	if name == "Loot Prio Import" then
 		-- instantiate frame
 		self:CreateCSVGUI(name,true);
 		self.CSVGUI[name]:SetShown(true);
@@ -445,6 +566,11 @@ function SKC:CSVImport(name,sk_list)
 		self:CreateCSVGUI(name,true);
 		self.CSVGUI[name]:SetShown(true);
 		self.CSVGUI[name].ImportBtn:SetScript("OnMouseDown",function() OnClick_ImportSKList(sk_list) end);
+	elseif name == "Guild Data Import" then
+		-- instantiate frame
+		self:CreateCSVGUI(name,true);
+		self.CSVGUI[name]:SetShown(true);
+		self.CSVGUI[name].ImportBtn:SetScript("OnMouseDown",OnClick_ImportGuildData);
 	end
 	return;
 end
@@ -490,5 +616,20 @@ function SKC:ExportSK()
 	end
 	-- add data to export
 	self.CSVGUI[name].EditBox:SetText(data);
+	self.CSVGUI[name].EditBox:HighlightText();
+end
+
+function SKC:ExportGuildData()
+	local name = "Guild Data Export";
+	-- instantiate frame
+    self:CreateCSVGUI(name,false);
+	self.CSVGUI[name]:SetShown(true);
+	-- scan guild data and construct output
+	local output = "Character Name,Spec,Guild Role,Status\n"
+	for char_name,c_data in pairs(self.db.char.GD.data) do
+		output = output..char_name..","..self.db.char.GD:GetData(char_name,"Spec")..","..self.db.char.GD:GetData(char_name,"Guild Role")..","..self.db.char.GD:GetData(char_name,"Status").."\n";
+	end
+	-- add data to export
+	self.CSVGUI[name].EditBox:SetText(output);
 	self.CSVGUI[name].EditBox:HighlightText();
 end
