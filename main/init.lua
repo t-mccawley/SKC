@@ -12,6 +12,8 @@ function SKC:OnInitialize()
 	self.db.char.TSK = SK_List:new(self.db.char.TSK);
 	self.db.char.LP = LootPrio:new(self.db.char.LP);
 	self.db.char.LM = LootManager:new(self.db.char.LM);
+	-- request updated guild roster
+	GuildRoster();
 	-- check for fresh installation
 	if self.db.char.INIT_SETUP then
 		self:Alert("Welcome (/skc help)");

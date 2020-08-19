@@ -7,13 +7,17 @@ local function SyncTickHandle()
 	return;
 end
 
+local function CreateSyncTicker()
+	-- creates the actual SyncTicker
+	SKC.Timers.Sync.Ticker = C_Timer.NewTicker(SKC.Timers.Sync.TIME_STEP,SyncTickHandle);
+	SKC:Debug("Sync Ticker created!",SKC.DEV.VERBOSE.SYNC_TICK);
+end
+
 function SKC:StartSyncTicker()
-	-- Main ticker that periodically provides data to sync with guild
+	-- starts the main ticker that periodically provides data to sync with guild
 	-- prepare variables
 	for _,db in ipairs(self.DB_SYNC_ORDER) do self:MarkSyncComplete(db) end
-	-- start ticker
-	self.Timers.Sync.Ticker = C_Timer.NewTicker(self.Timers.Sync.TIME_STEP,SyncTickHandle);
-	self:Debug("Sync Ticker created!",self.DEV.VERBOSE.SYNC_TICK);
+	C_Timer.After(self.Timers.Sync.INIT_DELAY,CreateSyncTicker)
 	return;
 end
 
@@ -21,12 +25,14 @@ function SKC:SyncTick()
 	-- function called periodically to synchronize with guild
 	-- synchronization is performed individually for each db
 	self:Debug("SyncTick",self.DEV.VERBOSE.SYNC_HIGH);
+	-- request updated guild roster data
+	GuildRoster();
 	for _,db in ipairs(self.DB_SYNC_ORDER) do
 		-- check if need to increment in progress count
 		if self.SyncPartner[db] ~= nil then
 			-- sync in progress, increment counter
 			self.Timers.Sync.SyncTicks[db] = self.Timers.Sync.SyncTicks[db] + 1;
-			self:Debug("IN PROGRESS ["..self.Timers.Sync.SyncTicks[db].."]: "..db.." , "..self.SyncPartner[db],self.DEV.VERBOSE.SYNC_TICK);
+			self:Debug("IN PROGRESS ["..self.Timers.Sync.SyncTicks[db]*self.Timers.Sync.TIME_STEP.."]: "..db.." , "..self.SyncPartner[db],self.DEV.VERBOSE.SYNC_TICK);
 		end
 		-- check if current sync has timed out
 		if self.Timers.Sync.SyncTicks[db] >= self.Timers.Sync.SYNC_TIMEOUT_TICKS then
@@ -38,14 +44,15 @@ function SKC:SyncTick()
 		if self.SyncPartner[db] == nil then
 			-- get sync partner for current db
 			self:DetermineSyncPartner(db);
-			if self.SyncPartner[db] ~= nil then
-				-- request sync from sync partner
+			if self.SyncPartner[db] ~= nil and self:CheckIfGuildMemberOnline(self.SyncPartner[db])  then
+				-- request sync from sync partner (if online)
+				-- note, online check is necesary because underlying ChatThrottleLib will block send if target offline, this function ensures constantly updated GuildRoster
 				self:Debug("REQUEST: "..db.." , "..self.SyncPartner[db],self.DEV.VERBOSE.SYNC_TICK);
 				self.SyncStatus[db] = self.SYNC_STATUS_ENUM.IN_PROGRESS;
 				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db;
 				self:Send(msg,self.CHANNELS.SYNC_RQST,"WHISPER",self.SyncPartner[db]);
-			else
-				-- send out sync check to guild
+			elseif self:isLO() then
+				-- send out sync check to guild (if self is LO)
 				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db..","..self:NilToStr(self.db.char[db].edit_ts_raid)..","..self:NilToStr(self.db.char[db].edit_ts_generic);
 				self:Send(msg,self.CHANNELS.SYNC_CHECK,"GUILD");
 				self:MarkSyncComplete(db);
@@ -87,6 +94,7 @@ function SKC:ReadSyncCheck(addon_channel,msg,game_channel,sender)
 	-- read SYNC_CHECK and save msg (if they have sync permission and have newer data)
 	-- reject self messages
 	if sender == UnitName("player") then return end
+	if self.Timers.Sync.Ticker == nil then return end
 	self:Debug("ReadSyncCheck",self.DEV.VERBOSE.SYNC_HIGH);
 	-- read message
 	local data = self:Read(msg);
@@ -138,7 +146,7 @@ function SKC:ReadSyncCheck(addon_channel,msg,game_channel,sender)
 	   their_edit_ts_generic > self.SyncCandidate[db_name].edit_ts_generic) then
 		-- they have newer raid data OR they have the same raid data but newer generic data
 		-- mark as sync candidate
-		self:Debug("New sync candidate: "..sender,self.DEV.VERBOSE.SYNC_LOW);
+		self:Debug("New sync candidate for "..db_name..": "..sender,self.DEV.VERBOSE.SYNC_LOW);
 		self.SyncCandidate[db_name].name = sender;
 		self.SyncCandidate[db_name].edit_ts_raid = their_edit_ts_raid;
 		self.SyncCandidate[db_name].edit_ts_generic = their_edit_ts_generic;
@@ -158,7 +166,7 @@ function SKC:ReadSyncRqst(addon_channel,msg,game_channel,sender)
 	local their_addon_ver, db_name = strsplit(",",data,2);
 	-- check that not already syncing for this database
 	if self.SyncPartner[db_name] ~= nil then
-		self:Debug("Reject ReadSyncRqst, already sync in progress for "..db_name,self.DEV.VERBOSE.SYNC_HIGH);
+		self:Debug("Reject ReadSyncRqst, already sync in progress for "..db_name,self.DEV.VERBOSE.SYNC_LOW);
 		return;
 	end
 	-- check addon version
@@ -169,6 +177,11 @@ function SKC:ReadSyncRqst(addon_channel,msg,game_channel,sender)
 	-- check that sender is not nil
 	if sender == nil then
 		self:Debug("Reject ReadSyncRqst for "..db_name..", sender is nil",self.DEV.VERBOSE.SYNC_LOW);
+		return;
+	end
+	-- confirm that sender is online
+	if not self:CheckIfGuildMemberOnline(sender) then
+		self:Debug("Reject ReadSyncRqst for "..db_name..", sender is offline",self.DEV.VERBOSE.SYNC_LOW);
 		return;
 	end
 	-- confirm that self is Loot Officer
