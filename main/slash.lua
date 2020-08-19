@@ -530,8 +530,6 @@ local function OnClick_ImportGuildData()
 	end
 	SKC:Print("Guild Data Import Complete");
 	SKC:PopulateData();
-    -- push new GuildData to guild
-    SKC:SendDB("GD","GUILD");
 	-- close import GUI
 	SKC.CSVGUI[name]:Hide();
 	return;

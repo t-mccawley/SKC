@@ -19,7 +19,7 @@ function SKC:OnInitialize()
 			-- set required version to current version
 			self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
 			-- add self (GL) to loot officers
-			self.db.char.GLP:AddLO(UnitName("player"));
+			self.db.char.GLP:AddLO(UnitName("player"),true);
 			-- add all typical raids to AIs
 			self.db.char.GLP:AddAI("MC");
 			self.db.char.GLP:AddAI("ONY");

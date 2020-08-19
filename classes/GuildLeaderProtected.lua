@@ -71,13 +71,13 @@ function GuildLeaderProtected:GetNumActiveInstances()
 	return(cnt);
 end
 
-function GuildLeaderProtected:AddLO(lo_name)
+function GuildLeaderProtected:AddLO(lo_name,bypass)
 	if not SKC:isGL() then
 		SKC:Error("You must be guild leader to do that")
 		return false;
 	end
 	-- check if valid guild member
-	if not SKC.db.char.GD:Exists(lo_name) then
+	if not bypass and not SKC.db.char.GD:Exists(lo_name) then
 		SKC:Error(lo_name.." is not a valid guild member");
 		return false;
 	end
