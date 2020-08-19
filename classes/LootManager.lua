@@ -350,9 +350,6 @@ function LootManager:AwardLoot(loot_idx,winner)
 		local sk_success = SKC.db.char[sk_list]:LiveSK(winner);
 		if not sk_success then
 			SKC:Error(sk_list.." for "..winner.." failed");
-		else
-			-- push new sk list to guild
-			SKC:SendDB(sk_list,"GUILD");
 		end
 		-- populate data
 		SKC:PopulateData();

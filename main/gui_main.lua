@@ -107,8 +107,6 @@ local function OnClick_FullSK(self)
 				""
 			);
 			SKC:Print("Full SK on "..SKC:FormatWithClassColor(name));
-			-- send SK data to all players
-			SKC:SendDB(sk_list,"GUILD");
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
@@ -144,8 +142,6 @@ local function OnClick_SingleSK(self)
 				""
 			);
 			SKC:Print("Single SK on "..SKC:FormatWithClassColor(name));
-			-- send SK data to all players
-			SKC:SendDB(sk_list,"GUILD");
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
@@ -191,8 +187,6 @@ function OnClick_NumberCard(self)
 				""
 			);
 			SKC:Print("Set SK position of "..SKC:FormatWithClassColor(name).." to "..SKC.db.char[sk_list]:GetPos(name));
-			-- send SK data to all players
-			SKC:SendDB(sk_list,"GUILD");
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else

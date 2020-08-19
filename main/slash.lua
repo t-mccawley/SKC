@@ -28,7 +28,6 @@ function SKC:SlashHandler(args)
 			end
 			self:ManageRaidChanges();
 			self:RefreshStatus();
-			self:SendDB("LOP","GUILD");
         else
             self.db.char.LOP:ShowBench();
 		end
@@ -43,7 +42,6 @@ function SKC:SlashHandler(args)
 			end
 			self:ManageRaidChanges();
 			self:RefreshStatus();
-			self:SendDB("GLP","GUILD");
         else
             self.db.char.GLP:ShowLO();
         end
@@ -57,7 +55,6 @@ function SKC:SlashHandler(args)
 				if self.db.char.GLP:ClearAI() then self.db.char.GLP:ShowAI() end
 			end
 			self:RefreshStatus();
-			self:SendDB("GLP","GUILD");
         else
             self.db.char.GLP:ShowAI();
         end
@@ -345,7 +342,7 @@ local function OnClick_ImportLootPrio()
 		return;
 	end
 	-- copy temp variable
-	SKC.db.char.LP = DeepCopy(temp_lp)
+	SKC.db.char.LP = SKC:DeepCopy(temp_lp)
 	-- update edit timestamp
 	local ts = time();
 	SKC.db.char.LP.edit_ts_raid = ts;
@@ -353,8 +350,6 @@ local function OnClick_ImportLootPrio()
 	SKC:Print("Loot Prio Import Complete");
 	SKC:Print(SKC.db.char.LP:length().." items added");
 	SKC:RefreshStatus();
-    -- push new loot prio to guild
-    SKC:SendDB("LP","GUILD");
 	-- close import GUI
 	SKC.CSVGUI[name]:Hide();
 	return;
@@ -420,8 +415,6 @@ local function OnClick_ImportSKList(sk_list)
 	SKC.MainGUI["sk_list_border"].Title.Text:SetText(sk_list);
 	-- Refresh data
 	SKC:PopulateData();
-	-- push new sk list to guild
-	SKC:SendDB(sk_list,"GUILD");
 	SKC.CSVGUI[name]:Hide();
 	return;
 end

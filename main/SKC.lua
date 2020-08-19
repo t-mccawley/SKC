@@ -853,8 +853,8 @@ SKC.event_states = { -- tracks if certain events have fired
 -- local blacklist = {}; -- map of names for which SyncPushRead's are blocked (due to addon version or malformed messages)
 SKC.Timers = {
 	Sync = {-- ticker that requests sync each iteration until over or cancelled
-		TIME_STEP = 5, -- number of seconds between each tick
-		SYNC_TIMEOUT_TICKS = 6, -- number of ticks before an initiated sync will timeout
+		TIME_STEP = 2, -- number of seconds between each tick
+		SYNC_TIMEOUT_TICKS = 15, -- number of ticks before an initiated sync will timeout
 		Ticker = nil,
 		SyncTicks = {}, -- number of ticks elapsed since sync started
 	}, 
