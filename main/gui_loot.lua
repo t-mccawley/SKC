@@ -44,7 +44,8 @@ end
 --------------------------------------
 function SKC:CreateLootGUI()
 	-- Creates the GUI object for making a loot decision
-	if not self:CheckLootGUICreated() then return end
+	-- if already created, return
+	if self:CheckLootGUICreated() then return end
 
 	-- Create Frame
 	self.LootGUI = CreateFrame("Frame",nil,UIParent,"TranslucentFrameTemplate");
@@ -122,7 +123,7 @@ function SKC:CreateLootGUI()
 	-- background texture
 	self.LootGUI.TimerBar.bg = self.LootGUI.TimerBar:CreateTexture(nil,"BACKGROUND",nil,-7);
 	self.LootGUI.TimerBar.bg:SetAllPoints(self.LootGUI.TimerBar);
-	self.LootGUI.TimerBar.bg:SetColorTexture(unpack(THEME.STATUS_BAR_COLOR));
+	self.LootGUI.TimerBar.bg:SetColorTexture(unpack(self.THEME.STATUS_BAR_COLOR));
 	self.LootGUI.TimerBar.bg:SetAlpha(0.8);
 	-- bar texture
 	self.LootGUI.TimerBar.Bar = self.LootGUI.TimerBar:CreateTexture(nil,"BACKGROUND",nil,-6);
@@ -134,9 +135,10 @@ function SKC:CreateLootGUI()
 	self.LootGUI.TimerBar.Text = self.LootGUI.TimerBar:CreateFontString(nil,"ARTWORK",nil,7)
 	self.LootGUI.TimerBar.Text:SetFontObject("GameFontHighlightSmall")
 	self.LootGUI.TimerBar.Text:SetPoint("CENTER",self.LootGUI.TimerBar,"CENTER")
-	self.LootGUI.TimerBar.Text:SetText(self.LOOT_DECISION.OPTIONS.MAX_DECISION_TIME)
+	local max_decision_time = self.Timers.Loot.MAX_TICKS*self.Timers.Loot.TIME_STEP;
+	self.LootGUI.TimerBar.Text:SetText(max_decision_time)
 	-- values
-	self.LootGUI.TimerBar:SetMinMaxValues(0,self.LOOT_DECISION.OPTIONS.MAX_DECISION_TIME);
+	self.LootGUI.TimerBar:SetMinMaxValues(0,max_decision_time);
 	self.LootGUI.TimerBar:SetValue(0);
 
 	-- Make frame closable with esc
@@ -149,8 +151,6 @@ end
 
 function SKC:HideLootDecisionGUI()
 	-- hide loot decision gui
-	-- if not yet created, do nothing
-	if not self:CheckLootGUICreated() then return end
 	self.LootGUI.ItemClickBox:SetScript("OnMouseDown",nil);
 	self.LootGUI.ItemClickBox:EnableMouse(false);
 	self.LootGUI:Hide();
@@ -159,7 +159,7 @@ end
 
 function SKC:DisplayLootDecisionGUI(open_roll,sk_list)
 	-- ensure LootGUI is created
-	if not self:CheckLootGUICreated() then self:CreateLootGUI() end
+	self:CreateLootGUI();
 	-- Enable correct buttons
 	self.LootGUI.loot_decision_pass_btn:Enable(); -- OnClick_PASS
 	self.LootGUI.loot_decision_sk_btn:Enable(); -- OnClick_SK
@@ -172,7 +172,7 @@ function SKC:DisplayLootDecisionGUI(open_roll,sk_list)
 	-- Set item (in GUI)
 	self:SetSKItem();
 	-- Initiate timer
-	StartLootTimer();
+	self:StartLootTimer();
 	-- enable mouse
 	self.LootGUI.ItemClickBox:EnableMouse(true);
 	-- set link
@@ -197,6 +197,22 @@ function SKC:SetSKItem()
 	end)
 end
 
+local function UpdateLootTimer()
+	-- Handles tick / elapsed time and updates GUI
+	SKC.Timers.Loot.Ticks = SKC.Timers.Loot.Ticks + 1;
+	SKC.Timers.Loot.ElapsedTime = SKC.Timers.Loot.ElapsedTime + SKC.Timers.Loot.TIME_STEP;
+	SKC:UpdateLootTimerGUI();
+	if SKC.Timers.Loot.Ticks >= SKC.Timers.Loot.MAX_TICKS then
+		-- out of time
+		SKC:CancelLootTimer();
+		-- send loot response
+		SKC:Warn("Time expired. You PASS on "..SKC.db.char.LM:GetCurrentLootLink());
+		SKC.db.char.LM:SendLootDecision(SKC.LOOT_DECISION.PASS);
+		SKC:HideLootDecisionGUI();
+	end
+	return;
+end
+
 function SKC:StartLootTimer()
 	-- start loot timer and update GUI
 	-- cancel current loot timer
@@ -207,23 +223,7 @@ function SKC:StartLootTimer()
 	-- update GUI
 	self:UpdateLootTimerGUI();
 	-- start new ticker
-	self.Timers.Loot.Ticker = C_Timer.NewTicker(self.Timers.Loot.TIME_STEP,"UpdateLootTimer",self.Timers.Loot.MAX_TICKS);
-	return;
-end
-
-function SKC:UpdateLootTimer()
-	-- Handles tick / elapsed time and updates GUI
-	self.Timers.Loot.Ticks = self.Timers.Loot.Ticks + 1;
-	self.Timers.Loot.ElapsedTime = self.Timers.Loot.ElapsedTime + self.Timers.Loot.TIME_STEP;
-	self:UpdateLootTimerGUI();
-	if self.Timers.Loot.Ticks >= self.Timers.Loot.MAX_TICKS then
-		-- out of time
-		self:CancelLootTimer();
-		-- send loot response
-		self:Print("Time expired. You PASS on "..self.db.char.LM:GetCurrentLootLink());
-		self.db.char.LM:SendLootDecision(self.LOOT_DECISION.PASS);
-		self:HideLootDecisionGUI();
-	end
+	self.Timers.Loot.Ticker = C_Timer.NewTicker(self.Timers.Loot.TIME_STEP,UpdateLootTimer,self.Timers.Loot.MAX_TICKS);
 	return;
 end
 

@@ -40,7 +40,8 @@ function SKC:OnOpenLoot()
 		-- get item data
 		-- local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
 		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot);
-		if lootName ~= nil then
+		-- only perform for greens or higher rarity
+		if lootName ~= nil and lootRarity >= 2 then
 			-- Only perform SK for items if they are found in loot prio
 			local lootLink = GetLootSlotLink(i_loot);
 			if self.db.char.LP:Exists(lootName) then
@@ -64,36 +65,12 @@ function SKC:OnOpenLoot()
 				if not any_elligible then
 					self:Debug("No elligible characters in raid. Giving directly to ML",self.DEV.VERBOSE.LOOT);
 					-- give directly to ML
-					self.db.char.LM:GiveLootToML(lootName,lootLink);
-					self:WriteToLog( 
-						self.LOG_OPTIONS["Event Type"].Options.NE,
-						UnitName("player"),
-						"ML",
-						lootName,
-						"",
-						"",
-						"",
-						"",
-						"",
-						UnitName("player")
-					);
+					self.db.char.LM:GiveLootToML(lootName,lootLink,self.LOG_OPTIONS["Event Type"].Options.NE);
 				end
 			else
 				self:Debug("Item not in Loot Prio. Giving directly to ML",self.DEV.VERBOSE.LOOT);
 				-- give directly to ML
-				self.db.char.LM:GiveLootToML(lootName,lootLink);
-				self:WriteToLog( 
-					self.LOG_OPTIONS["Event Type"].Options.AL,
-					UnitName("player"),
-					"ML",
-					lootName,
-					"",
-					"",
-					"",
-					"",
-					"",
-					UnitName("player")
-				);
+				self.db.char.LM:GiveLootToML(lootName,lootLink,self.LOG_OPTIONS["Event Type"].Options.AL);
 			end
 		end
 	end
@@ -104,25 +81,26 @@ function SKC:OnOpenMasterLoot()
 	-- fires on OnOpenMasterLoot and scans items / characters and starts loot decision for item
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
 	-- Check validity
+	self:Debug("OnOpenMasterLoot",self.DEV.VERBOSE.LOOT);
 	if not self:LootDistValid() then return end
 
 	-- Check if sync in progress
 	if self:CheckSyncInProgress() then
 		self:Alert("Synchronization in progress. Loot distribution will start soon...");
 	end
-
-	-- Reset LootManager
-	self.db.char.LM:Reset();
 	
 	-- Scan all items and save each item / elligible player
 	self:Debug("Starting Loot Distribution",self.DEV.VERBOSE.LOOT);
 	for i_loot = 1, GetNumLootItems() do
+		-- Reset LootManager
+		self.db.char.LM:Reset();
 		-- get item data
 		-- local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
 		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot);
-		local lootLink = GetLootSlotLink(i_loot);
-		if lootName ~= nil then
+		-- only perform for greens or higher rarity
+		if lootName ~= nil and lootRarity >= 2 then
 			-- Only perform SK for items if they are found in loot prio
+			local lootLink = GetLootSlotLink(i_loot);
 			if self.db.char.LP:Exists(lootName) then
 				-- Valid item
 				-- Store item
@@ -135,7 +113,7 @@ function SKC:OnOpenMasterLoot()
 				for i_char = 1,40 do
 					local char_name = GetMasterLootCandidate(i_loot,i_char);
 					if char_name ~= nil then
-						if self.db.char.LP:IsElligible(lootName,char_name) then 
+						if self.db.char.LP:IsElligible(lootName,char_name) then
 							self.db.char.LM:AddCharacter(char_name,loot_idx);
 							any_elligible = true;
 						end
@@ -149,38 +127,12 @@ function SKC:OnOpenMasterLoot()
 				else
 					self:Debug("No elligible characters in raid. Giving directly to ML",self.DEV.VERBOSE.LOOT);
 					-- give directly to ML
-					self.db.char.LM:GiveLootToML(lootName,lootLink);
-					self.db.char.LM:Reset();
-					self:WriteToLog( 
-						self.LOG_OPTIONS["Event Type"].Options.NE,
-						UnitName("player"),
-						"ML",
-						lootName,
-						"",
-						"",
-						"",
-						"",
-						"",
-						UnitName("player")
-					);
+					self.db.char.LM:GiveLootToML(lootName,lootLink,self.LOG_OPTIONS["Event Type"].Options.NE);
 				end
 			else
 				self:Debug("Item not in Loot Prio. Giving directly to ML",self.DEV.VERBOSE.LOOT);
 				-- give directly to ML
-				self.db.char.LM:GiveLootToML(lootName,lootLink);
-				self.db.char.LM:Reset();
-				self:WriteToLog( 
-					self.LOG_OPTIONS["Event Type"].Options.AL,
-					UnitName("player"),
-					"ML",
-					lootName,
-					"",
-					"",
-					"",
-					"",
-					"",
-					UnitName("player")
-				);
+				self.db.char.LM:GiveLootToML(lootName,lootLink,self.LOG_OPTIONS["Event Type"].Options.AL);
 			end
 		end
 	end
@@ -212,7 +164,7 @@ function SKC:PrintLootDecision(addon_channel,msg,game_channel,sender)
 end
 
 function SKC:PrintLootOutcome(addon_channel,msg,game_channel,sender)
-	-- reads / prints message from LOOT_OUTCOME
+	-- reads / prints message from LOOT_OUTCOME_PRINT
 	local msg_out = self:Read(msg);
 	if msg_out == nil then return end
 	self:Alert(msg_out);

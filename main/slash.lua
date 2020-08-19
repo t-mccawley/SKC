@@ -17,33 +17,47 @@ function SKC:SlashHandler(args)
 		self:ToggleMainGUI();
 	elseif arg1 == "ver" then
         self:PrintVersion();
-    elseif arg1 == "b" then
-        if arg2 == "add" then
-            if self.db.char.LOP:AddBench(arg3) then self.db.char.LOP:ShowBench() end
-        elseif arg2 == "remove" then
-            if self.db.char.LOP:RemoveBench(arg3) then self.db.char.LOP:ShowBench() end
-        elseif arg2 == "clear" then
-            if self.db.char.LOP:ClearBench() then self.db.char.LOP:ShowBench() end
+	elseif arg1 == "b" then
+		if arg2 == "add" or arg2 == "remove" or arg2 == "clear" then
+			if arg2 == "add" then
+				if self.db.char.LOP:AddBench(arg3) then self.db.char.LOP:ShowBench() end
+			elseif arg2 == "remove" then
+				if self.db.char.LOP:RemoveBench(arg3) then self.db.char.LOP:ShowBench() end
+			elseif arg2 == "clear" then
+				if self.db.char.LOP:ClearBench() then self.db.char.LOP:ShowBench() end
+			end
+			self:ManageRaidChanges();
+			self:RefreshStatus();
+			self:SendDB("LOP","GUILD");
         else
             self.db.char.LOP:ShowBench();
-        end
-    elseif arg1 == "lo" then
-        if arg2 == "add" then
-            if self.db.char.GLP:AddLO(arg3) then self.db.char.GLP:ShowLO() end
-        elseif arg2 == "remove" then
-            if self.db.char.GLP:RemoveLO(arg3) then self.db.char.GLP:ShowLO() end
-        elseif arg2 == "clear" then
-            if self.db.char.GLP:ClearLO() then self.db.char.GLP:ShowLO() end
+		end
+	elseif arg1 == "lo" then
+		if arg2 == "add" or arg2 == "remove" or arg2 == "clear" then
+			if arg2 == "add" then
+				if self.db.char.GLP:AddLO(arg3) then self.db.char.GLP:ShowLO() end
+			elseif arg2 == "remove" then
+				if self.db.char.GLP:RemoveLO(arg3) then self.db.char.GLP:ShowLO() end
+			elseif arg2 == "clear" then
+				if self.db.char.GLP:ClearLO() then self.db.char.GLP:ShowLO() end
+			end
+			self:ManageRaidChanges();
+			self:RefreshStatus();
+			self:SendDB("GLP","GUILD");
         else
             self.db.char.GLP:ShowLO();
         end
-    elseif arg1 == "ai" then
-        if arg2 == "add" then
-            if self.db.char.GLP:AddAI(arg3) then self.db.char.GLP:ShowAI() end
-        elseif arg2 == "remove" then
-            if self.db.char.GLP:RemoveAI(arg3) then self.db.char.GLP:ShowAI() end
-        elseif arg2 == "clear" then
-            if self.db.char.GLP:ClearAI() then self.db.char.GLP:ShowAI() end
+	elseif arg1 == "ai" then
+		if arg2 == "add" or arg2 == "remove" or arg2 == "clear" then
+			if arg2 == "add" then
+				if self.db.char.GLP:AddAI(arg3) then self.db.char.GLP:ShowAI() end
+			elseif arg2 == "remove" then
+				if self.db.char.GLP:RemoveAI(arg3) then self.db.char.GLP:ShowAI() end
+			elseif arg2 == "clear" then
+				if self.db.char.GLP:ClearAI() then self.db.char.GLP:ShowAI() end
+			end
+			self:RefreshStatus();
+			self:SendDB("GLP","GUILD");
         else
             self.db.char.GLP:ShowAI();
         end

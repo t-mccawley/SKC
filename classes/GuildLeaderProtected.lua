@@ -77,7 +77,6 @@ function GuildLeaderProtected:AddLO(lo_name)
 	end
 	self.loot_officers[lo_name] = true;
 	self:SetEditTime();
-	SKC:RefreshStatus();
 	return true;
 end
 
@@ -93,7 +92,6 @@ function GuildLeaderProtected:RemoveLO(lo_name)
 	end
 	self.loot_officers[lo_name] = nil;
 	self:SetEditTime();
-	SKC:RefreshStatus();
 	return true;
 end
 
@@ -107,7 +105,6 @@ function GuildLeaderProtected:ClearLO()
 	-- re-add GL
 	self:AddLO(UnitName("player"));
 	self:SetEditTime();
-	SKC:RefreshStatus();
 	return true;
 end
 
@@ -134,7 +131,6 @@ function GuildLeaderProtected:AddAI(ai_acro)
 	end
 	self.active_instances[ai_acro] = true;
 	self:SetEditTime();
-	SKC:RefreshStatus();
 	return true;
 end
 
@@ -145,7 +141,6 @@ function GuildLeaderProtected:RemoveAI(ai_acro)
 	end
 	self.active_instances[ai_acro] = nil;
 	self:SetEditTime();
-	SKC:RefreshStatus();
 	return true;
 end
 
@@ -157,7 +152,6 @@ function GuildLeaderProtected:ClearAI()
 	-- clear data
 	self.active_instances = {};
 	self:SetEditTime();
-	SKC:RefreshStatus();
 	return true;
 end
 

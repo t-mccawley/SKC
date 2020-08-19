@@ -45,7 +45,7 @@ function SKC:OnInitialize()
 	self:RegisterComm(self.CHANNELS.LOOT,"ReadLootMsg");
 	self:RegisterComm(self.CHANNELS.LOOT_DECISION,"ReadLootDecision");
 	self:RegisterComm(self.CHANNELS.LOOT_DECISION_PRINT,"PrintLootDecision");
-	self:RegisterComm(self.CHANNELS.LOOT_OUTCOME,"PrintLootOutcome");
+	self:RegisterComm(self.CHANNELS.LOOT_OUTCOME_PRINT,"PrintLootOutcome");
 	-- register events
 	self:RegisterEvent("GUILD_ROSTER_UPDATE","ManageGuildData");
 	self:RegisterEvent("LOOT_OPENED","OnOpenLoot");

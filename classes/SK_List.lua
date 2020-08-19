@@ -384,7 +384,7 @@ function SK_List:GetBelow(name)
 end
 
 function SK_List:SetLive(name,live_status)
-	-- note, this method does not change the edit timestamp
+	-- NOTE: this method does not change the edit timestamp
 	if not self:Exists(name) then return false end
 	self.list[name].live = live_status;
 	return true;

@@ -30,7 +30,7 @@ end
 function SKC:SyncTick()
 	-- function called periodically to synchronize with guild
 	-- synchronization is performed individually for each db
-	self:Debug("SyncTick",self.DEV.VERBOSE.SYNC_TICK);
+	self:Debug("SyncTick",self.DEV.VERBOSE.SYNC_HIGH);
 	for _,db in ipairs(self.DB_SYNC_ORDER) do
 		-- check if need to increment in progress count
 		if self.SyncPartner[db] ~= nil then

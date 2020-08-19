@@ -46,16 +46,19 @@ function GuildData:length()
 	return count;
 end
 
-function GuildData:GetFirstGuildRoles()
-	-- scan guild data and return first disenchanter and banker
+function GuildData:GetFirstGuildRolesInRaid()
+	-- scan raid and return first disenchanter and banker
 	local disenchanter = nil;
 	local banker = nil;
-	for char_name,data_tmp in pairs(self.data) do
-		if disenchanter == nil and data_tmp["Guild Role"] == SKC.CHARACTER_DATA["Guild Role"].OPTIONS.Disenchanter.val then
-			disenchanter = char_name;
-		end
-		if banker == nil and data_tmp["Guild Role"] == SKC.CHARACTER_DATA["Guild Role"].OPTIONS.Banker.val then
-			banker = char_name;
+	for raidIndex = 1,40 do
+		local char_name = GetRaidRosterInfo(raidIndex);
+			if char_name ~= nil then
+			if disenchanter == nil and self.data[char_name]["Guild Role"] == SKC.CHARACTER_DATA["Guild Role"].OPTIONS.Disenchanter.val then
+				disenchanter = char_name;
+			end
+			if banker == nil and self.data[char_name]["Guild Role"] == SKC.CHARACTER_DATA["Guild Role"].OPTIONS.Banker.val then
+				banker = char_name;
+			end
 		end
 	end
 	return disenchanter, banker;
@@ -148,5 +151,5 @@ end
 function GuildData:GetSpecName(name)
 	-- gets spec value of given name
 	if not self:Exists(name) then return nil end
-	return SPEC_MAP[self:GetSpecIdx(name)];
+	return SKC.SPEC_MAP[self:GetSpecIdx(name)];
 end

@@ -67,8 +67,6 @@ function LootOfficerProtected:AddBench(name)
 	end
 	self.bench[name] = true;
     self:SetEditTime();
-    SKC:UpdateLiveList();
-	SKC:RefreshStatus();
 	return true;
 end
 
@@ -79,8 +77,6 @@ function LootOfficerProtected:RemoveBench(name)
 	end
 	self.bench[name] = nil;
     self:SetEditTime();
-    SKC:UpdateLiveList();
-	SKC:RefreshStatus();
 	return true;
 end
 
@@ -92,8 +88,6 @@ function LootOfficerProtected:ClearBench()
 	-- clear data
 	self.bench = {};
     self:SetEditTime();
-    SKC:UpdateLiveList();
-	SKC:RefreshStatus();
 	return true;
 end
 

@@ -41,6 +41,7 @@ end
 
 local function OnClick_EditDetails(self, button)
 	-- Manages drop down menu that is generated for edit buttons
+	-- Triggers when the edit button is clicked
 	if not self:IsEnabled() then return end
 	-- self.MainGUI.EditFrame:Show();
 	local ID = self:GetID();
@@ -533,7 +534,6 @@ end
 
 function SKC:RefreshStatus()
 	-- refresh variable and update GUI
-	self:Debug("RefreshStatus()",self.DEV.VERBOSE.GUI);
 	self:Activate();
 	if not self:CheckMainGUICreated() then return end
 	self.MainGUI["Status_border"]["Status"].Data:SetText(self.Status.text);
@@ -605,7 +605,7 @@ function SKC:UpdateDetailsButtons(disable)
 			self.MainGUI["Details_border"]["Guild Role"].Btn:Disable();
 			self.MainGUI["Details_border"]["Status"].Btn:Disable();
 		end
-		if self:isGL() or (self:isML() and self:isLO()) then
+		if self:isGL() or self:isMLO() then
 			self.MainGUI["Details_border"].manual_single_sk_btn:Enable();
 			self.MainGUI["Details_border"].manual_full_sk_btn:Enable();
 			self.MainGUI["Details_border"].manual_set_sk_btn:Enable();

@@ -18,21 +18,21 @@ SKC.DEV = {
 	GL_OVRD = "Paskal", -- name of faux GL to override guild leader permissions (local)
     ML_OVRD = nil, -- name of faux ML override master looter permissions (local)
     LOOT_SAFE_MODE = false, -- true if saving loot is immediately rejected
-    LOOT_DIST_DISABLE = true, -- true if loot distribution is disabled
+    LOOT_DIST_DISABLE = false, -- true if loot distribution is disabled
     LOG_ACTIVE_OVRD = false, -- true to force logging
     GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
 		Freznic = true,
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 4,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 0,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
 		SYNC_TICK = 3,
-		RAID = 4,
 		SYNC_LOW = 4,
 		SYNC_HIGH = 5,
+		RAID = 5,
 		GUILD = 5,
 		GUI = 5,
 		MERGE = 5,
@@ -102,7 +102,7 @@ SKC.CHANNELS = { -- channels for inter addon communication (const)
 	LOOT = "xBPE9,-Fjsc+A#rm",
 	LOOT_DECISION = "ksg(Ak2.*/@&+`8Q",
 	LOOT_DECISION_PRINT = "xP@&!9hQxY]1K&C4",
-	LOOT_OUTCOME = "aP@yX9hQf}89K&C4",
+	LOOT_OUTCOME_PRINT = "aP@yX9hQf}89K&C4",
 };
 function OnClick_EditDropDownOption(field,value) -- Must be global
 	-- Triggered when drop down of edit button is selected
@@ -116,7 +116,7 @@ function OnClick_EditDropDownOption(field,value) -- Must be global
 	-- Reset menu toggle
 	SKC.event_states.DropDownID = 0;
 	-- send GuildData to all players
-	-- SyncPushSend("GuildData",CHANNELS.SYNC_PUSH,"GUILD",nil); TODO
+	SKC:SendDB("GD","GUILD");
 	return;
 end
 SKC.CLASSES = { -- wow classes
@@ -668,9 +668,6 @@ SKC.LOOT_DECISION = {
 		"PASS",
 		"SK",
 		"ROLL",
-	},
-	OPTIONS = {
-		ML_WAIT_BUFFER = 5, -- additional time that master looter waits before triggering auto pass (accounts for transmission delays)
 	},
 };
 SKC.PRIO_TIERS = { -- possible prio tiers and associated numerical ordering

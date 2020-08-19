@@ -6,7 +6,7 @@
 -- DEFINITION + CONSTRUCTOR
 --------------------------------------
 LootManager = {
-	loot_master = nil, -- name of the master looter
+	master_looter = nil, -- name of the master looter
 	current_loot = nil, -- Loot object of loot that is being decided on
 	current_loot_timer = nil, -- timer used to track when decision time has expired
 }; 
@@ -16,7 +16,7 @@ function LootManager:new(loot_manager)
 	if loot_manager == nil then
 		-- initalize fresh
 		local obj = {};
-		obj.loot_master = nil;
+		obj.master_looter = nil;
 		obj.current_loot = Loot:new(nil);
 		obj.current_loot_timer = nil;
 		setmetatable(obj,LootManager);
@@ -88,7 +88,7 @@ end
 function LootManager:AddCharacter(char_name)
 	-- add given character as pending loot decision for current_loot
 	-- set player decision to pending
-	self.current_loot.decisions[char_name] = LOOT_DECISION.PENDING;
+	self.current_loot.decisions[char_name] = SKC.LOOT_DECISION.PENDING;
 	-- save player position
 	self.current_loot.sk_pos[char_name] = SKC.db.char[self.current_loot.sk_list]:GetPos(char_name);
 	-- roll for character
@@ -117,11 +117,11 @@ function LootManager:KickOff()
 end
 
 function LootManager:SendLootMsgs()
-	-- send loot message to all elligible characters
+	-- send loot message to all elligible characters on LOOT
 	-- construct message
 	local loot_msg = self.current_loot.lootName..","..
 		self.current_loot.lootLink..","..
-		BoolToStr(self.current_loot.open_roll)..","..	
+		SKC:BoolToStr(self.current_loot.open_roll)..","..	
 		self.current_loot.sk_list;
 	-- scan elligible players and send message
 	for char_name,_ in pairs(self.current_loot.decisions) do
@@ -163,14 +163,16 @@ function LootManager:LootDecisionPending()
 end
 
 function LootManager:ReadLootMsg(msg,sender)
-	-- reads loot message on local client side (not necessarily ML)
-	-- saves item into current loot index and loot_master
-	self.loot_master = StripRealmName(sender);
+	-- reads loot message on LOOT (not necessarily ML)
+	-- saves item as current_loot
+	if msg == "BLANK" then return end
+	self.master_looter = SKC:StripRealmName(sender);
 	local item_name, item_link, open_roll, sk_list = strsplit(",",msg,4);
-	open_roll = BoolOut(open_roll);
+	open_roll = SKC:BoolOut(open_roll);
 	if not SKC:isML() then
-		-- instantiate fresh object
-		self:SetCurrentLootDirect(item_name,item_link,open_roll,sk_list);
+		-- reset loot and add item
+		self:Reset();
+		self.current_loot = Loot:new(nil,item_name,item_link,open_roll,sk_list);
 	else
 		-- current loot already exists, just check that item matches
 		if item_name ~= self.current_loot.lootName then
@@ -178,9 +180,10 @@ function LootManager:ReadLootMsg(msg,sender)
 		end
 	end
 	-- Check that SKC is active for client
-	if not CheckActive() then
+	if not SKC:CheckActive() then
 		-- Automatically pass
-		self:SendLootDecision(LOOT_DECISION.PASS);
+		SKC:Warn("SKC is not active, automatically passing");
+		self:SendLootDecision(SKC.LOOT_DECISION.PASS);
 	else
 		-- start GUI
 		self:StartPersonalLootDecision();
@@ -189,33 +192,60 @@ function LootManager:ReadLootMsg(msg,sender)
 end
 
 function LootManager:SendLootDecision(loot_decision)
-	-- sends loot decision to master looter
-	SKC:Alert("You selected "..LOOT_DECISION.TEXT_MAP[loot_decision].." for "..self:GetCurrentLootLink());
+	-- send decision to master looter
 	local msg = self:GetCurrentLootName()..","..loot_decision;
-	SKC:Send(msg,SKC.CHANNELS.LOOT_DECISION_PRINT,"WHISPER",self.loot_master);
+	SKC:Send(msg,SKC.CHANNELS.LOOT_DECISION,"WHISPER",self.master_looter);
 	return;
+end
+
+function LootManager:ConstructDecisionMsg(char_name,loot_decision)
+	-- constructs + sends decision message and writes to log
+	-- Write to log
+	SKC:WriteToLog(
+		SKC.LOG_OPTIONS["Event Type"].Options.Response,
+		char_name,
+		SKC.LOOT_DECISION.TEXT_MAP[loot_decision],
+		self:GetCurrentLootName(),
+		self:GetCurrentLootSKList(),
+		self.current_loot.prios[char_name],
+		self.current_loot.sk_pos[char_name],
+		"",
+		self.current_loot.rolls[char_name],
+		""
+	);
+	-- send message (if not pass)
+	if loot_decision ~= SKC.LOOT_DECISION.PASS then
+		local decision_msg = SKC:FormatWithClassColor(char_name).." [p"..self.current_loot.prios[char_name].."] wants to ";
+		if loot_decision == SKC.LOOT_DECISION.ROLL then
+			decision_msg = decision_msg.."ROLL ("..self.current_loot.rolls[char_name]..")";
+		elseif loot_decision == SKC.LOOT_DECISION.SK then
+			decision_msg = decision_msg..self:GetCurrentLootSKList().." ("..self.current_loot.sk_pos[char_name]..")";
+		end
+		decision_msg = decision_msg.." for "..self:GetCurrentLootName();
+		SKC:Send(decision_msg,SKC.CHANNELS.LOOT_DECISION_PRINT,"RAID");
+	end
 end
 
 function LootManager:ConstructOutcomeMsg(winner,loot_name,loot_link,DE,send_success,receiver)
 	-- constructs outcome message and writes to log
-	local msg = nil;
-	local winner_with_color = FormatWithClassColor(winner);
-	local event_type_log = LOG_OPTIONS["Event Type"].Options.Winner;
+	local winner_with_color = SKC:FormatWithClassColor(winner);
+	local event_type_log = SKC.LOG_OPTIONS["Event Type"].Options.Winner;
 	local sk_list = self:GetCurrentLootSKList();
 	local winner_decision = self.current_loot.decisions[winner];
-	if winner_decision == LOOT_DECISION.SK then
-		msg = winner_with_color.." won "..loot_link.." by "..sk_list.." (prio: "..self.current_loot.prios[winner]..", position: "..self.current_loot.sk_pos[winner].." --> "..SKC.db.char[sk_list]:GetPos(winner)..")!";
-	elseif winner_decision == LOOT_DECISION.ROLL then
-		msg = winner_with_color.." won "..loot_link.." by ROLL ("..self.current_loot.rolls[winner]..") [p"..self.current_loot.prios[winner].."]!";
+	local msg = winner_with_color.." [p"..self.current_loot.prios[winner].."] won "..loot_link.." by ";
+	if winner_decision == SKC.LOOT_DECISION.SK then
+		msg = msg..sk_list.." ("..self.current_loot.sk_pos[winner].." --> "..SKC.db.char[sk_list]:GetPos(winner)..")!";
+	elseif winner_decision == SKC.LOOT_DECISION.ROLL then
+		msg = msg.."ROLL ("..self.current_loot.rolls[winner]..")!";
 	else
 		-- Everyone passed
 		msg = "Everyone passed on "..loot_link..", awarded to "..winner_with_color;
 		if DE then
 			msg = msg.." to be DISENCHANTED."
-			event_type_log = LOG_OPTIONS["Event Type"].Options.DE;
+			event_type_log = SKC.LOG_OPTIONS["Event Type"].Options.DE;
 		else
 			msg = msg.." for the GUILD BANK."
-			event_type_log = LOG_OPTIONS["Event Type"].Options.GB;
+			event_type_log = SKC.LOG_OPTIONS["Event Type"].Options.GB;
 		end
 	end
 	if not send_success then
@@ -225,7 +255,7 @@ function LootManager:ConstructOutcomeMsg(winner,loot_name,loot_link,DE,send_succ
 	SKC:WriteToLog( 
 		event_type_log,
 		winner,
-		LOOT_DECISION.TEXT_MAP[winner_decision],
+		SKC.LOOT_DECISION.TEXT_MAP[winner_decision],
 		loot_name,
 		sk_list,
 		self.current_loot.prios[winner],
@@ -265,12 +295,27 @@ function LootManager:GiveLoot(loot_name,loot_link,winner)
 	return success;
 end
 
-function LootManager:GiveLootToML(loot_name,loot_link)
+function LootManager:GiveLootToML(loot_name,loot_link,event_type)
+	-- sends loot to ML (and optionally writes to log)
 	if not SKC:isML() then 
 		SKC:Error("Current player is not Master Looter.");
 		return;
 	end
 	self:GiveLoot(loot_name,loot_link,UnitName("player"));
+	if event_type ~= nil then
+		SKC:WriteToLog( 
+			event_type,
+			UnitName("player"),
+			"ML",
+			loot_name,
+			"",
+			"",
+			"",
+			"",
+			"",
+			UnitName("player")
+		);
+	end
 	return;
 end
 
@@ -280,7 +325,7 @@ function LootManager:AwardLoot(loot_idx,winner)
 	local loot_name = self.current_loot.lootName;
 	local loot_link = self.current_loot.lootLink;
 	local DE =SKC.db.char.LP:GetDE(self.current_loot.lootName);
-	local disenchanter, banker = SKC.db.char.GD:GetFirstGuildRoles();
+	local disenchanter, banker = SKC.db.char.GD:GetFirstGuildRolesInRaid();
 	local sk_list = self.current_loot.sk_list;
 	-- check if everyone passed
 	if winner == nil then
@@ -300,7 +345,7 @@ function LootManager:AwardLoot(loot_idx,winner)
 	end
 	-- perform SK (if necessary) and record SK position before SK
 	local prev_sk_pos = SKC.db.char[sk_list]:GetPos(winner);
-	if self.current_loot.decisions[winner] == LOOT_DECISION.SK then
+	if self.current_loot.decisions[winner] == SKC.LOOT_DECISION.SK then
 		-- perform SK on winner (below current live bottom)
 		local sk_success = SKC.db.char[sk_list]:LiveSK(winner);
 		if not sk_success then
@@ -325,21 +370,21 @@ function LootManager:AwardLoot(loot_idx,winner)
 	-- reset loot
 	self:Reset();
 	-- send outcome message
-	SKC:Send(msg,SKC.CHANNELS.LOOT_OUTCOME,"RAID");
+	SKC:Send(outcome_msg,SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
 	return;
 end
 
 function LootManager:DetermineWinner()
 	-- Determines winner for current loot, awards loot to player, and sends alert message to raid
 	local winner = nil;
-	local winner_decision = LOOT_DECISION.PASS;
-	local winner_prio = PRIO_TIERS.PASS;
+	local winner_decision = SKC.LOOT_DECISION.PASS;
+	local winner_prio = SKC.PRIO_TIERS.PASS;
 	local winner_sk_pos = nil;
 	local winner_roll = nil; -- random number [0,1)
 	local sk_list = self.current_loot.sk_list;
 	-- scan decisions and determine winner
 	for char_name,loot_decision in pairs(self.current_loot.decisions) do
-		if loot_decision ~= LOOT_DECISION.PASS then
+		if loot_decision ~= SKC.LOOT_DECISION.PASS then
 			local new_winner = false;
 			local prio_tmp = self.current_loot.prios[char_name];
 			local sk_pos_tmp = self.current_loot.sk_pos[char_name];
@@ -349,12 +394,12 @@ function LootManager:DetermineWinner()
 				new_winner = true;
 			elseif prio_tmp == winner_prio then
 				-- prio tie
-				if loot_decision == LOOT_DECISION.SK then
+				if loot_decision == SKC.LOOT_DECISION.SK then
 					if sk_pos_tmp < winner_sk_pos then
 						-- char_name is higher on SK list, new winner
 						new_winner = true;
 					end
-				elseif loot_decision == LOOT_DECISION.ROLL then
+				elseif loot_decision == SKC.LOOT_DECISION.ROLL then
 					if roll_tmp > winner_roll then
 						-- char_name won roll (tie goes to previous winner)
 						new_winner = true;
@@ -378,30 +423,30 @@ function LootManager:DetermineWinner()
 end
 
 function LootManager:DeterminePrio(char_name)
-	-- determines loot prio (PRIO_TIERS) of given char for current loot
+	-- determines loot prio (SKC.PRIO_TIERS) of given char for current loot
 	-- get character spec
 	local spec = SKC.db.char.GD:GetSpecIdx(char_name);
 	-- start with base prio of item for given spec, then adjust based on character attributes
-	local prio = SKC.db.char.GLP.loot_prio:GetPrio(self.current_loot.lootName,spec);
+	local prio = SKC.db.char.LP:GetPrio(self.current_loot.lootName,spec);
 	local loot_name = self.current_loot.lootName;
-	local reserved = SKC.db.char.GLP.loot_prio:GetReserved(loot_name);
+	local reserved = SKC.db.char.LP:GetReserved(loot_name);
 	local spec_type = "MS";
-	if prio == PRIO_TIERS.SK.Main.OS then spec_type = "OS" end
+	if prio == SKC.PRIO_TIERS.SK.Main.OS then spec_type = "OS" end
 	-- get character main / alt status
 	local status = SKC.db.char.GD:GetData(char_name,"Status"); -- text version (Main or Alt)
 	local loot_decision = self.current_loot.decisions[char_name];
-	if loot_decision == LOOT_DECISION.SK then
+	if loot_decision == SKC.LOOT_DECISION.SK then
 		if reserved and status == "Alt" then
-			prio = prio + PRIO_TIERS.SK.Main.OS; -- increase prio past that for any main
+			prio = prio + SKC.PRIO_TIERS.SK.Main.OS; -- increase prio past that for any main
 		end
-	elseif loot_decision == LOOT_DECISION.ROLL then
+	elseif loot_decision == SKC.LOOT_DECISION.ROLL then
 		if reserved then
-			prio = PRIO_TIERS.ROLL[status][spec_type];
+			prio = SKC.PRIO_TIERS.ROLL[status][spec_type];
 		else
-			prio = PRIO_TIERS.ROLL["Main"][spec_type];
+			prio = SKC.PRIO_TIERS.ROLL["Main"][spec_type];
 		end
-	elseif loot_decision == LOOT_DECISION.PASS then
-		prio = PRIO_TIERS.PASS;
+	elseif loot_decision == SKC.LOOT_DECISION.PASS then
+		prio = SKC.PRIO_TIERS.PASS;
 	end
 	self.current_loot.prios[char_name] = prio;
 	return;
@@ -412,9 +457,9 @@ function LootManager:ForceDistribution()
 	SKC:Warn("Time expired for players to decide on "..self:GetCurrentLootLink());
 	-- set all currently pending players to pass
 	for char_name, decision in pairs(self.current_loot.decisions) do
-		if decision == LOOT_DECISION.PENDING then
+		if decision == SKC.LOOT_DECISION.PENDING then
 			SKC:Warn(char_name.." never responded, automoatically passing");
-			self.current_loot.decisions[char_name] = LOOT_DECISION.PASS;
+			self.current_loot.decisions[char_name] = SKC.LOOT_DECISION.PASS;
 		end
 	end
 	self:DetermineWinner();
@@ -423,24 +468,24 @@ end
 
 local function ForceDistributionWrapper()
 	-- wrapper because i cant figure out how to call object method from NewTimer()
+	SKC:Debug("ForceDistributionWrapper",SKC.DEV.VERBOSE.LOOT);
 	SKC.db.char.LM:ForceDistribution();
 	return;
 end
 
-local function ForceDistributionWithDelay()
+function ForceDistributionWithDelay()
 	-- calls kick off function after configurable amount of delay
-	SKC.db.char.LM.current_loot_timer = C_Timer.NewTimer(SKC.Timers.Loot.MAX_TICKS*SKC.Timers.Loot.TIME_STEP + LOOT_DECISION.OPTIONS.ML_WAIT_BUFFER, ForceDistributionWrapper);
+	SKC.db.char.LM.current_loot_timer = C_Timer.NewTimer(SKC.Timers.Loot.MAX_TICKS*SKC.Timers.Loot.TIME_STEP + 5, ForceDistributionWrapper);
 	SKC:Debug("Starting current loot timer",SKC.DEV.VERBOSE.LOOT);
 	return;
 end
 
 function LootManager:ReadLootDecision(msg,sender)
-	-- read loot decision from loot participant
+	-- read loot decision from loot participant on LOOT_DECISION
 	-- determines if all decisions received and ready to award loot
 	-- MASTER LOOTER ONLY
 	if not SKC:isML() then return end
-	if msg == "BLANK" then return end
-	local char_name = StripRealmName(sender);
+	local char_name = SKC:StripRealmName(sender);
 	local loot_name, loot_decision = strsplit(",",msg,2);
 	loot_decision = tonumber(loot_decision);
 	-- confirm that loot decision is for current loot
@@ -451,33 +496,11 @@ function LootManager:ReadLootDecision(msg,sender)
 	self.current_loot.decisions[char_name] = loot_decision;
 	-- calculate / save prio
 	self:DeterminePrio(char_name);
-	-- Write to log
-	SKC:WriteToLog(
-		LOG_OPTIONS["Event Type"].Options.Response,
-		char_name,
-		LOOT_DECISION.TEXT_MAP[loot_decision],
-		self:GetCurrentLootName(),
-		self:GetCurrentLootSKList(),
-		self.current_loot.prios[char_name],
-		self.current_loot.sk_pos[char_name],
-		"",
-		self.current_loot.rolls[char_name],
-		""
-	);
-	-- print loot decision (if not pass)
-	if loot_decision ~= LOOT_DECISION.PASS then
-		local raid_print_msg = FormatWithClassColor(char_name).." wants to ";
-		if loot_decision == LOOT_DECISION.ROLL then
-			raid_print_msg = raid_print_msg.."ROLL ("..self.current_loot.rolls[char_name]..")";
-		elseif loot_decision == LOOT_DECISION.SK then
-			raid_print_msg = raid_print_msg..self:GetCurrentLootSKList().." ("..self.current_loot.sk_pos[char_name]..")";
-		end
-		raid_print_msg = raid_print_msg.." for "..self:GetCurrentLootName().." [p"..self.current_loot.prios[char_name].."]";
-		SKC:Send(raid_print_msg,SKC.CHANNELS.LOOT_DECISION_PRINT,"RAID");
-	end
+	-- send decision message + write to log
+	self:ConstructDecisionMsg(char_name,loot_decision);
 	-- check if still waiting on another player
 	for char_name_tmp,ld_tmp in pairs(self.current_loot.decisions) do
-		if ld_tmp == LOOT_DECISION.PENDING then 
+		if ld_tmp == SKC.LOOT_DECISION.PENDING then 
 			SKC:Warn("Waiting on: "..char_name_tmp);
 			return;
 		end

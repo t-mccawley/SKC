@@ -302,14 +302,7 @@ function SKC:WriteToLog(
 		self.db.char.LOG[idx][6] = spec_txt;
 	end
 	if status_txt == nil then
-		local status_val = self.db.char.GD:GetData(subject,"Status");
-		local status_str = "";
-		if status_val == 0 then
-			status_str = "Main";
-		elseif status_val == 1 then
-			status_str = "Alt";
-		end
-		self.db.char.LOG[idx][7] = status_str;
+		self.db.char.LOG[idx][7] = self.db.char.GD:GetData(subject,"Status");
 	else
 		self.db.char.LOG[idx][7] = status_txt;
 	end
@@ -401,7 +394,7 @@ function SKC:Send(data,addon_channel,wow_channel,target,callback_fn)
 	local data_ser = self.lib_ser:Serialize(data);
 	local data_comp = self.lib_comp:CompressHuffman(data_ser)
 	local msg = self.lib_enc:Encode(data_comp)
-	self:SendCommMessage(addon_channel,msg,wow_channel,target,nil,callback_fn);
+	self:SendCommMessage(addon_channel,msg,wow_channel,target,"NORMAL",callback_fn);
 	return;
 end
 
