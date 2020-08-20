@@ -3,6 +3,8 @@
 --------------------------------------
 -- Addon definition
 -- TODO:
+-- 1. bug where GL didnt get LO and AI initalized correctly at the start. Need to move those functions into guild roster update function so it just constantly does it
+-- 2. clean out text fields after import? (kinda useful for testing)
 --------------------------------------
 -- ADDON CONSTRUCTOR
 --------------------------------------

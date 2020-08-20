@@ -18,26 +18,9 @@ function SKC:OnInitialize()
 	-- check for fresh installation
 	if self.db.char.INIT_SETUP then
 		self:Alert("Welcome (/skc help)");
-		if self:isGL() then
-			-- add all typical raids to AIs
-			self.db.char.GLP:AddAI("MC");
-			self.db.char.GLP:AddAI("ONY");
-			self.db.char.GLP:AddAI("BWL");
-			self.db.char.GLP:AddAI("ZG");
-			self.db.char.GLP:AddAI("AQ20");
-			self.db.char.GLP:AddAI("AQ40");
-			self.db.char.GLP:AddAI("NAXX");
-		end
 		self.db.char.INIT_SETUP = false;
 	else
 		self:Alert("Welcome Back (/skc)");
-	end
-	-- manage data for guild leader
-	if self:isGL() then
-		-- set required version to current version
-		self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
-		-- add self (GL) to loot officers (bypass in case guild data has not yet intialized)
-		self.db.char.GLP:AddLO(UnitName("player"),true);
 	end
 	-- uncheck live filter because its confusing
 	self.db.char.FS.Live = false;

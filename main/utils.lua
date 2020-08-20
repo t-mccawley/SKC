@@ -488,6 +488,13 @@ function SKC:ManageGuildData()
 	end
 	-- store name of guild leader
 	self.GUILD_LEADER = self:GetGuildLeader();
+	-- manage GLP
+	if self:isGL() then
+		-- set required version to current version
+		self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
+		-- add self (GL) to loot officers (bypass GD Exists check in case guild data has not yet intialized)
+		self.db.char.GLP:AddLO(UnitName("player"),true);
+	end
 	if self.SyncPartner.GD ~= nil then
 		self:Debug("Rejected ManageGuildData, sync in progress",self.DEV.VERBOSE.GUILD);
 		return;
