@@ -105,7 +105,14 @@ function SKC:SlashHandler(args)
     elseif arg1 == "enable" then
         self.db.char.LOP:Enable(true);
     elseif arg1 == "disable" then
-        self.db.char.LOP:Enable(false);
+		self.db.char.LOP:Enable(false);
+	elseif arg1 == "ldt" then
+		local time_in = tonumber(arg2);
+		if time_in == nil then
+			self.db.char.GLP:PrintLootDecisionTime();
+		else
+			self.db.char.GLP:SetLootDecisionTime(tonumber(arg2));
+		end
     else
         self:PrintHelp();
     end
@@ -124,7 +131,8 @@ function SKC:PrintHelp()
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lp <item link>|r - Displays Loot Prio for given item");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc b|r - Displays the Bench");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc ai|r - Displays Active Instances");
-    print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lo|r - Displays Loot Officers");
+	print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lo|r - Displays Loot Officers");
+	print("|cff"..self.THEME.PRINT.HELP.hex.."/skc ldt|r - Displays the current loot decision time");
 	print("|cff"..self.THEME.PRINT.HELP.hex.."/skc export sk|r - Export (CSV) current SK lists");
 	print("|cff"..self.THEME.PRINT.HELP.hex.."/skc export g|r - Export (CSV) current Guild Data");
     print("|cff"..self.THEME.PRINT.HELP.hex.."/skc reset|r - Resets local SKC data and reloads ui");
@@ -147,7 +155,8 @@ function SKC:PrintHelp()
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc ai clear|r - Clears Active Instances");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lo add <name>|r - Adds name to Loot Officers");
         print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lo remove <name>|r - Removes name from Loot Officers");
-        print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lo clear|r - Clears Loot Officers");
+		print("|cff"..self.THEME.PRINT.HELP.hex.."/skc lo clear|r - Clears Loot Officers");
+		print("|cff"..self.THEME.PRINT.HELP.hex.."/skc ldt <#>|r - Changes the loot decision time to # in seconds");
     end
     print(" ");
 end

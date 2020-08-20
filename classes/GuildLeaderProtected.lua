@@ -7,6 +7,7 @@
 --------------------------------------
 GuildLeaderProtected = {
 	addon_ver = nil, -- addon version of the guild leader
+	loot_decision_time = nil, -- time in seconds that the loot GUI will wait before timeout
 	loot_officers = nil, -- map of player names who are loot officers
 	active_instances = nil, -- map of instance acronyms which enable the addon
 	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
@@ -19,6 +20,7 @@ function GuildLeaderProtected:new(glp)
 		-- initalize fresh
 		local obj = {};
 		obj.addon_ver = nil;
+		obj.loot_decision_time = SKC.LOOT_DECISION.DEFAULT_DECISION_TIME;
 		obj.loot_officers = {};
 		obj.active_instances = {};
 		obj.edit_ts_raid = 0;
@@ -69,6 +71,31 @@ function GuildLeaderProtected:GetNumActiveInstances()
 	local cnt = 0;
 	for _,_ in pairs(self.active_instances) do cnt = cnt + 1 end
 	return(cnt);
+end
+
+function GuildLeaderProtected:SetLootDecisionTime(val)
+	if not SKC:isGL() then
+		SKC:Error("You must be guild leader to do that")
+		return false;
+	end
+	-- check for valid input
+	if val == nil or type(val) ~= "number" or val < SKC.LOOT_DECISION.MIN_DECISION_TIME or val > SKC.LOOT_DECISION.MAX_DECISION_TIME then
+		SKC:Error("That is not a valid time, must be a number between "..SKC.LOOT_DECISION.MIN_DECISION_TIME.." and "..SKC.LOOT_DECISION.MAX_DECISION_TIME);
+		return false;
+	end
+	self.loot_decision_time = val;
+	self:SetEditTime();
+	self:PrintLootDecisionTime();
+	return true;
+end
+
+function GuildLeaderProtected:GetLootDecisionTime()
+	return(self.loot_decision_time);
+end
+
+function GuildLeaderProtected:PrintLootDecisionTime()
+	SKC:Print("The loot decision time is "..self.loot_decision_time.."s");
+	return;
 end
 
 function GuildLeaderProtected:AddLO(lo_name,bypass)

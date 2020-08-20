@@ -135,11 +135,7 @@ function SKC:CreateLootGUI()
 	self.LootGUI.TimerBar.Text = self.LootGUI.TimerBar:CreateFontString(nil,"ARTWORK",nil,7)
 	self.LootGUI.TimerBar.Text:SetFontObject("GameFontHighlightSmall")
 	self.LootGUI.TimerBar.Text:SetPoint("CENTER",self.LootGUI.TimerBar,"CENTER")
-	local max_decision_time = self.Timers.Loot.MAX_TICKS*self.Timers.Loot.TIME_STEP;
-	self.LootGUI.TimerBar.Text:SetText(max_decision_time)
-	-- values
-	self.LootGUI.TimerBar:SetMinMaxValues(0,max_decision_time);
-	self.LootGUI.TimerBar:SetValue(0);
+	local max_decision_time = self.db.char.GLP:GetLootDecisionTime();
 
 	-- Make frame closable with esc
 	table.insert(UISpecialFrames, "self.LootGUI");
@@ -200,9 +196,9 @@ end
 local function UpdateLootTimer()
 	-- Handles tick / elapsed time and updates GUI
 	SKC.Timers.Loot.Ticks = SKC.Timers.Loot.Ticks + 1;
-	SKC.Timers.Loot.ElapsedTime = SKC.Timers.Loot.ElapsedTime + SKC.Timers.Loot.TIME_STEP;
+	SKC.Timers.Loot.ElapsedTime = SKC.Timers.Loot.ElapsedTime + 1.0;
 	SKC:UpdateLootTimerGUI();
-	if SKC.Timers.Loot.Ticks >= SKC.Timers.Loot.MAX_TICKS then
+	if SKC.Timers.Loot.ElapsedTime >= SKC.db.char.GLP:GetLootDecisionTime() then
 		-- out of time
 		SKC:CancelLootTimer();
 		-- send loot response
@@ -220,17 +216,19 @@ function SKC:StartLootTimer()
 	-- reset ticks / display time
 	self.Timers.Loot.Ticks = 0;
 	self.Timers.Loot.ElapsedTime = 0;
+	-- update min/max
+	self.LootGUI.TimerBar:SetMinMaxValues(0,self.db.char.GLP:GetLootDecisionTime());
 	-- update GUI
 	self:UpdateLootTimerGUI();
 	-- start new ticker
-	self.Timers.Loot.Ticker = C_Timer.NewTicker(self.Timers.Loot.TIME_STEP,UpdateLootTimer,self.Timers.Loot.MAX_TICKS);
+	self.Timers.Loot.Ticker = C_Timer.NewTicker(1.0,UpdateLootTimer,self.db.char.GLP:GetLootDecisionTime());
 	return;
 end
 
 function SKC:UpdateLootTimerGUI()
 	-- updates loot timer GUI
 	self.LootGUI.TimerBar:SetValue(self.Timers.Loot.ElapsedTime);
-	self.LootGUI.TimerBar.Text:SetText(self.Timers.Loot.MAX_TICKS*self.Timers.Loot.TIME_STEP - self.Timers.Loot.ElapsedTime);
+	self.LootGUI.TimerBar.Text:SetText(self.db.char.GLP:GetLootDecisionTime() - self.Timers.Loot.ElapsedTime);
 	return;
 end
 

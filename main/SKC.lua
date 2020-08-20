@@ -13,17 +13,16 @@ SKC.lib_enc = SKC.lib_comp:GetAddonEncodeTable();
 -- DEV CONTROLS
 --------------------------------------
 SKC.DEV = {
-	GL_OVRD = "Paskal", -- name of faux GL to override guild leader permissions (local)
+	GL_OVRD = nil, -- name of faux GL to override guild leader permissions (local)
     ML_OVRD = nil, -- name of faux ML override master looter permissions (local)
     LOOT_SAFE_MODE = false, -- true if saving loot is immediately rejected
     LOOT_DIST_DISABLE = false, -- true if loot distribution is disabled
     LOG_ACTIVE_OVRD = false, -- true to force logging
     GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
-		Freznic = true,
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 4,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 0,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
@@ -665,6 +664,9 @@ SKC.LOOT_DECISION = {
 		"SK",
 		"ROLL",
 	},
+	MIN_DECISION_TIME = 0,
+	MAX_DECISION_TIME = 120,
+	DEFAULT_DECISION_TIME = 30,
 };
 SKC.PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
 	SK = {
@@ -860,8 +862,6 @@ SKC.Timers = {
 		SyncTicks = {}, -- number of ticks elapsed since sync started
 	}, 
 	Loot = { -- current loot timer
-		MAX_TICKS = 30,
-		TIME_STEP = 1,
 		Ticker = nil,
 		Ticks = 0,
 		ElapsedTime = 0,

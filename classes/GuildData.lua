@@ -52,7 +52,7 @@ function GuildData:GetFirstGuildRolesInRaid()
 	local banker = nil;
 	for raidIndex = 1,40 do
 		local char_name = GetRaidRosterInfo(raidIndex);
-			if char_name ~= nil then
+		if char_name ~= nil and SKC.db.char.GD:Exists(char_name) then
 			if disenchanter == nil and self.data[char_name]["Guild Role"] == SKC.CHARACTER_DATA["Guild Role"].OPTIONS.Disenchanter.val then
 				disenchanter = char_name;
 			end

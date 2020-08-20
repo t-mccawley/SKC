@@ -2,7 +2,6 @@
 -- LootOfficerProtected
 --------------------------------------
 -- Data which is loot officer protected, i.e. this data is only sent by the LOs and reading this data requires confirmation that it is coming from the LOs
--- NOTE: the loot officer must also be current master looter to manage this data
 --------------------------------------
 -- DEFINITION + CONSTRUCTOR
 --------------------------------------

@@ -472,7 +472,7 @@ end
 
 function ForceDistributionWithDelay()
 	-- calls kick off function after configurable amount of delay
-	SKC.db.char.LM.current_loot_timer = C_Timer.NewTimer(SKC.Timers.Loot.MAX_TICKS*SKC.Timers.Loot.TIME_STEP + 5, ForceDistributionWrapper);
+	SKC.db.char.LM.current_loot_timer = C_Timer.NewTimer(SKC.db.char.GLP:GetLootDecisionTime() + 5, ForceDistributionWrapper);
 	SKC:Debug("Starting current loot timer",SKC.DEV.VERBOSE.LOOT);
 	return;
 end
