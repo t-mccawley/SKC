@@ -52,7 +52,7 @@ function SKC:OnInitialize()
 	self:RegisterEvent("GUILD_ROSTER_UPDATE","ManageGuildData");
 	self:RegisterEvent("LOOT_OPENED","OnOpenLoot");
 	self:RegisterEvent("OPEN_MASTER_LOOT_LIST","OnOpenMasterLoot");
-	self:RegisterEvent("PLAYER_ENTERING_WORLD","ManageLogging");
+	self:RegisterEvent("PLAYER_ENTERING_WORLD","RefreshStatus");
 	self:RegisterEvent("GROUP_ROSTER_UPDATE","ManageRaidChanges");
 	self:RegisterEvent("PARTY_LOOT_METHOD_CHANGED","ManageRaidChanges");
 	-- Mark addon loaded

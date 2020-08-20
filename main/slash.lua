@@ -64,7 +64,8 @@ function SKC:SlashHandler(args)
             self.db.char.LP:PrintPrio(itemName);
         elseif arg2 == "init" then
             if not self:isGL() then
-                self:Error("You must be guild leader to do that");
+				self:Error("You must be guild leader to do that");
+					return;
             end
             -- Initializes the loot prio with a CSV pasted into a window
             self:CSVImport("Loot Prio Import"); 
@@ -89,12 +90,14 @@ function SKC:SlashHandler(args)
         end
     elseif (arg1 == "msk" or arg1 == "tsk") and arg2 == "init" then
         if not self:isGL() then
-            self:Error("You must be guild leader to do that");
+			self:Error("You must be guild leader to do that");
+				return;
         end
 		self:CSVImport("SK List Import",string.upper(arg1));
 	elseif arg1 == "g" and arg2 == "init" then
         if not self:isGL() then
-            self:Error("You must be guild leader to do that");
+			self:Error("You must be guild leader to do that");
+			return;
         end
         self:CSVImport("Guild Data Import"); 
     elseif arg1 == "reset" then

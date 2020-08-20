@@ -356,9 +356,7 @@ function SKC:ResetLog()
 end
 
 function SKC:ManageLogging()
-	-- determines if logging should be on or off
-	-- activate SKC / update GUI
-	self:RefreshStatus();
+	-- determines if logging should be on or off based on status
 	-- check if SKC is active, if so start loot logging
 	local prev_log_state = self.db.char.LoggingActive;
 	if self.DEV.LOG_ACTIVE_OVRD or self:CheckActive() then

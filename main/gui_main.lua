@@ -538,6 +538,8 @@ function SKC:RefreshStatus()
 	self.MainGUI["Status_border"]["Loot Prio Items"].Data:SetText(self.db.char.LP:length().." items");
 	self.MainGUI["Status_border"]["Loot Officers"].Data:SetText(self.db.char.GLP:GetNumLootOfficers());
 	self.MainGUI["Status_border"]["Active Instances"].Data:SetText(self.db.char.GLP:GetNumActiveInstances());
+	-- manage loot logging
+	self:ManageLogging();
 	return;
 end
 
