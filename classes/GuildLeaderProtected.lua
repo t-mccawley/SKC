@@ -22,7 +22,13 @@ function GuildLeaderProtected:new(glp)
 		obj.addon_ver = nil;
 		obj.loot_decision_time = SKC.LOOT_DECISION.DEFAULT_DECISION_TIME;
 		obj.loot_officers = {};
-		obj.active_instances = {};
+		obj.active_instances = {
+			ONY = true,
+			MC = true,
+			BWL = true,
+			AQ40 = true,
+			NAXX = true,
+		};
 		obj.edit_ts_raid = 0;
 		obj.edit_ts_generic = 0;
 		setmetatable(obj,GuildLeaderProtected);
