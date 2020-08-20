@@ -15,7 +15,7 @@ SKC.lib_enc = SKC.lib_comp:GetAddonEncodeTable();
 -- DEV CONTROLS
 --------------------------------------
 SKC.DEV = {
-	GL_OVRD = "Mcbankerson", -- name of faux GL to override guild leader permissions (local)
+	GL_OVRD = nil, -- name of faux GL to override guild leader permissions (local)
     ML_OVRD = nil, -- name of faux ML override master looter permissions (local)
     LOOT_SAFE_MODE = false, -- true if saving loot is immediately rejected
     LOOT_DIST_DISABLE = false, -- true if loot distribution is disabled
