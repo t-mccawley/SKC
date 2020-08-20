@@ -1,6 +1,7 @@
 --------------------------------------
 -- INITIALIZE
 --------------------------------------
+-- handles initialization event of addon
 function SKC:OnInitialize()
 	-- initialize saved database
 	self.db = LibStub("AceDB-3.0"):New("SKC_DB",self.DB_DEFAULT);
@@ -18,10 +19,6 @@ function SKC:OnInitialize()
 	if self.db.char.INIT_SETUP then
 		self:Alert("Welcome (/skc help)");
 		if self:isGL() then
-			-- set required version to current version
-			self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
-			-- add self (GL) to loot officers
-			self.db.char.GLP:AddLO(UnitName("player"),true);
 			-- add all typical raids to AIs
 			self.db.char.GLP:AddAI("MC");
 			self.db.char.GLP:AddAI("ONY");
@@ -34,6 +31,13 @@ function SKC:OnInitialize()
 		self.db.char.INIT_SETUP = false;
 	else
 		self:Alert("Welcome Back (/skc)");
+	end
+	-- manage data for guild leader
+	if self:isGL() then
+		-- set required version to current version
+		self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
+		-- add self (GL) to loot officers (bypass in case guild data has not yet intialized)
+		self.db.char.GLP:AddLO(UnitName("player"),true);
 	end
 	-- uncheck live filter because its confusing
 	self.db.char.FS.Live = false;

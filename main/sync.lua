@@ -1,6 +1,10 @@
 --------------------------------------
 -- SYNCHRONIZATION
 --------------------------------------
+-- Methods used for data synchronization between characters
+--------------------------------------
+-- METHODS
+--------------------------------------
 local function SyncTickHandle()
 	-- wrapper for main logic
 	SKC:SyncTick();

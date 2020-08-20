@@ -1,7 +1,7 @@
 --------------------------------------
 -- SK_List
 --------------------------------------
--- A doubly linked list table where each node is referenced by player name. Each node is a SK_Node.
+-- A doubly linked list and hash map where each node is referenced by player name. Each node is a SK_Node.
 --------------------------------------
 -- DEFINITION + CONSTRUCTOR
 --------------------------------------

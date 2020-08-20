@@ -1,6 +1,7 @@
 --------------------------------------
 -- SKC
 --------------------------------------
+-- Addon definition
 -- TODO:
 --------------------------------------
 -- ADDON CONSTRUCTOR
@@ -38,10 +39,8 @@ SKC.DEV = {
 --------------------------------------
 -- CONSTANTS
 --------------------------------------
-SKC.ADDON_VERSION = GetAddOnMetadata("NovaWorldBuffs", "Version");
 SKC.GUILD_LEADER = nil;
 SKC.DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p";
-SKC.DAYS_TO_SECS = 86400;
 SKC.UI_DIMS = {
 	MAIN_WIDTH = 815,
 	MAIN_HEIGHT = 450,

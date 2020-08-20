@@ -24,6 +24,28 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
 - Main SK (MSK): Intended as the primary SK list. More generally can be used for rare items or those that offer a significant upgrade.
 - Tier SK (TSK): Intended for tier set items or those usable by only a speicifc class / role. More generally can be used for common items or those that offer a relatively small upgrade.
 - Click MSK / TSK title in the GUI to cycle between them
+### Automatic Loot Distribution
+- Once SKC is **Active**, loot may be distributed automatically by SKC (see Addon Status Display below).
+- Sequence of automatic loot distribution:
+    1. Master looter of a raid (who is a Loot Officer) opens the master looter GUI for an item
+    2. SKC uses the Loot Prio to determine which characters are elligible for the given loot
+    3. SKC prompts elligible characters with the possible loot decisions (SK, Roll, or Pass)
+    4. Characters have a configurable amount of time (see slash commands) to make a decision
+    5. SKC collects the decisions and arbitrates the winner based on Loot Prio and player decisions
+    6. SKC sends the loot to the winner and performs the SK (if necessary)
+    7. SKC logs the loot distribution event and player responses
+### Loot Prioritization System
+- Loot prio is a configurable input to SKC through a CSV import interface (see slash commands)
+- **Only items in the loot prio system will be automatically distributed by SKC**. All other green or rarer items will be automatically looted by the Master Looter.
+- Loot prio is used to give certain Class / Spec combinations priority over others regardless of their SK positions. Loot prio is only relevant for characters who decide to SK for an item (it is not used for rolling / passing).
+- Schema for loot prio CSV can be found here (TODO)
+- For a given item, a loot prio can be assigned for the 22 predefined Class / Spec combinations found in the Appendix
+- Loot prio can be assigned a value of 1 (highest main spec priority) to 5 (lowest main spec priority) and OS. Omitting a prio value means that Spec / Class is inelligible for the item and will not receive a loot decision GUI.
+- Additionally, can configure the following options for a given item
+    - **SK List** (MSK or TSK): What list the item is associated with
+    - **Reserved** (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters, otherwise there is no distinction betweel Mains and Alts.
+    - **Disenchant** (TRUE or FALSE): In the event that everyone passes on this item, TRUE will cause SKC to give the item to the Disenchanter, otherwise given to Guild Banker
+    - **Open Roll** (TRUE or FALSE): TRUE enables the "Roll" loot decision option to be selected for the given item, otherwise it is disabled.
 ### Guild Roster Management
 - SKC provides an in game GUI for the Guild Leader to manage details about the guild members
 - Some of these details are used in the automatic loot distribution process.
@@ -35,28 +57,6 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
     - **Raid Role** (DPS, Healer, Tank): Automatically determined by Spec. Used for filtering of SK list
     - **Guild Role** (None, Disenchanter, Banker): In the event that everyone passes on a parituclar item, a person with the approriate role would instead be awarded the loot. **Editable by Guild Leader**
     - **Status** (Main or Alt): Main characters receive prio over Alts if the given item is marked as Reserved **Editable by Guild Leader**
-### Loot Prioritization System
-- Loot prio is a configurable input to SKC through a CSV import interface (see slash commands)
-- **Only items in the loot prio system will be automatically distributed by SKC**
-- Loot prio is used to give certain Class / Spec combinations priority over others regardless of their SK positions. Loot prio is only relevant for characters who decide to SK for an item (it is not used for rolling / passing).
-- Schema for loot prio CSV can be found here (TODO)
-- For a given item, a loot prio can be assigned for the 22 predefined Class / Spec combinations found in the Appendix
-- Loot prio can be assigned a value of 1 (highest main spec priority) to 5 (lowest main spec priority) and OS. Omitting a prio value means that Spec / Class is inelligible for the item and will not receive a loot decision GUI.
-- Additionally, can configure the following options for a given item
-    - **SK List** (MSK or TSK): What list the item is associated with
-    - **Reserved** (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters, otherwise there is no distinction betweel Mains and Alts.
-    - **Disenchant** (TRUE or FALSE): In the event that everyone passes on this item, TRUE will cause SKC to give the item to the Disenchanter, otherwise given to Guild Banker
-    - **Open Roll** (TRUE or FALSE): TRUE enables the "Roll" loot decision option to be selected for the given item, otherwise it is disabled.
-### Automatic Loot Distribution
-- Once SKC is **Active**, loot may be distributed automatically by SKC (see Addon Status Display below).
-- Sequence of automatic loot distribution:
-    1. Master looter of a raid (with SKC installed) opens the master looter GUI for an item
-    2. SKC uses the Loot Prio to determine which characters are elligible for the given loot
-    3. SKC prompts elligible characters with the possible loot decisions (SK, Roll, or Pass)
-    4. Characters have **30 seconds** to make a decision
-    5. SKC collects the decisions and arbitrates the winner based on loot prio
-    6. SKC sends the loot to the winner and executes the SK (if necessary)
-    7. SKC logs the loot distribution event
 ### Bench / Live List Support
 - Members of a raid are automatically added to the live list
 - Any automatic SKs performed during the raid will drop the character to a position below that of the bottom of the **live** list.
@@ -113,6 +113,7 @@ Some slash commands are protected by character privelages, see the available sla
 - `/skc b`: Displays the Bench
 - `/skc ai`: Displays Active Instances
 - `/skc lo`: Displays Loot Officers
+- `/skc ldt`: Displays the current loot decision time
 - `/skc export sk`: Export (CSV) current SK lists
 - `/skc export g`: Export (CSV) current Guild Data
 - `/skc reset`: Resets local SKC data and reloads ui
@@ -135,6 +136,7 @@ Some slash commands are protected by character privelages, see the available sla
 - `/skc lo add <name>`: Adds name to Loot Officers
 - `/skc lo remove <name>`: Removes name from Loot Officers
 - `/skc lo clear`: Clears Loot Officers
+- `/skc ldt <#>`: Changes the loot decision time to # in seconds
 
 ## Appendix
 Supported Class / Specs:

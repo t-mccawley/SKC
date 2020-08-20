@@ -108,8 +108,10 @@ function GuildLeaderProtected:AddLO(lo_name,bypass)
 		SKC:Error(lo_name.." is not a valid guild member");
 		return false;
 	end
-	self.loot_officers[lo_name] = true;
-	self:SetEditTime();
+	if not self.loot_officers[lo_name] then
+		self.loot_officers[lo_name] = true;
+		self:SetEditTime();
+	end
 	return true;
 end
 
@@ -162,8 +164,10 @@ function GuildLeaderProtected:AddAI(ai_acro)
 		end
 		return false;
 	end
-	self.active_instances[ai_acro] = true;
-	self:SetEditTime();
+	if not self.active_instances[ai_acro] then
+		self.active_instances[ai_acro] = true;
+		self:SetEditTime();
+	end
 	return true;
 end
 

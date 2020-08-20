@@ -1,6 +1,10 @@
 --------------------------------------
 -- MAIN GUI
 --------------------------------------
+-- Main SKC GUI
+--------------------------------------
+-- EVENT FUNCTIONS
+--------------------------------------
 function OnMouseWheel_ScrollFrame(self,delta)
     -- delta: 1 scroll up, -1 scroll down
 	-- value at top is 0, value at bottom is size of child

@@ -1,6 +1,10 @@
 --------------------------------------
 -- LOOT DECISION
 --------------------------------------
+-- methods relating to the management and distribution of loot
+--------------------------------------
+-- METHODS
+--------------------------------------
 function SKC:LootDistValid()
 	-- returns true if loot distribution is valid
 	-- Check that player is ML
