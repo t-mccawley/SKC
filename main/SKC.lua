@@ -20,11 +20,13 @@ SKC.DEV = {
     LOOT_SAFE_MODE = false, -- true if saving loot is immediately rejected
     LOOT_DIST_DISABLE = false, -- true if loot distribution is disabled
     LOG_ACTIVE_OVRD = false, -- true to force logging
-    GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
+	GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
+		Skc = true,
+		Freznic = true,
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 0,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 4,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
@@ -80,6 +82,7 @@ SKC.UI_DIMS = {
 	CSV_HEIGHT = 300,
 	CSV_EB_WIDTH = 600,
 	CSV_EB_HEIGHT = 200,
+	MAX_SK_CARDS = 500,
 };
 SKC.THEME = { -- general color themes
 	PRINT = {
@@ -883,7 +886,7 @@ end
 --------------------------------------
 SKC.DB_DEFAULT = {
 	global = {
-		isGL = {} -- map of guild name to boolean to note if player has a character which is guild leader
+		localGL = {} -- map of guild name to boolean to note if player has a character which is guild leader
 	},
     char = {
 		INIT_SETUP = true,

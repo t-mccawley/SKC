@@ -88,7 +88,7 @@ end
 function GuildData:SetData(name,field,value)
 	-- assigns data based on field and string name of value
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that")
+		SKC:Error("[SetData] You must be guild leader to do that")
 		return;
 	end
 	if field == "Name" or field == "Class" then
@@ -117,7 +117,7 @@ end
 
 function GuildData:Add(name,class)
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that")
+		SKC:Error("[Add] You must be guild leader to do that")
 		return;
 	end
 	self.data[name] = CharacterData:new(nil,name,class);
@@ -127,7 +127,7 @@ end
 
 function GuildData:Remove(name)
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that")
+		SKC:Error("[Remove] You must be guild leader to do that")
 		return;
 	end
 	if not self:Exists(name) then return end

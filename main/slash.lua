@@ -182,9 +182,9 @@ function SKC:ToggleMainGUI(force_show)
 	return;
 end
 
-function SKC:ResetDBs()
+function SKC:ResetDBs(force)
     -- resets all databases
-    if not self:CheckAddonLoaded() then
+    if not force and not self:CheckAddonLoaded() then
         self:Error("Please wait for the addon to load");
         return;
     end

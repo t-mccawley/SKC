@@ -52,7 +52,7 @@ end
 function GuildLeaderProtected:SetAddonVer(ver)
 	-- sets guild leader addon version
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that")
+		SKC:Error("[SetAddonVer] You must be guild leader to do that")
 		return;
 	end
 	if ver ~= self.addon_ver then
@@ -81,7 +81,7 @@ end
 
 function GuildLeaderProtected:SetLootDecisionTime(val)
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that")
+		SKC:Error("[SetLootDecisionTime] You must be guild leader to do that")
 		return false;
 	end
 	-- check for valid input
@@ -106,7 +106,7 @@ end
 
 function GuildLeaderProtected:AddLO(lo_name,bypass)
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that")
+		SKC:Error("[AddLO] You must be guild leader to do that")
 		return false;
 	end
 	-- check if valid guild member
@@ -123,7 +123,7 @@ end
 
 function GuildLeaderProtected:RemoveLO(lo_name)
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that");
+		SKC:Error("[RemoveLO] You must be guild leader to do that");
 		return false;
 	end
 	-- first check if removal candidate is guild leader (cannot remove)
@@ -138,7 +138,7 @@ end
 
 function GuildLeaderProtected:ClearLO()
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that");
+		SKC:Error("[ClearLO] You must be guild leader to do that");
 		return false;
 	end
 	-- clear data
@@ -159,7 +159,7 @@ end
 
 function GuildLeaderProtected:AddAI(ai_acro)
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that");
+		SKC:Error("[AddAI] You must be guild leader to do that");
 		return false;
 	end
 	-- check if valid acro
@@ -179,7 +179,7 @@ end
 
 function GuildLeaderProtected:RemoveAI(ai_acro)
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that");
+		SKC:Error("[RemoveAI] You must be guild leader to do that");
 		return false;
 	end
 	self.active_instances[ai_acro] = nil;
@@ -189,7 +189,7 @@ end
 
 function GuildLeaderProtected:ClearAI()
 	if not SKC:isGL() then
-		SKC:Error("You must be guild leader to do that");
+		SKC:Error("[ClearAI] You must be guild leader to do that");
 		return false;
 	end
 	-- clear data

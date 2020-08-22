@@ -6,6 +6,7 @@ function SKC:OnInitialize()
 	-- initialize saved database
 	self.db = LibStub("AceDB-3.0"):New("SKC_DB",self.DB_DEFAULT);
 	-- initialize or refresh metatables
+	-- self:ResetDBs(true); -- Used for hard reset in dev
 	self.db.char.GLP = GuildLeaderProtected:new(self.db.char.GLP);
 	self.db.char.GD = GuildData:new(self.db.char.GD);
 	self.db.char.LOP = LootOfficerProtected:new(self.db.char.LOP);

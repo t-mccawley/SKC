@@ -346,7 +346,7 @@ function SKC:CreateMainGUI()
 	-- Create SK cards
 	self.MainGUI.sk_list.NumberFrame = {};
 	self.MainGUI.sk_list.NameFrame = {};
-	for idx = 1, 500 do -- use hard coded max guild size of 500
+	for idx = 1, self.UI_DIMS.MAX_SK_CARDS do
 		-- Create number frames
 		self.MainGUI.sk_list.NumberFrame[idx] = CreateFrame("Frame",nil,self.MainGUI.sk_list.SK_List_SF,"InsetFrameTemplate");
 		self.MainGUI.sk_list.NumberFrame[idx]:SetSize(30,self.UI_DIMS.SK_CARD_HEIGHT);
@@ -471,7 +471,7 @@ function SKC:HideSKCards()
 	-- Hide all cards
 	if not self:CheckMainGUICreated() then return end
 	local sk_list = self.MainGUI["sk_list_border"].Title.Text:GetText();
-	for idx = 1, self.db.char.GD:length() do
+	for idx = 1, self.UI_DIMS.MAX_SK_CARDS do
 		self.MainGUI.sk_list.NumberFrame[idx]:Hide();
 		self.MainGUI.sk_list.NameFrame[idx]:Hide();
 	end

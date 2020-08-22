@@ -114,7 +114,8 @@ end
 function SKC:isGL(name)
 	-- Check if name is guild leader
 	if name == nil then
-		return(UnitName("player") == self.DEV.GL_OVRD or IsGuildLeader());
+		local guildName = GetGuildInfo("player");
+		return(UnitName("player") == self.DEV.GL_OVRD or (self.db.global.localGL[guildName] ~= nil and self.db.global.localGL[guildName]));
 	else
 		return(self.GUILD_LEADER == name)
 	end
@@ -241,7 +242,7 @@ function SKC:CheckSKinGuildData(sk_list,sk_list_data)
 	end
 	for pos,name in ipairs(sk_list_data) do
 		if not self.db.char.GD:Exists(name) then
-			self:Warn(name.." in "..sk_list.." but not in GuildData");
+			self:Debug(name.." in "..sk_list.." but not in GuildData",self.DEV.VERBOSE.SYNC_LOW);
 			return false;
 		end
 	end
@@ -471,6 +472,21 @@ function SKC:GetSpecClassColor(spec_class)
 	return nil,nil,nil,nil;
 end
 
+function SKC:ManageLocalGuildLeader()
+	-- records locally if player is a guild leader of the current guild
+	if not IsInGuild() then return end
+	local guildName = GetGuildInfo("player");
+	if guildName == nil then return end
+	if UnitName("player") == self.DEV.GL_OVRD or IsGuildLeader() then
+		-- guild leader
+		self.db.global.localGL[guildName] = true;
+	elseif self.db.global.localGL[guildName] == nil then
+		-- not yet marked and not GL
+		self.db.global.localGL[guildName] = false;
+	end
+	return;
+end
+
 function SKC:ManageGuildData()
 	-- synchronize GuildData with guild roster
 	if not self:CheckAddonLoaded() then
@@ -481,6 +497,8 @@ function SKC:ManageGuildData()
 		self:Debug("Rejected ManageGuildData, not in guild",self.DEV.VERBOSE.GUILD);
 		return;
 	end
+	-- save local confirmation that player is a guild leader of this guild
+	self:ManageLocalGuildLeader();
 	-- store name of guild leader
 	self.GUILD_LEADER = self:GetGuildLeader();
 	-- manage GLP
@@ -490,11 +508,6 @@ function SKC:ManageGuildData()
 		-- add self (GL) to loot officers (bypass GD Exists check in case guild data has not yet intialized)
 		self.db.char.GLP:AddLO(UnitName("player"),true);
 	end
-	-- TODO make this a function and ensure if it goes true, it cant go back to false
-	-- save local confirmation that player is a guild leader of this guild
-	local guildName = GetGuildInfo("player");
-	self.db.global.isGL[guildName] = true;
-	--
 	if GetNumGuildMembers() <= 1 then
 		-- guild is only one person, no members to fetch data for
 		self:Debug("Rejected ManageGuildData, no guild members",self.DEV.VERBOSE.GUILD);

@@ -28,7 +28,7 @@ function SK_List:new(sk_list)
 	else
 		-- set metatable of existing table and all sub tables
 		for key,value in pairs(sk_list.list) do
-			sk_list.list[key] = SK_Node:new(sk_list.list[key],nil,nil);
+			sk_list.list[key] = SK_Node:new(sk_list.list[key]);
 		end
 		setmetatable(sk_list,SK_List);
 		return sk_list;
@@ -68,10 +68,10 @@ function SK_List:CheckIfFucked()
 			SKC:Error("Your sk list is fucked. Nil bottom.");
 			return true;
 		elseif self.list[self.bottom] == nil then
-			SKC:Error("Your sk list is fucked. Bottom node not in list.");
+			SKC:Error("Your sk list is fucked. Bottom node ["..self.bottom.."] is not in list.");
 			return true;
 		elseif self.list[self.bottom].below ~= nil then
-			SKC:Error("Your sk list is fucked. Below bottom is not nil.");
+			SKC:Error("Your sk list is fucked. Below bottom node ["..self.bottom.."] is not nil.");
 			return true;
 		end
 		return false;
@@ -129,12 +129,10 @@ function SK_List:ReturnList()
 	if self:CheckIfFucked() then return({}) end;
 	-- Scan list in order
 	local list_out = {};
-	local idx = 1;
 	local current_name = self.top;
 	while (current_name ~= nil) do
-		list_out[idx] = current_name;
+		list_out[self.list[current_name].abs_pos] = current_name;
 		current_name = self.list[current_name].below;
-		idx = idx + 1;
 	end
 	return(list_out);
 end
@@ -145,13 +143,13 @@ function SK_List:PrintNode(name)
 	elseif self.top == nil then
 		SKC:Alert("EMPTY");
 	elseif self.top == name and self.top == self.bottom then
-		SKC:Alert(name);
+		SKC:Alert("TOP-->["..self.list[name].abs_pos.."] "..name.."-->BOTTOM");
 	elseif self.top == name then
-		SKC:Alert("TOP-->"..name.."-->"..self.list[name].below);
+		SKC:Alert("TOP-->["..self.list[name].abs_pos.."] "..name.."-->"..self.list[name].below);
 	elseif self.bottom == name then
-		SKC:Alert(self.list[name].above.."-->"..name.."-->BOTTOM");
+		SKC:Alert(self.list[name].above.."-->["..self.list[name].abs_pos.."] "..name.."-->BOTTOM");
 	else
-		SKC:Alert(self.list[name].above.."-->"..name.."-->"..self.list[name].below);
+		SKC:Alert(self.list[name].above.."-->["..self.list[name].abs_pos.."] "..name.."-->"..self.list[name].below);
 	end
 	return;
 end
@@ -299,8 +297,10 @@ function SK_List:Remove(name)
 	self.list[name] = nil;
 	-- update new bottom node
 	self.list[bot].below = nil;
-	self.list.bottom = bot;
-	-- no need to update position because PushBack first
+	self.bottom = bot;
+	-- adjust position
+	self:ResetPos();
+	self:SetEditTime();
 	return;
 end
 
