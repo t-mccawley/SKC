@@ -481,11 +481,6 @@ function SKC:ManageGuildData()
 		self:Debug("Rejected ManageGuildData, not in guild",self.DEV.VERBOSE.GUILD);
 		return;
 	end
-	if GetNumGuildMembers() <= 1 then
-		-- guild is only one person, no members to fetch data for
-		self:Debug("Rejected ManageGuildData, no guild members",self.DEV.VERBOSE.GUILD);
-		return;
-	end
 	-- store name of guild leader
 	self.GUILD_LEADER = self:GetGuildLeader();
 	-- manage GLP
@@ -494,6 +489,16 @@ function SKC:ManageGuildData()
 		self.db.char.GLP:SetAddonVer(self.db.char.ADDON_VERSION);
 		-- add self (GL) to loot officers (bypass GD Exists check in case guild data has not yet intialized)
 		self.db.char.GLP:AddLO(UnitName("player"),true);
+	end
+	-- TODO make this a function and ensure if it goes true, it cant go back to false
+	-- save local confirmation that player is a guild leader of this guild
+	local guildName = GetGuildInfo("player");
+	self.db.global.isGL[guildName] = true;
+	--
+	if GetNumGuildMembers() <= 1 then
+		-- guild is only one person, no members to fetch data for
+		self:Debug("Rejected ManageGuildData, no guild members",self.DEV.VERBOSE.GUILD);
+		return;
 	end
 	if self.SyncPartner.GD ~= nil then
 		self:Debug("Rejected ManageGuildData, sync in progress",self.DEV.VERBOSE.GUILD);

@@ -882,6 +882,9 @@ end
 -- DB INIT
 --------------------------------------
 SKC.DB_DEFAULT = {
+	global = {
+		isGL = {} -- map of guild name to boolean to note if player has a character which is guild leader
+	},
     char = {
 		INIT_SETUP = true,
 		ADDON_VERSION = GetAddOnMetadata("SKC","Version"),
