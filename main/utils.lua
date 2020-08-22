@@ -195,7 +195,7 @@ end
 
 function SKC:CheckIfSyncInProgress()
 	-- returns true if addon is currently syncing
-	return((self:GetSyncStatus()).val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val);
+	return((self:GetSyncStatus()).val ~= self.SYNC_STATUS_ENUM.COMPLETE.val);
 end
 
 function SKC:GetOnlineSyncables()
@@ -252,16 +252,6 @@ end
 function SKC:CheckActiveInstance()
 	if not self:CheckDatabasePopulated("GLP") then return false end
 	return(self.db.char.GLP:IsActiveInstance());
-end
-
-function SKC:CheckSyncInProgress()
-	-- scan all databases and return true if sync is in progress
-	for _,db in ipairs(self.DB_SYNC_ORDER) do
-		if self.SyncStatus[db].val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val then
-			return(true);
-		end
-	end
-	return(false);
 end
 
 function SKC:CheckIfEffectivelyNil(str)
@@ -404,12 +394,12 @@ end
 --------------------------------------
 -- COMMUNICATION
 --------------------------------------
-function SKC:Send(data,addon_channel,wow_channel,target,callback_fn)
+function SKC:Send(data,addon_channel,wow_channel,target,callback_fn,callback_fn_args)
 	-- serialize, compress, and send an addon message
 	local data_ser = self.lib_ser:Serialize(data);
 	local data_comp = self.lib_comp:CompressHuffman(data_ser)
 	local msg = self.lib_enc:Encode(data_comp)
-	self:SendCommMessage(addon_channel,msg,wow_channel,target,"NORMAL",callback_fn);
+	self:SendCommMessage(addon_channel,msg,wow_channel,target,"NORMAL",callback_fn,callback_fn_args);
 	return;
 end
 
@@ -438,11 +428,20 @@ end
 
 function SKC:GetSyncStatus()
 	-- scan all databases and return sync status
+	-- first check if any database currently sending
 	for _,db in ipairs(self.DB_SYNC_ORDER) do
-		if self.SyncStatus[db].val == self.SYNC_STATUS_ENUM.IN_PROGRESS.val then
-			return(self.SYNC_STATUS_ENUM.IN_PROGRESS);
+		for k,v in pairs(self.DBSendQueued[db]) do
+			-- at least one send is still enqueued
+			return(self.SYNC_STATUS_ENUM.SENDING);
 		end
 	end
+	-- next check if any database currently reading
+	for _,db in ipairs(self.DB_SYNC_ORDER) do
+		if self.ReadingDB[db] then
+			return(self.SYNC_STATUS_ENUM.READING);
+		end
+	end
+	-- all complete
 	return(self.SYNC_STATUS_ENUM.COMPLETE);
 end
 --------------------------------------

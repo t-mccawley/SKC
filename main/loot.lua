@@ -89,7 +89,7 @@ function SKC:OnOpenMasterLoot()
 	if not self:LootDistValid() then return end
 
 	-- Check if sync in progress
-	if self:CheckSyncInProgress() then
+	if self:CheckIfSyncInProgress() then
 		self:Alert("Synchronization in progress. Loot distribution will start soon...");
 	end
 	

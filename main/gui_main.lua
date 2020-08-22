@@ -539,7 +539,7 @@ function SKC:RefreshStatus()
 	local sync_status = self:GetSyncStatus();
 	self.MainGUI["Status_border"]["Synchronization"].Data:SetText(sync_status.text);
 	self.MainGUI["Status_border"]["Synchronization"].Data:SetTextColor(unpack(sync_status.color));
-	self.MainGUI["Status_border"]["Loot Prio Items"].Data:SetText(self.db.char.LP:length().." items");
+	self.MainGUI["Status_border"]["Loot Prio Items"].Data:SetText(self.db.char.LP:length());
 	self.MainGUI["Status_border"]["Loot Officers"].Data:SetText(self.db.char.GLP:GetNumLootOfficers());
 	self.MainGUI["Status_border"]["Active Instances"].Data:SetText(self.db.char.GLP:GetNumActiveInstances());
 	-- manage loot logging

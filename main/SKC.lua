@@ -825,9 +825,14 @@ SKC.SYNC_STATUS_ENUM = {
 		text = "Complete",
 		color = {0,1,0},
 	},
-	IN_PROGRESS = {
+	SENDING = {
 		val = 1,
-		text = "In Progress",
+		text = "Sending",
+		color = {1,0,0},
+	},
+	READING = {
+		val = 2,
+		text = "Reading",
 		color = {1,0,0},
 	},
 };
@@ -843,7 +848,8 @@ SKC.DB_SYNC_ORDER = { -- order in which databases are synchronized
 -- VARIABLES
 --------------------------------------
 SKC.Status = SKC.STATUS_ENUM.INACTIVE_GL; -- SKC status state enumeration
-SKC.SyncStatus = {}; -- Synchronization status state enumeration (per database)
+SKC.ReadingDB = {}; -- Synchronization reading status state boolean (per database)
+SKC.DBSendQueued = {}; -- map of database to table. Inner table is map from sender name to boolean which indicates that database was enqueued to be sent, but has not yet been sent (prevents repeated enqueue)
 SKC.SyncPartner = {}; -- name of player who we are currently expecting a sync from. nil if no sync expected
 SKC.SyncCandidate = {}; -- map of db to name of candidate sync partner
 -- local tmp_sync_var = {}; -- temporary variable used to hold incoming data when synchronizing
@@ -873,7 +879,8 @@ SKC.Timers = {
 SKC.CSVGUI = {}; -- table of CSV frame objects
 -- initialize all sync state variables
 for _,db in ipairs(SKC.DB_SYNC_ORDER) do
-	SKC.SyncStatus[db] = SKC.SYNC_STATUS_ENUM.COMPLETE;
+	SKC.ReadingDB[db] = false;
+	SKC.DBSendQueued[db] = {};
 	SKC.SyncPartner[db] = nil;
 	SKC.Timers.Sync.SyncTicks[db] = 0;
 	SKC.SyncCandidate[db] = {};
