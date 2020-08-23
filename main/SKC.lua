@@ -848,8 +848,8 @@ SKC.DB_SYNC_ORDER = { -- order in which databases are synchronized
 -- VARIABLES
 --------------------------------------
 SKC.Status = SKC.STATUS_ENUM.INACTIVE_GL; -- SKC status state enumeration
-SKC.ReadingDB = {}; -- Synchronization reading status state boolean (per database)
-SKC.DBSendQueued = {}; -- map of database to table. Inner table is map from sender name to boolean which indicates that database was enqueued to be sent, but has not yet been sent (prevents repeated enqueue)
+SKC.ReadStatus = {}; -- Synchronization reading status state (per database). true = reading, false = complete
+SKC.SendStatus = {}; -- Synchronization reading status state (per database). 0.0 = send is 0% complete, 1.0 = send is 100% complete
 SKC.SyncPartner = {}; -- name of player who we are currently expecting a sync from. nil if no sync expected
 SKC.SyncCandidate = {}; -- map of db to name of candidate sync partner
 -- local tmp_sync_var = {}; -- temporary variable used to hold incoming data when synchronizing
@@ -866,7 +866,7 @@ SKC.Timers = {
 	Sync = {-- ticker that requests sync each iteration until over or cancelled
 		INIT_DELAY = 15, -- seconds of delay upon login before ticker starts
 		TIME_STEP = 1, -- number of seconds between each tick
-		SYNC_TIMEOUT_TICKS = 30, -- number of ticks before an initiated sync will timeout
+		SYNC_TIMEOUT_TICKS = 60, -- number of ticks before an initiated sync will timeout
 		Ticker = nil,
 		SyncTicks = {}, -- number of ticks elapsed since sync started
 	}, 
@@ -879,8 +879,8 @@ SKC.Timers = {
 SKC.CSVGUI = {}; -- table of CSV frame objects
 -- initialize all sync state variables
 for _,db in ipairs(SKC.DB_SYNC_ORDER) do
-	SKC.ReadingDB[db] = false;
-	SKC.DBSendQueued[db] = {};
+	SKC.ReadStatus[db] = false;
+	SKC.SendStatus[db] = 1.0;
 	SKC.SyncPartner[db] = nil;
 	SKC.Timers.Sync.SyncTicks[db] = 0;
 	SKC.SyncCandidate[db] = {};

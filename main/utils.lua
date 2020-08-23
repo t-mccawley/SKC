@@ -428,16 +428,17 @@ end
 
 function SKC:GetSyncStatus()
 	-- scan all databases and return sync status
+	-- if sending, update text
 	-- first check if any database currently sending
 	for _,db in ipairs(self.DB_SYNC_ORDER) do
-		for k,v in pairs(self.DBSendQueued[db]) do
-			-- at least one send is still enqueued
+		if self.SendStatus[db] < 1.0 then
+			self.SYNC_STATUS_ENUM.SENDING.text = "Sending ("..math.floor(self.SendStatus[db]*100).."%)";
 			return(self.SYNC_STATUS_ENUM.SENDING);
 		end
 	end
 	-- next check if any database currently reading
 	for _,db in ipairs(self.DB_SYNC_ORDER) do
-		if self.ReadingDB[db] then
+		if self.ReadStatus[db] then
 			return(self.SYNC_STATUS_ENUM.READING);
 		end
 	end

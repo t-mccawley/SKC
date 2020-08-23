@@ -29,9 +29,11 @@ function SKC:SyncTick()
 	-- function called periodically to synchronize with guild
 	-- synchronization is performed individually for each db
 	self:Debug("SyncTick",self.DEV.VERBOSE.SYNC_HIGH);
+	-- request updated guild roster
+	GuildRoster();
 	for _,db in ipairs(self.DB_SYNC_ORDER) do
 		-- check if need to increment in ticker for in progress read
-		if self.ReadingDB[db] then
+		if self.ReadStatus[db] then
 			-- reading, increment counter
 			self.Timers.Sync.SyncTicks[db] = self.Timers.Sync.SyncTicks[db] + 1;
 			self:Debug("IN PROGRESS ["..self.Timers.Sync.SyncTicks[db]*self.Timers.Sync.TIME_STEP.."]: "..db.." , "..self.SyncPartner[db],self.DEV.VERBOSE.SYNC_TICK);
@@ -43,7 +45,7 @@ function SKC:SyncTick()
 			self:ResetRead(db);
 		end
 		-- check if ready for new sync (not currently reading / waiting for read)
-		if not self.ReadingDB[db] then
+		if not self.ReadStatus[db] then
 			-- get sync partner for current db
 			self:DetermineSyncPartner(db);
 			if self.SyncPartner[db] ~= nil and self:CheckIfGuildMemberOnline(self.SyncPartner[db])  then
@@ -52,9 +54,9 @@ function SKC:SyncTick()
 				self:Debug("REQUEST: "..db.." , "..self.SyncPartner[db],self.DEV.VERBOSE.SYNC_TICK);
 				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db;
 				self:Send(msg,self.CHANNELS.SYNC_RQST,"WHISPER",self.SyncPartner[db]);
-				self.ReadingDB[db] = true;
+				self.ReadStatus[db] = true;
 			end
-			if not self.ReadingDB[db] and self:isLO() then
+			if not self.ReadStatus[db] and self:isLO() then
 				-- not currently reading and loot officer --> send out sync check for guild (i.e. does anyone want this data?)
 				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db..","..self:NilToStr(self.db.char[db].edit_ts_raid)..","..self:NilToStr(self.db.char[db].edit_ts_generic);
 				self:Send(msg,self.CHANNELS.SYNC_CHECK,"GUILD");
@@ -68,7 +70,7 @@ end
 
 function SKC:ResetRead(db)
 	-- resets from the reading state to prepare for new requests
-	self.ReadingDB[db] = false;
+	self.ReadStatus[db] = false;
 	self.Timers.Sync.SyncTicks[db] = 0;
 	self.SyncPartner[db] = nil;
 	-- initialize sync candidate with self data
@@ -118,7 +120,7 @@ function SKC:ReadSyncCheck(addon_channel,msg,game_channel,sender)
 		return;
 	end
 	-- check that not already reading this database
-	if self.ReadingDB[db] then
+	if self.ReadStatus[db] then
 		self:Debug("Reject ReadSyncCheck, already reading "..db_name,self.DEV.VERBOSE.SYNC_HIGH);
 		return;
 	end
@@ -182,13 +184,13 @@ function SKC:ReadSyncRqst(addon_channel,msg,game_channel,sender)
 		return;
 	end
 	-- check that not already reading this database
-	if self.ReadingDB[db_name] then
+	if self.ReadStatus[db_name] then
 		self:Debug("Reject ReadSyncRqst, already reading "..db_name,self.DEV.VERBOSE.SYNC_LOW);
 		return;
 	end
-	-- check that havent already pushed this db to this sender to queue (but still waiting for actual send)
-	if self.DBSendQueued[db_name][sender] then
-		self:Debug("Reject ReadSyncRqst, already enqueued "..db_name.." for "..sender,self.DEV.VERBOSE.SYNC_LOW);
+	-- check if still sending this database
+	if self.SendStatus[db_name] < 1.0 then
+		self:Debug("Reject ReadSyncRqst, already sending "..db_name,self.DEV.VERBOSE.SYNC_LOW);
 		return;
 	end
 	-- confirm that sender is online
@@ -202,8 +204,8 @@ function SKC:ReadSyncRqst(addon_channel,msg,game_channel,sender)
 		return;
 	end
 	-- send requested database
-	self:Debug("Sending "..db_name.." to "..sender,self.DEV.VERBOSE.SYNC_LOW);
-	self:SendDB(db_name,"WHISPER",sender);
+	self:Debug("Sending "..db_name.." in response to "..sender,self.DEV.VERBOSE.SYNC_LOW);
+	self:SendDB(db_name);
 	return;
 end
 
@@ -232,7 +234,8 @@ function SKC:ReadSyncPush(addon_channel,msg,game_channel,sender)
 		-- GLP is GL permission to send only
 		if not self:isGL(sender) then
 			self:Debug("Reject ReadSyncCheck for GLP, "..sender.." is not the Guild Leader",self.DEV.VERBOSE.SYNC_LOW);
-		return;
+			return;
+		end
 	else
 		-- all other databases are LO permission to send only
 		if not self:isLO(sender) then
@@ -244,7 +247,7 @@ function SKC:ReadSyncPush(addon_channel,msg,game_channel,sender)
 	self:CopyDB(db_name,payload.data)
 	self:Debug("Copied "..db_name.." from "..sender,self.DEV.VERBOSE.SYNC_LOW);
 	-- mark sync as completed
-	self.ReadingDB[db_name] = false;
+	self:ResetRead(db_name);
 	-- refresh GUI
 	self:PopulateData();
 	return;
@@ -274,21 +277,25 @@ function SKC:CopyDB(db_name,data)
 	return;
 end
 
-function SKC:SendDB(db_name,game_channel,target)
+function SKC:SendDB(db_name)
 	-- package and send table to target
 	local payload = {
 		db_name = db_name,
 		addon_ver = self.db.char.ADDON_VERSION,
 		data = self.db.char[db_name],
 	};
-	-- self.DBSendQueued[db_name][target] = true;
-	-- SKC.DBSendQueued[db_name][target] = nil
-	self:Send(payload,self.CHANNELS.SYNC_PUSH,game_channel,target,
+	self.SendStatus[db_name] = 0.0;
+	self:Send(payload,self.CHANNELS.SYNC_PUSH,"GUILD",nil,
 		function(arg,curr_bytes,tot_bytes)
-			-- save the current progress [0,1] for this db to this target
-			SKC:Print("DATABASE SENT CALLBACK");
-			SKC:Print("curr_bytes: "..curr_bytes);
-			SKC:Print("tot_bytes: "..tot_bytes);
+			-- save the current progress [0,1] for this db
+			if curr_bytes == tot_bytes then
+				SKC.SendStatus[db_name] = 1.0;
+				self:Debug("Sent "..db_name,self.DEV.VERBOSE.SYNC_LOW);
+			else
+				SKC.SendStatus[db_name] = curr_bytes/tot_bytes;
+			end
+			-- update gui
+			SKC:RefreshStatus();
 		end);
 	return;
 end
