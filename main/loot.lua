@@ -34,10 +34,44 @@ end
 local function OnClick_LootItem(self,button,down)
 	-- fires on click of valid item
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
+	-- Check that player is ML
+	if not self:isML() then 
+		return;
+	end
+	
+	if LOOT_SAFE_MODE then 
+		return;
+	end
+
 	local lootIndex = self.Index;
 	SKC:Debug("OnClick_LootItem for ID "..lootIndex,SKC.DEV.VERBOSE.LOOT);
-	-- Check validity
-	if not SKC:LootDistValid() then return end
+
+	-- check if item was already awarded
+	if self.Awarded then
+		-- ML loot and return
+		for i_char = 1,40 do
+			if GetMasterLootCandidate(lootIndex, i_char) == UnitName("player") then
+				if SKC.DEV.LOOT_DIST_DISABLE then
+					SKC:Alert("GiveLoot success! (FAKE)");
+				else 
+					GiveMasterLoot(lootIndex,i_char);
+				end
+			end
+		end
+		return;
+	end
+
+	-- Update SKC Active flag
+	self:RefreshStatus();
+
+	if not self:CheckActive() then
+		return;
+	end
+
+	-- Check if loot decision already pending
+	if self.db.char.LM:LootDecisionPending() then 
+		return;
+	end
 
 	-- Check if read in progress
 	local sync_status = SKC:GetSyncStatus()
@@ -133,9 +167,10 @@ function SKC:OnOpenLoot()
 					local msg = "SKC: ["..loot_cnt.."] "..lootLink;
 					SendChatMessage(msg,"RAID");
 					loot_cnt = loot_cnt + 1;
-					-- set onclick event
-					SKC:Print("Binding function to i_loot: "..i_loot)
+					-- store item metadata
 					_G["LootButton"..i_loot].Index = i_loot;
+					_G["LootButton"..i_loot].Awarded = false;
+					-- set onclick event
 					_G["LootButton"..i_loot]:SetScript("OnClick", OnClick_LootItem);
 				else
 					self:Debug("No elligible characters in raid. Giving directly to ML",self.DEV.VERBOSE.LOOT);

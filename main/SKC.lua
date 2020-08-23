@@ -715,13 +715,32 @@ SKC.LOG_OPTIONS = {
 	["Event Type"] = {
 		Text = "Event Type",
 		Options = {
-			Winner = "Winner",
-			ManEdit = "Manual Edit",
-			Response = "Response",
+			Decision = "Decision",
+			Outcome = "Outcome",
+			SK_Change = "SK Change",
+			LD = "Loot Distribution",
+		},
+	},
+	["Event Details"] = {
+		Text = "Event Details",
+		Options = {
+			-- Decision
+			-- Outcome
+			WSK = "Winner by SK",
+			WR = "Winner by ROLL",
 			DE = "Disenchant",
 			GB = "Guild Bank",
+			NLP = "Not in Loot Prio"
 			NE = "None Elligible",
+			-- SK Change
+			AutoSK = "Auto SK",
+			ManSetSK = "Manual Set SK",
+			ManFullSK = "Manual Full SK",
+			ManSingleSK = "Manual Single SK",
+			-- Loot Distribution
 			AL = "Auto Loot",
+			WL = "Winner Loot",
+			BL = "Backup Loot"
 		},
 	},
 	["Subject"] = {
@@ -735,9 +754,6 @@ SKC.LOG_OPTIONS = {
 	},
 	["Status"] = {
 		Text = "Status",
-	},
-	["Action"] = {
-		Text = "Action",
 	},
 	["Item"] = {
 		Text = "Item",
@@ -760,9 +776,6 @@ SKC.LOG_OPTIONS = {
 	},
 	["Roll"] = {
 		Text = "Roll",
-	},
-	["Item Receiver"] = {
-		Text = "Item Receiver",
 	},
 };
 SKC.INSTANCE_NAME_MAP = {

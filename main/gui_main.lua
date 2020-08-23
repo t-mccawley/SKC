@@ -99,16 +99,15 @@ local function OnClick_FullSK(self)
 		if success then 
 			-- log
 			SKC:WriteToLog( 
-				SKC.LOG_OPTIONS["Event Type"].Options.ManEdit,
-				name,
-				"Full SK",
-				"",
-				sk_list,
-				"",
-				prev_pos,
-				SKC.db.char[sk_list]:GetPos(name),
-				"",
-				""
+				SKC.LOG_OPTIONS["Event Type"].Options.SK_Change, --event_type,
+				SKC.LOG_OPTIONS["Event Details"].Options.ManFullSK, --event_details,
+				name, --subject
+				"", --item
+				sk_list, --sk_list
+				"", --prio
+				prev_pos, --current_sk_pos
+				SKC.db.char[sk_list]:GetPos(name), --new_sk_pos
+				"", --roll
 			);
 			SKC:Print("Full SK on "..SKC:FormatWithClassColor(name));
 			-- Refresh SK List
@@ -134,16 +133,15 @@ local function OnClick_SingleSK(self)
 		if success then 
 			-- log
 			SKC:WriteToLog( 
-				SKC.LOG_OPTIONS["Event Type"].Options.ManEdit,
-				name,
-				"Single SK",
-				"",
-				sk_list,
-				"",
-				prev_pos,
-				SKC.db.char[sk_list]:GetPos(name),
-				"",
-				""
+				SKC.LOG_OPTIONS["Event Type"].Options.SK_Change, --event_type,
+				SKC.LOG_OPTIONS["Event Details"].Options.ManSingleSK, --event_details,
+				name, --subject
+				"", --item
+				sk_list, --sk_list
+				"", --prio
+				prev_pos, --current_sk_pos
+				SKC.db.char[sk_list]:GetPos(name), --new_sk_pos
+				"", --roll
 			);
 			SKC:Print("Single SK on "..SKC:FormatWithClassColor(name));
 			-- Refresh SK List
@@ -179,16 +177,15 @@ function OnClick_NumberCard(self)
 		if success then
 			-- log
 			SKC:WriteToLog( 
-				SKC.LOG_OPTIONS["Event Type"].Options.ManEdit,
-				name,
-				"Set SK",
-				"",
-				sk_list,
-				"",
-				prev_pos,
-				SKC.db.char[sk_list]:GetPos(name),
-				"",
-				""
+				SKC.LOG_OPTIONS["Event Type"].Options.SK_Change, --event_type,
+				SKC.LOG_OPTIONS["Event Details"].Options.ManSetSK, --event_details,
+				name, --subject
+				"", --item
+				sk_list, --sk_list
+				"", --prio
+				prev_pos, --current_sk_pos
+				SKC.db.char[sk_list]:GetPos(name), --new_sk_pos
+				"", --roll
 			);
 			SKC:Print("Set SK position of "..SKC:FormatWithClassColor(name).." to "..SKC.db.char[sk_list]:GetPos(name));
 			-- Refresh SK List

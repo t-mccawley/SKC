@@ -258,15 +258,14 @@ end
 --------------------------------------
 function SKC:WriteToLog(
 	event_type,
+	event_details,
 	subject,
-	action,
 	item,
 	sk_list,
 	prio,
 	current_sk_pos,
 	new_sk_pos,
 	roll,
-	item_rec,
 	time_txt,
 	master_looter_txt,
 	class_txt,
@@ -292,30 +291,29 @@ function SKC:WriteToLog(
 		self.db.char.LOG[idx][2] = master_looter_txt;
 	end
 	self.db.char.LOG[idx][3] = event_type or "";
-	self.db.char.LOG[idx][4] = subject or "";
+	self.db.char.LOG[idx][4] = event_details or "";
+	self.db.char.LOG[idx][5] = subject or "";
 	if class_txt == nil then
-		self.db.char.LOG[idx][5] = self.db.char.GD:GetClass(subject) or "";
+		self.db.char.LOG[idx][6] = self.db.char.GD:GetClass(subject) or "";
 	else
-		self.db.char.LOG[idx][5] = class_txt;
+		self.db.char.LOG[idx][6] = class_txt;
 	end
 	if spec_txt == nil then
-		self.db.char.LOG[idx][6] = self.db.char.GD:GetSpecName(subject) or "";
+		self.db.char.LOG[idx][7] = self.db.char.GD:GetSpecName(subject) or "";
 	else
-		self.db.char.LOG[idx][6] = spec_txt;
+		self.db.char.LOG[idx][7] = spec_txt;
 	end
 	if status_txt == nil then
-		self.db.char.LOG[idx][7] = self.db.char.GD:GetData(subject,"Status");
+		self.db.char.LOG[idx][8] = self.db.char.GD:GetData(subject,"Status");
 	else
-		self.db.char.LOG[idx][7] = status_txt;
+		self.db.char.LOG[idx][8] = status_txt;
 	end
-	self.db.char.LOG[idx][8] = action or "";
 	self.db.char.LOG[idx][9] = item or "";
 	self.db.char.LOG[idx][10] = sk_list or "";
 	self.db.char.LOG[idx][11] = prio or "";
 	self.db.char.LOG[idx][12] = current_sk_pos or "";
 	self.db.char.LOG[idx][13] = new_sk_pos or "";
 	self.db.char.LOG[idx][14] = roll or "";
-	self.db.char.LOG[idx][15] = item_rec or "";
 	return;
 end
 
@@ -324,15 +322,14 @@ function SKC:ResetLog()
 	-- Initialize with header
 	self:WriteToLog(
 		self.LOG_OPTIONS["Event Type"].Text,
+		self.LOG_OPTIONS["Event Details"].Text,
 		self.LOG_OPTIONS["Subject"].Text,
-		self.LOG_OPTIONS["Action"].Text,
 		self.LOG_OPTIONS["Item"].Text,
 		self.LOG_OPTIONS["SK List"].Text,
 		self.LOG_OPTIONS["Prio"].Text,
 		self.LOG_OPTIONS["Current SK Position"].Text,
 		self.LOG_OPTIONS["New SK Position"].Text,
 		self.LOG_OPTIONS["Roll"].Text,
-		self.LOG_OPTIONS["Item Receiver"].Text,
 		self.LOG_OPTIONS["Timestamp"].Text,
 		self.LOG_OPTIONS["Master Looter"].Text,
 		self.LOG_OPTIONS["Class"].Text,
