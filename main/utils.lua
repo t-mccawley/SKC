@@ -193,11 +193,6 @@ function SKC:CheckAddonVerMatch(ver)
 	return(self.db.char.GLP:IsAddonVerMatch(ver));
 end
 
-function SKC:CheckIfSyncInProgress()
-	-- returns true if addon is currently syncing
-	return((self:GetSyncStatus()).val ~= self.SYNC_STATUS_ENUM.COMPLETE.val);
-end
-
 function SKC:GetOnlineSyncables()
 	-- returns ordered list of guild leader and loot officers that are online
 	local syncables = {};

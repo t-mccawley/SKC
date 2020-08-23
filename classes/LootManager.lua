@@ -38,6 +38,7 @@ function LootManager:Reset()
 	if self.current_loot_timer ~= nil then self.current_loot_timer:Cancel() end
 	self.current_loot_timer = nil;
 	self.current_loot = nil;
+	self.master_looter = nil;
 	return;
 end
 
@@ -166,7 +167,6 @@ function LootManager:ReadLootMsg(msg,sender)
 	-- reads loot message on LOOT (not necessarily ML)
 	-- saves item as current_loot
 	if msg == "BLANK" then return end
-	self.master_looter = SKC:StripRealmName(sender);
 	local item_name, item_link, open_roll, sk_list = strsplit(",",msg,4);
 	open_roll = SKC:BoolOut(open_roll);
 	if not SKC:isML() then
@@ -179,6 +179,8 @@ function LootManager:ReadLootMsg(msg,sender)
 			SKC:Error("Received loot message for item that is not current_loot!");
 		end
 	end
+	-- save ML
+	self.master_looter = SKC:StripRealmName(sender);
 	-- Check that SKC is active for client
 	if not SKC:CheckActive() then
 		-- Automatically pass
@@ -267,6 +269,19 @@ function LootManager:ConstructOutcomeMsg(winner,loot_name,loot_link,DE,send_succ
 	return msg;
 end
 
+function LootManager:CheckIfLootExists(loot_name)
+	-- returns true if the loot exists in current loot window
+	for i_loot = 1, GetNumLootItems() do
+		-- get item data
+		local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(i_loot);
+		if lootName == loot_name then
+			return(true);
+		end
+	end
+	return(false);
+end
+
+
 function LootManager:GiveLoot(loot_name,loot_link,winner)
 	-- sends loot to winner
 	local success = false;
@@ -280,9 +295,18 @@ function LootManager:GiveLoot(loot_name,loot_link,winner)
 			for i_char = 1,40 do
 				if GetMasterLootCandidate(i_loot, i_char) == winner then
 					if SKC.DEV.LOOT_DIST_DISABLE or SKC.DEV.LOOT_SAFE_MODE then
-						SKC:Alert("Faux distribution of loot successful!");
+						SKC:Alert("GiveLoot success! (FAKE)");
 					else 
 						GiveMasterLoot(i_loot,i_char);
+						-- TODO:
+						-- Log the winner to raid AND to log
+						-- Call this function to give loot
+						-- Start a timer here to wait for ~1-2s
+						-- At end of timer, check if item still exists in loot window
+						-- If item still exists, give to ML (do not perform SK)
+						-- ML give should also do this check with same confirm delay after (can cause infinite loop)
+						-- If item doesnt exist, give to winner (perform SK)
+						-- only log / print out who received item once item is confirmed to no longer be in loot window
 					end
 					success = true;
 				end

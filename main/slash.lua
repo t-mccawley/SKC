@@ -548,7 +548,8 @@ function SKC:CSVImport(name,sk_list)
 		self:Error("Please wait for addon data to load");
 		return;
 	end
-	if self:CheckIfSyncInProgress() then
+	local sync_status = self:GetSyncStatus()
+	if sync_status.val == self.SYNC_STATUS_ENUM.READING.val then
 		self:Error("Please wait for sync to complete");
 		return;
 	end

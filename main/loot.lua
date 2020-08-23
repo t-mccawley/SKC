@@ -49,24 +49,23 @@ function SKC:OnOpenLoot()
 			-- Only perform SK for items if they are found in loot prio
 			local lootLink = GetLootSlotLink(i_loot);
 			if self.db.char.LP:Exists(lootName) then
-				-- Valid item
-				-- Alert raid of new item
-				local msg = "SKC: ["..loot_cnt.."] "..lootLink;
-				SendChatMessage(msg,"RAID");
-				loot_cnt = loot_cnt + 1;
 				-- Scan all possible characters to determine elligible
 				local any_elligible = false;
 				for raidIndex = 1,40 do
 					if any_elligible then break end
 					local char_name = GetRaidRosterInfo(raidIndex);
-					if char_name ~= nil then
-						if self.db.char.LP:IsElligible(lootName,char_name) then 
-							any_elligible = true;
-						end
+					if char_name ~= nil and self.db.char.LP:IsElligible(lootName,char_name) then
+						any_elligible = true;
 					end
 				end
 				-- check that at least one character was elligible
-				if not any_elligible then
+				if any_elligible then
+					-- Valid item
+					-- Alert raid of new item
+					local msg = "SKC: ["..loot_cnt.."] "..lootLink;
+					SendChatMessage(msg,"RAID");
+					loot_cnt = loot_cnt + 1;
+				else
 					self:Debug("No elligible characters in raid. Giving directly to ML",self.DEV.VERBOSE.LOOT);
 					-- give directly to ML
 					self.db.char.LM:GiveLootToML(lootName,lootLink,self.LOG_OPTIONS["Event Type"].Options.NE);
@@ -88,9 +87,13 @@ function SKC:OnOpenMasterLoot()
 	self:Debug("OnOpenMasterLoot",self.DEV.VERBOSE.LOOT);
 	if not self:LootDistValid() then return end
 
-	-- Check if sync in progress
-	if self:CheckIfSyncInProgress() then
-		self:Alert("Synchronization in progress. Loot distribution will start soon...");
+	-- Check if read in progress
+	local sync_status = self:GetSyncStatus()
+	if sync_status.val == self.SYNC_STATUS_ENUM.READING.val then
+		self:Alert("Reading in progress, please wait until sync is complete to start loot.");
+		return;
+	elseif sync_status.val == self.SYNC_STATUS_ENUM.SENDING.val then
+		self:Warn("Sending in progress, loot will start soon, please wait...");
 	end
 	
 	-- Scan all items and save each item / elligible player
@@ -101,9 +104,8 @@ function SKC:OnOpenMasterLoot()
 		-- get item data
 		-- local lootType = GetLootSlotType(i_loot); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
 		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(i_loot);
-		-- only perform for greens or higher rarity
 		if lootName ~= nil and lootRarity >= 2 then
-			-- Only perform SK for items if they are found in loot prio
+			-- Only perform SK for items if they are found in loot prio and green or higher rarity
 			local lootLink = GetLootSlotLink(i_loot);
 			if self.db.char.LP:Exists(lootName) then
 				-- Valid item
@@ -111,16 +113,18 @@ function SKC:OnOpenMasterLoot()
 				local loot_idx = self.db.char.LM:AddLoot(lootName,lootLink);
 				-- Alert raid of new item
 				local msg = "Loot Decision: "..lootLink;
-				SendChatMessage(msg,"RAID_WARNING");
-				-- Scan all possible characters to determine elligible
+				if UnitIsGroupLeader("player") then
+					SendChatMessage(msg,"RAID_WARNING");
+				else
+					SendChatMessage(msg,"RAID");
+				end
+				-- Scan all possible characters to determine elligibility
 				local any_elligible = false;
 				for i_char = 1,40 do
 					local char_name = GetMasterLootCandidate(i_loot,i_char);
-					if char_name ~= nil then
-						if self.db.char.LP:IsElligible(lootName,char_name) then
-							self.db.char.LM:AddCharacter(char_name,loot_idx);
-							any_elligible = true;
-						end
+					if char_name ~= nil and self.db.char.LP:IsElligible(lootName,char_name) then
+						self.db.char.LM:AddCharacter(char_name);
+						any_elligible = true;
 					end
 				end
 				-- check that at least one character was elligible
