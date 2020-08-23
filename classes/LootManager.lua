@@ -50,6 +50,14 @@ function LootManager:GetCurrentLootName()
 	return self.current_loot.lootName;
 end
 
+function LootManager:GetCurrentLootIndex()
+	if self.current_loot == nil then
+		SKC:Error("Current loot not set");
+		return nil;
+	end
+	return self.current_loot.lootIndex;
+end
+
 function LootManager:GetCurrentLootLink()
 	if self.current_loot == nil then
 		SKC:Error("Current loot not set");
@@ -74,7 +82,7 @@ function LootManager:GetCurrentLootSKList()
 	return self.current_loot.sk_list;
 end
 
-function LootManager:AddLoot(item_name,item_link)
+function LootManager:AddLoot(item_name,loot_index,item_link)
 	-- add loot as new current_loot
 	-- check if current loot is not empty
 	if self.current_loot ~= nil then
@@ -82,7 +90,7 @@ function LootManager:AddLoot(item_name,item_link)
 	end
 	local open_roll =SKC.db.char.LP:GetOpenRoll(item_name);
 	local sk_list =SKC.db.char.LP:GetSKList(item_name);
-	self.current_loot = Loot:new(nil,item_name,item_link,open_roll,sk_list);
+	self.current_loot = Loot:new(nil,item_name,loot_index,item_link,open_roll,sk_list);
 	return;
 end
 
@@ -269,8 +277,10 @@ function LootManager:ConstructOutcomeMsg(winner,loot_name,loot_link,DE,send_succ
 	return msg;
 end
 
-function LootManager:CheckIfLootExists(loot_name)
-	-- returns true if the loot exists in current loot window
+local function ConfirmLootDistributed()
+	-- checks if current_loot (name + ID) is still present in the LootFrame
+	-- if loot is not present, write confirmed distribution to log
+	-- if loot is present, attempt to award to master looter (self) --> can cause infinite loop (with delay) if master looter inventory is full
 	for i_loot = 1, GetNumLootItems() do
 		-- get item data
 		local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(i_loot);
@@ -281,41 +291,57 @@ function LootManager:CheckIfLootExists(loot_name)
 	return(false);
 end
 
-
-function LootManager:GiveLoot(loot_name,loot_link,winner)
-	-- sends loot to winner
-	local success = false;
-	-- TODO: check that player is online / in raid?
-	-- find item
-	for i_loot = 1, GetNumLootItems() do
-		-- get item data
-		local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(i_loot);
-		if lootName == loot_name then
-			-- find character in raid
-			for i_char = 1,40 do
-				if GetMasterLootCandidate(i_loot, i_char) == winner then
-					if SKC.DEV.LOOT_DIST_DISABLE or SKC.DEV.LOOT_SAFE_MODE then
-						SKC:Alert("GiveLoot success! (FAKE)");
-					else 
-						GiveMasterLoot(i_loot,i_char);
-						-- TODO:
-						-- Log the winner to raid AND to log
-						-- Call this function to give loot
-						-- Start a timer here to wait for ~1-2s
-						-- At end of timer, check if item still exists in loot window
-						-- If item still exists, give to ML (do not perform SK)
-						-- ML give should also do this check with same confirm delay after (can cause infinite loop)
-						-- If item doesnt exist, give to winner (perform SK)
-						-- only log / print out who received item once item is confirmed to no longer be in loot window
-					end
-					success = true;
-				end
+function LootManager:GiveLoot(target)
+	-- sends current loot to target
+	-- TODO:
+	-- Log the winner to raid AND to log
+	-- Call this function to give loot
+	-- Start a timer here to wait for ~1-2s
+	-- At end of timer, check if item still exists in loot window
+	-- If item still exists, give to ML (do not perform SK)
+	-- ML give should also do this check with same confirm delay after (can cause infinite loop)
+	-- If item doesnt exist, give to winner (perform SK)
+	-- only log / print out who received item once item is confirmed to no longer be in loot window
+	if not SKC:isML() then 
+		SKC:Error("Current player is not Master Looter.");
+		return;
+	end
+	local success = self.current_loot ~= nil;
+	if not success then
+		SKC:Error("GiveLoot failed. current_loot is nil.");
+		return(success);
+	end
+	-- confirm item is at given index
+	local lootIndex = self:GetCurrentLootIndex();
+	success = lootIndex ~= nil;
+	if not success then
+		SKC:Error("GiveLoot failed. LootIndex is nil.");
+		return(success);
+	end
+	local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(lootIndex);
+	success = lootName == self:GetCurrentLootName();
+	if not success then
+		SKC:Error("GiveLoot failed. Current loot index ("..lootIndex..") is "..lootName.." which is not current loot ("..self:GetCurrentLootName()..").");
+		return(success);
+	end
+	-- find character in raid and give loot
+	for i_char = 1,40 do
+		if GetMasterLootCandidate(lootIndex, i_char) == target then
+			if SKC.DEV.LOOT_DIST_DISABLE or SKC.DEV.LOOT_SAFE_MODE then
+				SKC:Alert("GiveLoot success! (FAKE)");
+			else 
+				GiveMasterLoot(lootIndex,i_char);
 			end
+			success = true;
 		end
 	end
 	if not success then
-		SKC:Error("Failed to award "..loot_link.." to "..winner);
+		SKC:Error("GiveLoot failed. "..target.." not found in possible master looter candidates.");
+		return;
 	end
+	-- after some delay, confirm that loot has been distributed
+	local confirm_delay = 1.0;
+	C_Timer.After(confirm_delay,ConfirmLootDistributed);
 	return success;
 end
 

@@ -7,6 +7,7 @@
 --------------------------------------
 Loot = {
 	lootName = nil, -- item name
+	lootIndex = nil, -- index of loot in LootFrame
 	lootLink = nil, -- item link
 	open_roll = false, -- if true, enables roll option
 	sk_list = "MSK", -- name of associated sk list (MSK TSK)
@@ -17,11 +18,12 @@ Loot = {
 }; 
 Loot.__index = Loot;
 
-function Loot:new(loot,item_name,item_link,open_roll,sk_list)
+function Loot:new(loot,item_name,loot_index,item_link,open_roll,sk_list)
 	if loot == nil then
 		-- initalize fresh
 		local obj = {};
 		obj.lootName = item_name;
+		obj.lootIndex = loot_index;
 		obj.lootLink = item_link;
 		obj.open_roll = open_roll or false;
 		obj.sk_list = sk_list or "MSK";
