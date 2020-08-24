@@ -173,6 +173,11 @@ function SKC:CheckLootGUICreated()
 	return(self.LootGUI ~= nil)
 end
 
+function SKC:CheckLootStarterGUICreated()
+	-- returns true if LootStarterGUI has been created
+	return(LootFrame.LootStarterGUI ~= nil)
+end
+
 function SKC:CheckActive()
 	-- returns true of SKC is active
 	return(self.Status.val == SKC.STATUS_ENUM.ACTIVE.val);

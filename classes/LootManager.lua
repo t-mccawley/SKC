@@ -10,6 +10,8 @@ LootManager = {
 	current_loot = nil, -- Loot object of loot that is being decided on
 	current_loot_timer = nil, -- timer used to track when decision time has expired
 	loot_target = nil, -- name of current target for loot distribution
+	auto_loot_pickup = false, -- flags that loot distribution is an auto pickup
+	auto_loot_backup = false, -- flag used to indicate if backup loot distribution was necessary
 }; 
 LootManager.__index = LootManager;
 
@@ -20,7 +22,9 @@ function LootManager:new(loot_manager)
 		obj.master_looter = nil;
 		obj.current_loot = Loot:new(nil);
 		obj.current_loot_timer = nil;
-		obj.loot_target = nil,
+		obj.loot_target = nil;
+		obj.auto_loot_pickup = false;
+		obj.auto_loot_backup = false;
 		setmetatable(obj,LootManager);
 		return obj;
 	else
@@ -42,6 +46,8 @@ function LootManager:Reset()
 	self.current_loot = nil;
 	self.master_looter = nil;
 	self.loot_target = nil;
+	self.auto_loot_pickup = false;
+	self.auto_loot_backup = false;
 	return;
 end
 
@@ -100,8 +106,8 @@ function LootManager:AddLoot(item_name,loot_index,item_link)
 	local sk_list =SKC.db.char.LP:GetSKList(item_name);
 	self.current_loot = Loot:new(nil,item_name,loot_index,item_link,open_roll,sk_list);
 	self.master_looter = UnitName("player");
-	-- initialize loot target to self as default
-	self.loot_target = UnitName("player");
+	-- default, give loot to ML
+	self.loot_target = self.master_looter;
 	return;
 end
 
@@ -162,6 +168,7 @@ function LootManager:KickOff()
 		return;
 	end
 	-- sends loot messages to all elligible players
+	SKC:Debug("KickOff",SKC.DEV.VERBOSE.LOOT);
 	self:SendLootMsgs();
 	-- Start timer for when loot is automatically passed on by players that never responded
 	-- Put blank message in queue so that timer starts after last message has been sent
@@ -216,7 +223,7 @@ function LootManager:ReadLootMsg(msg,sender)
 	if not SKC:isML() then
 		-- reset loot and add item
 		self:Reset();
-		self.current_loot = Loot:new(nil,item_name,item_link,open_roll,sk_list);
+		self.current_loot = Loot:new(nil,item_name,nil,item_link,open_roll,sk_list);
 	else
 		-- current loot already exists, just check that item matches
 		if item_name ~= self.current_loot.lootName then
@@ -246,8 +253,6 @@ function LootManager:StartPersonalLootDecision()
 	-- Begins personal loot decision process
 	local sk_list = self:GetCurrentLootSKList();
 	local open_roll = self:GetCurrentOpenRoll();
-	local alert_msg = "Would you like to "..sk_list.." for "..self:GetCurrentLootLink().."?";
-	SKC:Alert(alert_msg);
 	-- Trigger GUI
 	SKC:DisplayLootDecisionGUI(open_roll,sk_list);
 	return;
@@ -315,6 +320,7 @@ end
 
 function LootManager:DetermineWinner()
 	-- Determines winner for current loot, awards loot to player, and sends alert message to raid
+	if not SKC:isML() then return end
 	local winner = nil;
 	local winner_decision = SKC.LOOT_DECISION.PASS;
 	local winner_prio = SKC.PRIO_TIERS.PASS;
@@ -355,59 +361,114 @@ function LootManager:DetermineWinner()
 			end
 		end
 	end
+	self.loot_target = winner;
+	-- determine final outcome
+	self:DetermineOutcome();
+	return;
+end
 
-	local loot_name = self.current_loot.lootName;
-	local loot_link = self.current_loot.lootLink;
-
+function LootManager:DetermineOutcome()
+	-- determines final outcome of loot determination
+	-- if no winner selected, decides if DE or GB
+	-- logs appropriately
+	if not SKC:isML() then return end
 	-- check outcome of determination
-	if winner ~= nil then
+	if self.loot_target ~= nil then
 		-- log winner and send winner message
-		self.loot_target = winner;
-		self:LogWinner();
+		self:LogWinnerOutcome();
 	else
 		-- everyone passed
 		local DE = SKC.db.char.LP:GetDE(self.current_loot.lootName);
 		local disenchanter, banker = SKC.db.char.GD:GetFirstGuildRolesInRaid();
 		local sk_list = self.current_loot.sk_list;
-		
-		if winner == nil then
-			if DE then
-				if disenchanter == nil then 
-					winner = UnitName("player");
-				else 
-					winner = disenchanter;
-				end
-			else
-				if banker == nil then 
-					winner = UnitName("player");
-				else 
-					winner = banker;
-				end
+		local loot_name = self:GetCurrentLootName();
+		local loot_link = self:GetCurrentLootIndex();
+		-- check if DE or GB
+		if DE then
+			-- disenchant
+			event_details = SKC.LOG_OPTIONS["Event Details"].Options.DE;
+			if disenchanter == nil then 
+				self.loot_target = UnitName("player");
+			else 
+				self.loot_target = disenchanter;
+			end
+		else
+			-- guild bank
+			event_details = SKC.LOG_OPTIONS["Event Details"].Options.GB;
+			if banker == nil then 
+				self.loot_target = UnitName("player");
+			else 
+				self.loot_target = banker;
 			end
 		end
+		-- log and send message
+		self:LogNonWinnerOutcome(event_details,self.loot_target,loot_name,loot_link);
 	end
+	-- mark loot as awarded in GUI (prevents restart of loot decision)
+	_G["LootButton"..self:GetCurrentLootIndex()].Awarded = true;
+	-- attempt to give loot to loot_target
+	self:GiveLoot();
 	return;
 end
 
 local function ConfirmLootDistributed()
-	-- checks if current_loot (name + ID) is still present in the LootFrame
+	-- checks if current_loot is gone from LootFrame at given index
 	-- if loot is not present, write confirmed distribution to log
-	-- if loot is present, attempt to award to master looter (self) --> can cause infinite loop (with delay) if master looter inventory is full
-	for i_loot = 1, GetNumLootItems() do
-		-- get item data
-		local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(i_loot);
-		if lootName == loot_name then
-			return(true);
+	-- if loot is present, attempt to award to master looter if not already attempted
+	if not SKC:isML() then return end
+	local current_loot_index = SKC.db.char.LM:GetCurrentLootIndex();
+	local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(current_loot_index);
+	-- check that loot is gone
+	local success = lootName == nil;
+	if success then
+		-- confirmed
+		local loot_target = SKC.db.char.LM.loot_target;
+		if SKC.db.char.LM.auto_loot_pickup then
+			-- auto loot pickup
+			SKC.db.char.LM:LogDist(SKC.LOG_OPTIONS["Event Details"].Options.ALP,loot_target);
+		elseif SKC.db.char.LM.auto_loot_backup then
+			-- auto loot backup
+			SKC.db.char.LM:LogDist(SKC.LOG_OPTIONS["Event Details"].Options.ALB,loot_target);
+		else
+			-- auto loot winner
+			local loot_target_decision = SKC.db.char.LM.current_loot.decisions[loot_target];
+			local sk_list = SKC.db.char.LM:GetCurrentLootSKList();
+			SKC.db.char.LM:LogDist(SKC.LOG_OPTIONS["Event Details"].Options.ALW,loot_target);
+			-- perform SK (if necessary)
+			if loot_target_decision == SKC.LOOT_DECISION.SK then
+				-- perform SK on winner (below current live bottom)
+				local sk_success = SKC.db.char[sk_list]:LiveSK(loot_target);
+				if not sk_success then
+					SKC:Error(sk_list.." for "..loot_target.." failed");
+				end
+				-- log SK
+				SKC.db.char.LM:LogWinnerSK();
+				-- populate data
+				SKC:PopulateData();
+			end			
+		end
+	else
+		-- failed
+		if SKC.db.char.LM.auto_loot_pickup or SKC.db.char.LM.auto_loot_backup then
+			-- dont try again
+			SKC:Error("Could not give loot");
+		else
+			-- attempt to award to master looter if not already in backup loot mode
+			SKC.db.char.LM.auto_loot_backup = true;
+			SKC.db.char.LM.loot_target = UnitName("player");
+			SKC.db.char.LM:GiveLoot();
+			return;
 		end
 	end
-	return(false);
+	-- complete
+	if not SKC.db.char.LM.auto_loot_pickup then SKC:Alert("Loot distribution complete") end
+	SKC.db.char.LM:Reset();
+	return;
 end
 
 function LootManager:GiveLoot()
 	-- sends current loot to current target
 	-- TODO:
-	-- Log the winner to raid AND to log
-	-- Call this function to give loot
 	-- Start a timer here to wait for ~1-2s
 	-- At end of timer, check if item still exists in loot window
 	-- If item still exists, give to ML (do not perform SK)
@@ -437,7 +498,9 @@ function LootManager:GiveLoot()
 	local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(lootIndex);
 	success = lootName == self:GetCurrentLootName();
 	if not success then
-		SKC:Error("GiveLoot failed. Current loot index ("..lootIndex..") is "..lootName.." which is not current loot ("..self:GetCurrentLootName()..").");
+		local loot_name_str = lootName or "NULL";
+		local curr_loot_name_str = self:GetCurrentLootName() or "NULL";
+		SKC:Error("GiveLoot failed. Current loot index ("..lootIndex..") is "..loot_name_str.." which is not current loot ("..curr_loot_name_str..").");
 		return(success);
 	end
 	-- find character in raid and give loot
@@ -456,95 +519,21 @@ function LootManager:GiveLoot()
 		return;
 	end
 	-- after some delay, confirm that loot has been distributed
-	local confirm_delay = 1.0;
-	C_Timer.After(confirm_delay,ConfirmLootDistributed);
+	local confirm_loot_dist_delay = 1.0;
+	C_Timer.After(confirm_loot_dist_delay,ConfirmLootDistributed);
 	return success;
 end
 
-function LootManager:GiveLootToML(loot_name,loot_link,event_type)
+function LootManager:GiveLootToML(event_details)
 	-- sends loot to ML (and optionally writes to log)
 	if not SKC:isML() then 
 		SKC:Error("Current player is not Master Looter.");
 		return;
 	end
-	self:GiveLoot(loot_name,loot_link,UnitName("player"));
-	if event_type ~= nil then
-		SKC:WriteToLog( 
-			event_type,
-			UnitName("player"),
-			"ML",
-			loot_name,
-			"",
-			"",
-			"",
-			"",
-			"",
-			UnitName("player")
-		);
-	end
-	return;
-end
-
-function LootManager:AwardLoot(loot_idx,winner)
-	-- award actual loot to winner, perform SK (if necessary), and send alert message
-	-- initialize
-	local loot_name = self.current_loot.lootName;
-	local loot_link = self.current_loot.lootLink;
-	local DE =SKC.db.char.LP:GetDE(self.current_loot.lootName);
-	local disenchanter, banker = SKC.db.char.GD:GetFirstGuildRolesInRaid();
-	local sk_list = self.current_loot.sk_list;
-	-- check if everyone passed
-	if winner == nil then
-		if DE then
-			if disenchanter == nil then 
-				winner = UnitName("player");
-			else 
-				winner = disenchanter;
-			end
-		else
-			if banker == nil then 
-				winner = UnitName("player");
-			else 
-				winner = banker;
-			end
-		end
-	end
-	-- log winner
-
-
-
-
-
-
-
-
-
-
-	-- perform SK (if necessary) and record SK position before SK
-	local prev_sk_pos = SKC.db.char[sk_list]:GetPos(winner);
-	if self.current_loot.decisions[winner] == SKC.LOOT_DECISION.SK then
-		-- perform SK on winner (below current live bottom)
-		local sk_success = SKC.db.char[sk_list]:LiveSK(winner);
-		if not sk_success then
-			SKC:Error(sk_list.." for "..winner.." failed");
-		end
-		-- populate data
-		SKC:PopulateData();
-	end
-	-- give loot to winner
-	local send_success = self:GiveLoot(loot_name,loot_link,winner);
-	local receiver = winner;
-	if not send_success then
-		-- GiveLoot failed, send item to ML
-		self:GiveLootToML(loot_name,loot_link);
-		receiver = UnitName("player");
-	end
-	-- construct outcome message and write to log
-	local outcome_msg = self:ConstructOutcomeMsg(winner,loot_name,loot_link,DE,send_success,receiver)
-	-- reset loot
-	self:Reset();
-	-- send outcome message
-	SKC:Send(outcome_msg,SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
+	-- mark as auto loot
+	self.auto_loot_pickup = true;
+	-- attempt to give loot
+	self:GiveLoot();
 	return;
 end
 
@@ -554,9 +543,9 @@ function LootManager:LogDecision(char_name)
 	local loot_decision = self.current_loot.decisions[char_name];
 	local loot_name = self:GetCurrentLootName();
 	local sk_list = self:GetCurrentLootSKList();
-	local prio = self.current_loot.prios[winner];
-	local curr_pos = self.current_loot.sk_pos[winner];
-	local roll = self.current_loot.rolls[winner];
+	local prio = self.current_loot.prios[char_name];
+	local curr_pos = self.current_loot.sk_pos[char_name];
+	local roll = self.current_loot.rolls[char_name];
 	-- Write to log
 	SKC:WriteToLog( 
 		SKC.LOG_OPTIONS["Event Type"].Options.Decision, --event_type,
@@ -567,7 +556,7 @@ function LootManager:LogDecision(char_name)
 		prio, --prio
 		curr_pos, --current_sk_pos
 		"", --new_sk_pos
-		roll, --roll
+		roll --roll
 	);
 	-- send message (if not pass)
 	if loot_decision ~= SKC.LOOT_DECISION.PASS then
@@ -575,7 +564,7 @@ function LootManager:LogDecision(char_name)
 		if loot_decision == SKC.LOOT_DECISION.ROLL then
 			decision_msg = decision_msg.."ROLL ("..roll..")";
 		elseif loot_decision == SKC.LOOT_DECISION.SK then
-			decision_msg = sk_list.." ("..curr_pos..")";
+			decision_msg = decision_msg..sk_list.." ("..curr_pos..")";
 		end
 		decision_msg = decision_msg.." for "..loot_name;
 		SKC:Send(decision_msg,SKC.CHANNELS.LOOT_DECISION_PRINT,"RAID");
@@ -606,7 +595,7 @@ function LootManager:LogWinnerOutcome()
 		prio, --prio
 		curr_pos, --current_sk_pos
 		"", --new_sk_pos
-		roll, --roll
+		roll --roll
 	);
 	-- construct message
 	local loot_link = self:GetCurrentLootLink();
@@ -631,7 +620,7 @@ function LootManager:LogWinnerSK()
 	local sk_list = self:GetCurrentLootSKList();
 	local prio = self.current_loot.prios[winner];
 	local curr_pos = self.current_loot.sk_pos[winner];
-	local new_pos = SKC.db.char[sk_list]:GetPos(name);
+	local new_pos = SKC.db.char[sk_list]:GetPos(winner);
 	-- write to log
 	SKC:WriteToLog( 
 		SKC.LOG_OPTIONS["Event Type"].Options.SK_Change, --event_type,
@@ -642,7 +631,7 @@ function LootManager:LogWinnerSK()
 		prio, --prio
 		curr_pos, --current_sk_pos
 		new_pos, --new_sk_pos
-		"", --roll
+		"" --roll
 	);
 	-- construct message
 	local loot_link = self:GetCurrentLootLink();
@@ -665,7 +654,7 @@ function LootManager:LogNonWinnerOutcome(event_details,loot_target,loot_name,loo
 		"", --prio
 		"", --current_sk_pos
 		"", --new_sk_pos
-		"", --roll
+		"" --roll
 	);
 	-- construct message
 	local msg;
@@ -680,8 +669,10 @@ function LootManager:LogNonWinnerOutcome(event_details,loot_target,loot_name,loo
 		send_msg = true;
 	elseif event_details == SKC.LOG_OPTIONS["Event Details"].Options.NLP then
 		-- not in loot prio --> give to ML
+		SKC:Debug("Item not in Loot Prio. Giving directly to ML",self.DEV.VERBOSE.LOOT);
 	elseif event_details == SKC.LOG_OPTIONS["Event Details"].Options.NE then
 		-- no elligible players in raid --> give to ML
+		SKC:Debug("No elligible characters in raid. Giving directly to ML",self.DEV.VERBOSE.LOOT);
 	end
 	-- send message
 	if send_msg then SKC:Send(msg,SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID") end
@@ -701,7 +692,7 @@ function LootManager:LogDist(event_details,loot_target)
 		"", --prio
 		"", --current_sk_pos
 		"", --new_sk_pos
-		"", --roll
+		"" --roll
 	);
 	-- construct message
 	-- send message

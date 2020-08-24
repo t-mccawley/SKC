@@ -107,7 +107,7 @@ local function OnClick_FullSK(self)
 				"", --prio
 				prev_pos, --current_sk_pos
 				SKC.db.char[sk_list]:GetPos(name), --new_sk_pos
-				"", --roll
+				"" --roll
 			);
 			SKC:Print("Full SK on "..SKC:FormatWithClassColor(name));
 			-- Refresh SK List
@@ -141,7 +141,7 @@ local function OnClick_SingleSK(self)
 				"", --prio
 				prev_pos, --current_sk_pos
 				SKC.db.char[sk_list]:GetPos(name), --new_sk_pos
-				"", --roll
+				"" --roll
 			);
 			SKC:Print("Single SK on "..SKC:FormatWithClassColor(name));
 			-- Refresh SK List
@@ -185,7 +185,7 @@ function OnClick_NumberCard(self)
 				"", --prio
 				prev_pos, --current_sk_pos
 				SKC.db.char[sk_list]:GetPos(name), --new_sk_pos
-				"", --roll
+				"" --roll
 			);
 			SKC:Print("Set SK position of "..SKC:FormatWithClassColor(name).." to "..SKC.db.char[sk_list]:GetPos(name));
 			-- Refresh SK List
