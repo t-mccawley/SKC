@@ -24,7 +24,7 @@ SKC.DEV = {
 		Skc = true,
 		Freznic = true,
 	},
-    ACTIVE_INSTANCE_OVRD = true, -- true if SKC can be used outside of active instances
+    ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
 	VERBOSITY_LEVEL = 4,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels

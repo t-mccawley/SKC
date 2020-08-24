@@ -11,29 +11,8 @@ local function OnClick_StartLoot(self,button,down)
 	-- check that button is enabled
 	if not self:IsEnabled() then return end
 
-	-- Check that player is ML
-	if not SKC:isML() then 
-		return;
-	end
-	
-	if LOOT_SAFE_MODE then 
-		return;
-	end
-
-	local lootIndex = self.lootIndex;
-	SKC:Debug("OnClick_StartLoot for "..self.lootName,SKC.DEV.VERBOSE.LOOT);
-
-	-- Update SKC Active flag
-	SKC:RefreshStatus();
-
-	if not SKC:CheckActive() then
-		return;
-	end
-
-	-- Check if loot decision already pending
-	if SKC.db.char.LM:LootDecisionPending() then 
-		return;
-	end
+	--Check validity
+	if not SKC:LootDistValid() then return end
 
 	-- Check if read in progress
 	local sync_status = SKC:GetSyncStatus()
@@ -44,7 +23,8 @@ local function OnClick_StartLoot(self,button,down)
 		SKC:Warn("Sending in progress, loot will start soon, please wait...");
 	end
 	
-	-- Scan all items and save each item / elligible player
+	-- Scan all elligible players and save
+	local lootIndex = self.lootIndex;
 	SKC:Debug("Starting Loot Distribution",SKC.DEV.VERBOSE.LOOT);
 	-- Reset LootManager
 	SKC.db.char.LM:Reset();
@@ -53,35 +33,37 @@ local function OnClick_StartLoot(self,button,down)
 	if lootName ~= nil then
 		-- Only perform SK for items if they are found in loot prio and green or higher rarity
 		local lootLink = GetLootSlotLink(lootIndex);
-		-- Store item
+		-- confirm item is the one expected
+		if lootName ~= self.lootName or lootLink ~= self.lootLink then
+			SKC:Error("Given item index at "..lootIndex.." and got "..lootName.." ["..lootLink.."] but expecting "..self.lootName.." ["..self.lootLink.."]");
+			return;
+		end
+		-- Store item (necessary in order to store elligible characters)
 		SKC.db.char.LM:AddLoot(lootName,lootIndex,lootLink);
 		if SKC.db.char.LP:Exists(lootName) then
 			-- Valid item for decisions (if players present)
-			-- Alert raid of new item
-			local msg = "Loot Decision: "..lootLink;
-			if UnitIsGroupLeader("player") then
-				SendChatMessage(msg,"RAID_WARNING");
-			else
-				SendChatMessage(msg,"RAID");
-			end
 			-- Scan all possible characters to determine elligibility
-			local any_elligible = false;
-			for i_char = 1,40 do
-				local char_name = GetMasterLootCandidate(lootIndex,i_char);
+			local valid_skc = false;
+			for raidIndex = 1,40 do
+				local char_name = GetMasterLootCandidate(lootIndex,raidIndex);
 				if char_name ~= nil and SKC.db.char.LP:IsElligible(lootName,char_name) then
 					SKC.db.char.LM:AddCharacter(char_name);
-					any_elligible = true;
+					valid_skc = true;
 				end
 			end
 			-- check that at least one character was elligible
-			if any_elligible then
+			if valid_skc then
 				-- Kick off loot decison
 				SKC.db.char.LM:KickOff();
+				return;
+			else
+				SKC:Error("No elligible players for "..lootName.." in the raid");
 				return;
 			end
 		end
 	else
 		SKC:Error("LootID "..lootIndex.." does not exist");
+		return;
 	end
 	return;
 end
@@ -163,14 +145,15 @@ end
 --------------------------------------
 -- METHODS
 --------------------------------------
-function SKC:LootDistValid()
+function SKC:LootDistValid(verbose)
 	-- returns true if loot distribution is valid
 	-- Check that player is ML
 	if not self:isML() then 
 		return(false);
 	end
 
-	if LOOT_SAFE_MODE then 
+	if LOOT_SAFE_MODE then
+		if verbose then SKC:Alert("Loot Safe Mode is on.") end
 		return(false);
 	end
 
@@ -182,7 +165,7 @@ function SKC:LootDistValid()
 	end
 
 	-- Check if loot decision already pending
-	if self.db.char.LM:LootDecisionPending() then 
+	if self.db.char.LM:LootDecisionPending(verbose) then 
 		return(false);
 	end
 
@@ -192,13 +175,46 @@ end
 function SKC:OnOpenLoot()
 	-- Fires on LOOT_OPENED for first time loot is opened
 	--Check validity
-	-- if not self:LootDistValid() then return end
+	if not self:LootDistValid(verbose) then return end
 
 	-- ensure GUI is made
 	self:CreateLootStarterGUI();
 
 	-- initialize page tracker
 	LootFrame.LootStarterGUI.Page = 0;
+
+	-- print all possible loot to raid
+	local loot_cnt = 1;
+	for lootIndex = 1, GetNumLootItems() do
+		-- get item data
+		local lootType = GetLootSlotType(lootIndex); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
+		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(lootIndex);
+		-- only perform for items that are higher rarity than current threshold
+		local valid_ml = lootName ~= nil and lootType == 1 and lootRarity >= GetLootThreshold();
+		local valid_possible_skc = false;
+		local lootLink = nil;
+		if valid_ml then
+			-- valid for master looter API
+			lootLink = GetLootSlotLink(lootIndex);
+			
+			-- Scan all characters to determine if any elligible for ML
+			for raidIndex = 1,40 do
+				if valid_possible_skc then break end
+				local char_name = GetMasterLootCandidate(lootIndex,raidIndex);
+				if char_name ~= nil then
+					valid_possible_skc = true;
+				end
+			end
+		end
+
+		-- print out valid items
+		if valid_ml and valid_possible_skc then
+			-- Alert raid of valid item
+			local msg = "SKC: ["..loot_cnt.."] "..lootLink;
+			SendChatMessage(msg,"RAID");
+			loot_cnt = loot_cnt + 1;
+		end
+	end
 
 	-- start managing the loot window
 	self:ManageLootWindow();
@@ -210,74 +226,69 @@ function SKC:ManageLootWindow()
 	-- For Reference: local lootIcon, lootName, lootQuantity, currencyID, lootQuality, locked, isQuestItem, questID, isActive = GetLootSlotInfo(i_loot)
 
 	--Check validity
-	-- if not self:LootDistValid() then return end
-	self:Debug("OnOpenLoot",self.DEV.VERBOSE.LOOT);
+	if not self:LootDistValid() then return end
 
 	-- check for multiple loot pages
-	local max_loot_btns = 4;
+	local visible_btns_per_page = 4;
 	if LootFrameDownButton:IsVisible() or LootFrameUpButton:IsVisible() then
-		max_loot_btns = 3;
+		visible_btns_per_page = 3;
 	end
 
-	-- only show SKC buttons for visible items
+	-- reset all SKC buttons
 	for lootBtnIndex=1,4 do	
-		-- show / hide
-		if _G["LootButton"..lootBtnIndex]:IsVisible() then
-			-- reset button
-			LootFrame.LootStarterGUI[lootBtnIndex]:Show();
-			LootFrame.LootStarterGUI[lootBtnIndex]:Disable();
-			LootFrame.LootStarterGUI[lootBtnIndex].lootIndex = nil;
-			LootFrame.LootStarterGUI[lootBtnIndex].lootName = nil;
-			LootFrame.LootStarterGUI[lootBtnIndex].lootLink = nil;
-		else
-			LootFrame.LootStarterGUI[lootBtnIndex]:Hide();
-		end
+		-- reset button
+		LootFrame.LootStarterGUI[lootBtnIndex]:Hide();
+		LootFrame.LootStarterGUI[lootBtnIndex]:Disable();
+		LootFrame.LootStarterGUI[lootBtnIndex].lootIndex = nil;
+		LootFrame.LootStarterGUI[lootBtnIndex].lootName = nil;
+		LootFrame.LootStarterGUI[lootBtnIndex].lootLink = nil;
 	end
 
 	-- scan items by index and bind button functions for given page
-	-- also prints out ALL elligible loot
-	local first_lootIndex = max_loot_btns*LootFrame.LootStarterGUI.Page + 1;
-	local last_lootIndex = max_loot_btns*(LootFrame.LootStarterGUI.Page + 1);
-	local loot_cnt = 1;
+	local first_lootIndex = visible_btns_per_page*LootFrame.LootStarterGUI.Page + 1;
+	local last_lootIndex = visible_btns_per_page*(LootFrame.LootStarterGUI.Page + 1);
 	for lootIndex = 1, GetNumLootItems() do
 		-- get item data
 		local lootType = GetLootSlotType(lootIndex); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
 		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(lootIndex);
 		-- only perform for items that are higher rarity than current threshold
-		if lootName ~= nil and lootType == 1 and lootRarity >= GetLootThreshold() then
+		local valid_ml = lootName ~= nil and lootType == 1 and lootRarity >= GetLootThreshold();
+		local valid_skc = false;
+		local lootLink = nil;
+		if valid_ml then
 			-- valid for master looter API
-			local lootLink = GetLootSlotLink(lootIndex);
+			lootLink = GetLootSlotLink(lootIndex);
+			
 			-- Store item
 			self.db.char.LM:Reset();
 			self.db.char.LM:AddLoot(lootName,lootIndex,lootLink)
-			-- Only query decisions for items if they are found in loot prio
+			
+			-- Check if item exists in LP
+			
 			if self.db.char.LP:Exists(lootName) then
-
 				-- Scan all possible characters to determine elligible
-				local any_elligible = false;
 				for raidIndex = 1,40 do
-					if any_elligible then break end
-					local char_name = GetRaidRosterInfo(raidIndex);
+					if valid_skc then break end
+					local char_name = GetMasterLootCandidate(lootIndex,raidIndex);
 					if char_name ~= nil and self.db.char.LP:IsElligible(lootName,char_name) then
-						any_elligible = true;
+						valid_skc = true;
 					end
 				end
+			end
+		end
 
-				-- check that at least one character was elligible
-				if any_elligible then
-					-- Valid item
-					-- Alert raid of new item
-					local msg = "SKC: ["..loot_cnt.."] "..lootLink;
-					SendChatMessage(msg,"RAID");
-					loot_cnt = loot_cnt + 1;
-					-- activate button if on current page
-					if lootIndex >= first_lootIndex and lootIndex <= last_lootIndex then
-						local lootBtnIndex = lootIndex % max_loot_btns;
-						LootFrame.LootStarterGUI[lootBtnIndex]:Enable();
-						LootFrame.LootStarterGUI[lootBtnIndex].lootIndex = lootIndex;
-						LootFrame.LootStarterGUI[lootBtnIndex].lootName = lootName;
-						LootFrame.LootStarterGUI[lootBtnIndex].lootLink = lootLink;
-					end
+		-- manage button state (only for those items on current page)
+		if lootIndex >= first_lootIndex and lootIndex <= last_lootIndex then
+			local lootBtnIndex = ((lootIndex - 1) % visible_btns_per_page) + 1; -- stupid 1 based indexing
+			if valid_ml then
+				-- valid for master looter API
+				LootFrame.LootStarterGUI[lootBtnIndex]:Show();
+				if valid_skc then
+					-- valid for SKC
+					LootFrame.LootStarterGUI[lootBtnIndex]:Enable();
+					LootFrame.LootStarterGUI[lootBtnIndex].lootIndex = lootIndex;
+					LootFrame.LootStarterGUI[lootBtnIndex].lootName = lootName;
+					LootFrame.LootStarterGUI[lootBtnIndex].lootLink = lootLink;
 				end
 			end
 		end

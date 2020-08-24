@@ -8,7 +8,7 @@
 LootManager = {
 	master_looter = nil, -- name of the master looter
 	current_loot = nil, -- Loot object of loot that is being decided on
-	current_loot_timer = nil, -- timer used to track when decision time has expired
+	current_loot_timer = nil, -- timer used to track when decision time has expired for ALL players (each player also has separate timer associated w/ loot gui)
 	loot_target = nil, -- name of current target for loot distribution
 	auto_loot_pickup = false, -- flags that loot distribution is an auto pickup
 	auto_loot_backup = false, -- flag used to indicate if backup loot distribution was necessary
@@ -167,6 +167,12 @@ function LootManager:KickOff()
 		SKC:Error("Cannot KickOff, current_loot does not exist");
 		return;
 	end
+	local msg = "Loot Decision: "..self:GetCurrentLootLink();
+	if UnitIsGroupLeader("player") then
+		SendChatMessage(msg,"RAID_WARNING");
+	else
+		SendChatMessage(msg,"RAID");
+	end
 	-- sends loot messages to all elligible players
 	SKC:Debug("KickOff",SKC.DEV.VERBOSE.LOOT);
 	self:SendLootMsgs();
@@ -197,7 +203,7 @@ function LootManager:SendLootDecision(loot_decision)
 	return;
 end
 
-function LootManager:LootDecisionPending()
+function LootManager:LootDecisionPending(verbose)
 	-- returns true if there is still loot currently being decided on
 	if self.current_loot_timer == nil then
 		-- no pending loot decision
@@ -208,7 +214,7 @@ function LootManager:LootDecisionPending()
 			return false;
 		else
 			-- pending loot decision
-			SKC:Error("Still waiting on loot decision for "..self:GetCurrentLootLink());
+			if verbose then SKC:Error("Still waiting on loot decision for "..self:GetCurrentLootLink()) end
 			return true;
 		end
 	end
@@ -321,6 +327,9 @@ end
 function LootManager:DetermineWinner()
 	-- Determines winner for current loot, awards loot to player, and sends alert message to raid
 	if not SKC:isML() then return end
+	-- cancel overall timer (which triggers timeout)
+	if self.current_loot_timer ~= nil then self.current_loot_timer:Cancel() end
+	-- determine winner
 	local winner = nil;
 	local winner_decision = SKC.LOOT_DECISION.PASS;
 	local winner_prio = SKC.PRIO_TIERS.PASS;
@@ -382,7 +391,7 @@ function LootManager:DetermineOutcome()
 		local disenchanter, banker = SKC.db.char.GD:GetFirstGuildRolesInRaid();
 		local sk_list = self.current_loot.sk_list;
 		local loot_name = self:GetCurrentLootName();
-		local loot_link = self:GetCurrentLootIndex();
+		local loot_link = self:GetCurrentLootLink();
 		-- check if DE or GB
 		if DE then
 			-- disenchant
@@ -451,9 +460,10 @@ local function ConfirmLootDistributed()
 		-- failed
 		if SKC.db.char.LM.auto_loot_pickup or SKC.db.char.LM.auto_loot_backup then
 			-- dont try again
-			SKC:Error("Could not give loot");
+			SKC:Send("Could not give loot to "..SKC:FormatWithClassColor(SKC.db.char.LM.loot_target)..", loot distribution FAILED.",SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
 		else
 			-- attempt to award to master looter if not already in backup loot mode
+			SKC:Send("Could not give loot to "..SKC:FormatWithClassColor(SKC.db.char.LM.loot_target)..", sending to the master looter ("..SKC:FormatWithClassColor(UnitName("player"))..").",SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
 			SKC.db.char.LM.auto_loot_backup = true;
 			SKC.db.char.LM.loot_target = UnitName("player");
 			SKC.db.char.LM:GiveLoot();
@@ -461,7 +471,6 @@ local function ConfirmLootDistributed()
 		end
 	end
 	-- complete
-	if not SKC.db.char.LM.auto_loot_pickup then SKC:Alert("Loot distribution complete") end
 	SKC.db.char.LM:Reset();
 	return;
 end
@@ -635,7 +644,7 @@ function LootManager:LogWinnerSK()
 	);
 	-- construct message
 	local loot_link = self:GetCurrentLootLink();
-	local msg = SKC:FormatWithClassColor(winner).." was SK'd for "..loot_link.." on "..sk_list.." ("..curr_pos.."-->"..new_pos..")";
+	local msg = SKC:FormatWithClassColor(winner).." was SK'd for "..loot_link.." on "..sk_list.." ("..curr_pos.." => "..new_pos..")";
 	-- send message
 	SKC:Send(msg,SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
 	return;
