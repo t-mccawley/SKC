@@ -97,7 +97,6 @@ function SKC:CreateLootStarterGUI()
 		function(self,button,down)
 			LootFrameDownButton_fh(self,button,down);
 			LootFrame.LootStarterGUI.Page = LootFrame.LootStarterGUI.Page + 1;
-			SKC:Debug("Page: "..LootFrame.LootStarterGUI.Page,SKC.DEV.VERBOSE.LOOT);
 			SKC:ManageLootWindow();
 		end
 	);
@@ -106,7 +105,6 @@ function SKC:CreateLootStarterGUI()
 		function(self,button,down)
 			LootFrameUpButton_fh(self,button,down);
 			LootFrame.LootStarterGUI.Page = LootFrame.LootStarterGUI.Page - 1;
-			SKC:Debug("Page: "..LootFrame.LootStarterGUI.Page,SKC.DEV.VERBOSE.LOOT);
 			SKC:ManageLootWindow();
 		end
 	);

@@ -21,12 +21,12 @@ SKC.DEV = {
     LOOT_DIST_DISABLE = false, -- true if loot distribution is disabled
     LOG_ACTIVE_OVRD = false, -- true to force logging
 	GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
-		Skc = true,
-		Freznic = true,
+		-- Skc = true,
+		-- Freznic = true,
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
-	VERBOSITY_LEVEL = 4,-- verbosity level (debug messages at or below this level will print)
+	VERBOSITY_LEVEL = 0,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
 		COMM = 1,
 		LOOT = 2,
@@ -789,6 +789,17 @@ SKC.INSTANCE_NAME_MAP = {
 	AQ20 = "Ruins of Ahn'Qiraj",
 	AQ40 = "Temple of Ahn'Qiraj",
 	NAXX = "Naxxramas",
+};
+SKC.ITEMS_WITH_COMMA = {
+	["Ashjre'thul"] = "Ashjre'thul, Crossbow of Smiting",
+	Ashkandi = "Ashkandi, Greatsword of the Brotherhood",
+	["Crul'shorukh"] = "Crul'shorukh, Edge of Chaos",
+	Gressil = "Gressil, Dawn of Ruin",
+	Iblis = "Iblis, Blade of the Fallen Seraph",
+	Maladath = "Maladath, Runed Blade of the Black Flight",
+	["Mish'undare"] = "Mish'undare, Circlet of the Mind Flayer",
+	Neretzek = "Neretzek, The Blood Drinker",
+	["Zin'rokh"] = "Zin'rokh, Destroyer of Worlds",
 };
 SKC.STATUS_ENUM = {
 	ACTIVE = {

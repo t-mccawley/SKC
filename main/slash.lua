@@ -295,6 +295,11 @@ local function OnClick_ImportLootPrio()
 			SKC:Error("Invalid Open Roll for "..item.." (line: "..line_count..")");
 			break;
 		end
+		-- Check if item imported is an item with a comma in the name
+		if SKC.ITEMS_WITH_COMMA[item] ~= nil then
+			-- replace item name with actual name
+			item = SKC.ITEMS_WITH_COMMA[item];
+		end
 		-- write meta data for item
 		temp_lp.items[item] = Prio:new(nil);
 		temp_lp.items[item].sk_list = sk_list;

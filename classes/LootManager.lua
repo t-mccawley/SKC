@@ -10,8 +10,8 @@ LootManager = {
 	current_loot = nil, -- Loot object of loot that is being decided on
 	current_loot_timer = nil, -- timer used to track when decision time has expired for ALL players (each player also has separate timer associated w/ loot gui)
 	loot_target = nil, -- name of current target for loot distribution
-	auto_loot_pickup = false, -- flags that loot distribution is an auto pickup
-	auto_loot_backup = false, -- flag used to indicate if backup loot distribution was necessary
+	auto_loot_pickup = false, -- flags that loot distribution is an auto pickup CURRENTLY NOT USED
+	auto_loot_backup = true, -- flag used to indicate if backup loot distribution was necessary CURRENTLY DISABLED
 }; 
 LootManager.__index = LootManager;
 
@@ -24,7 +24,7 @@ function LootManager:new(loot_manager)
 		obj.current_loot_timer = nil;
 		obj.loot_target = nil;
 		obj.auto_loot_pickup = false;
-		obj.auto_loot_backup = false;
+		obj.auto_loot_backup = true;
 		setmetatable(obj,LootManager);
 		return obj;
 	else
@@ -47,7 +47,7 @@ function LootManager:Reset()
 	self.master_looter = nil;
 	self.loot_target = nil;
 	self.auto_loot_pickup = false;
-	self.auto_loot_backup = false;
+	self.auto_loot_backup = true; -- DISABLED (will not try to auto give loot to ML, will just stay on corpse if failed)
 	return;
 end
 
@@ -185,10 +185,12 @@ end
 function LootManager:SendLootMsgs()
 	-- send loot message to all elligible characters on LOOT
 	-- construct message
-	local loot_msg = self.current_loot.lootName..","..
-		self.current_loot.lootLink..","..
-		SKC:BoolToStr(self.current_loot.open_roll)..","..	
-		self.current_loot.sk_list;
+	local loot_msg = {
+		lootName = self.current_loot.lootName,
+		lootLink = self.current_loot.lootLink,
+		open_roll = self.current_loot.open_roll,
+		sk_list = self.current_loot.sk_list,
+	}
 	-- scan elligible players and send message
 	for char_name,_ in pairs(self.current_loot.decisions) do
 		SKC:Send(loot_msg,SKC.CHANNELS.LOOT,"WHISPER",char_name);
@@ -198,7 +200,10 @@ end
 
 function LootManager:SendLootDecision(loot_decision)
 	-- send decision to master looter
-	local msg = self:GetCurrentLootName()..","..loot_decision;
+	local msg = {
+		lootName = self:GetCurrentLootName(),
+		lootDecision = loot_decision,
+	};
 	SKC:Send(msg,SKC.CHANNELS.LOOT_DECISION,"WHISPER",self.master_looter);
 	return;
 end
@@ -224,8 +229,20 @@ function LootManager:ReadLootMsg(msg,sender)
 	-- reads loot message on LOOT (not necessarily ML)
 	-- saves item as current_loot
 	if msg == "BLANK" then return end
-	local item_name, item_link, open_roll, sk_list = strsplit(",",msg,4);
-	open_roll = SKC:BoolOut(open_roll);
+	-- parse data
+	local item_name = msg.lootName;
+	local item_link = msg.lootLink;
+	local open_roll = msg.open_roll;
+	local sk_list = msg.sk_list;
+	-- check if data is valid
+	if item_name == nil or type(item_name) ~= "string" 
+	  or item_link == nil or type(item_link) ~= "string"
+	  or open_roll == nil or type(open_roll) ~= "boolean"
+	  or sk_list == nil or type(sk_list) ~= "string" then
+		SKC:Error("Received malformed loot message");
+		return;
+	end
+	-- store data
 	if not SKC:isML() then
 		-- reset loot and add item
 		self:Reset();
@@ -233,7 +250,7 @@ function LootManager:ReadLootMsg(msg,sender)
 	else
 		-- current loot already exists, just check that item matches
 		if item_name ~= self.current_loot.lootName then
-			SKC:Error("Received loot message for item that is not current_loot!");
+			SKC:Error("Received loot message for item that is not current_loot");
 		end
 	end
 	-- save ML
@@ -269,9 +286,18 @@ function LootManager:ReadLootDecision(msg,sender)
 	-- determines if all decisions received and ready to award loot
 	-- MASTER LOOTER ONLY
 	if not SKC:isML() then return end
+	-- parse data
 	local char_name = SKC:StripRealmName(sender);
-	local loot_name, loot_decision = strsplit(",",msg,2);
-	loot_decision = tonumber(loot_decision);
+	local loot_name = msg.lootName;
+	local loot_decision = tonumber(msg.lootDecision);
+	-- check integrity
+	if char_name == nil or type(char_name) ~= "string"
+	  or loot_name == nil or type(loot_name) ~= "string"
+	  or loot_decision == nil or type(loot_decision) ~= "number" then
+		local sender_text = sender or "NULL";
+		SKC:Error("Received malformed decision from "..sender_text);
+		return;
+	end
 	-- confirm that loot decision is for current loot
 	if self:GetCurrentLootName() ~= loot_name then
 		SKC:Error("Received decision for item other than Current Loot");
@@ -460,7 +486,7 @@ local function ConfirmLootDistributed()
 		-- failed
 		if SKC.db.char.LM.auto_loot_pickup or SKC.db.char.LM.auto_loot_backup then
 			-- dont try again
-			SKC:Send("Could not give loot to "..SKC:FormatWithClassColor(SKC.db.char.LM.loot_target)..", loot distribution FAILED.",SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
+			SKC:Send("Could not give loot to "..SKC:FormatWithClassColor(SKC.db.char.LM.loot_target)..", loot distribution |cffff0000FAILED|r.",SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
 		else
 			-- attempt to award to master looter if not already in backup loot mode
 			SKC:Send("Could not give loot to "..SKC:FormatWithClassColor(SKC.db.char.LM.loot_target)..", sending to the master looter ("..SKC:FormatWithClassColor(UnitName("player"))..").",SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
@@ -535,6 +561,7 @@ end
 
 function LootManager:GiveLootToML(event_details)
 	-- sends loot to ML (and optionally writes to log)
+	-- CURRENTLY NOT USED
 	if not SKC:isML() then 
 		SKC:Error("Current player is not Master Looter.");
 		return;

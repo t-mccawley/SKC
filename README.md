@@ -5,6 +5,8 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
 
 ![SKC GUI](/media/SKC_GUI.png)
 
+![SKC Starter](/media/SKC_Starter.png)
+
 ![SKC Loot](/media/SKC_Loot.png)
 
 ## TLDR
@@ -13,12 +15,14 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
 ## Features
 ### Simple GUI interface
 - Open the main GUI with `/skc`
-- Loot decision GUI opens automatically
+- Master Looter kicks off a loot decision via the SKC button for elligible items
+- Personal loot decision GUI's automatically appear for elligible characters
 ### Automatic Synchronization
 - SKC automatically synchronizes data in game within guild to ensure that every member has the most up to date SK list, guild data, and loot prio.
 - Specifically, data synchronizes with the Loot Officer who has the newest data.
 - The Synchronization field in the Status portion of the main GUI describes the status. The possible enumeraions are:
-    - **In Progress**: SKC is in the process of synchronizing with a Loot Officer.
+    - **Reading**: SKC is in the process of reading data with a Loot Officer.
+    - **Sending (#%)**: SKC is in the process of sending data to a guild member and is # percent complete with that packet.
     - **Complete**: SKC is synchronized with all online Loot Officers.
 ### Two Separate SK Lists 
 - Main SK (MSK): Intended as the primary SK list. More generally can be used for rare items or those that offer a significant upgrade.
@@ -27,7 +31,7 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
 ### Automatic Loot Distribution
 - Once SKC is **Active**, loot may be distributed automatically by SKC (see Addon Status Display below).
 - Sequence of automatic loot distribution:
-    1. Master looter of a raid (who is a Loot Officer) opens the master looter GUI for an item
+    1. Master looter of a raid (who is a Loot Officer) clicks the SKC button next to an elligible item.
     2. SKC uses the Loot Prio to determine which characters are elligible for the given loot
     3. SKC prompts elligible characters with the possible loot decisions (SK, Roll, or Pass)
     4. Characters have a configurable amount of time (see slash commands) to make a decision
@@ -96,11 +100,16 @@ In order for SKC to be active, the following conditions must be met:
 5. Your raid must be using the Master Looter distribution method.
 6. Your raid must have a Master Looter who is a Loot Officer (see SK Usage Control).
 7. You must be in an Active Raid (see SK Usage Control).
-### Why Isn't the Loot Distribution GUI Appearing?
-SKC automatically synchronizes data between guild members. First check the main GUI to see if SKC is currently synchronizing. Loot distribution will be delayed until synchronization is complete, so just wait a few seconds.
-If loot distribution never starts, it is likely because the item is not in your Loot Prio database, or the elligible class / spec combinations are not members of the raid.
-### Why is the Synchronization Status Stuck on In Progress?
-SKC automatically syncs with online Loot Officers. If there are significant changes since the last time you sync'd, the synchronization might take a bit, give it a few minutes. World of Warcraft only allows a certain rate of addon message communication so the speed is limited. 
+### Why is the SKC loot button greyed out?
+SKC will generate an SKC loot starter button for any item that meets the criteria for master looter loot distribution. Specifically, it must be an item which meets the loot quality threshold set by the Master Looter. If that item is present in the Loot Prio (initialized by the Guild Leader) and at least one player in the raid is elligible to decide on the item, then the item is elligible for SKC loot distribution and the button will activate.
+### Why is the Synchronization Status Stuck on Reading?
+SKC automatically syncs with online Loot Officers. If there are significant changes since the last time you sync'd, the synchronization might take a bit, give it a few minutes. World of Warcraft only allows a certain rate of addon message communication so the speed is limited.
+### Why is the Synchronization Status Stuck on Sending?
+See above question. The amount of data that a player can send is throttled, so large chunks of data can take a while to send. You can monitor the percent complete in the synchronization status on the main GUI.
+### Why did the automatic loot distribution fail?
+Most likely the player who was supposed to receive the item had no inventory space. In this case, the distribution fails and the item stays on the corpse. The Master Looter can then ensure there is bagspace, and manually send the loot via the master looter interface (or trade directly). *NOTE* When loot fails to distribute, the SK (if necessary) is not automatically performed, the Master Looter will need to do this manually.
+### What about items with a comma in the name?
+The Loot Prio is imported via CSV, so therefore items with a comma in the name impose a unique issue. When importing these items, please use just the first part of the item name before the comma. For example, instead of Ashkandi, Greatsword of the Brotherhood, just use Ashkandi. Instead of Ashjre'thul, Crossbow of Smiting, just use Ashjre'thul. Internally these items are stored by their real name and the comma is handled correctly.
 
 ## Slash Commands
 Some slash commands are protected by character privelages, see the available slash commands for each member type below:
