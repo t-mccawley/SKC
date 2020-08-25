@@ -39,7 +39,8 @@ function SKC:OnInitialize()
 	-- register events
 	self:RegisterEvent("GUILD_ROSTER_UPDATE","ManageGuildData");
 	self:RegisterEvent("LOOT_OPENED","OnOpenLoot");
-	self:RegisterEvent("LOOT_SLOT_CLEARED","ManageLootWindow");
+	self:RegisterEvent("LOOT_SLOT_CLEARED","OnLootSlotCleared");
+	self:RegisterEvent("LOOT_CLOSED","OnCloseLoot");
 	self:RegisterEvent("PLAYER_ENTERING_WORLD","RefreshStatus");
 	self:RegisterEvent("GROUP_ROSTER_UPDATE","ManageRaidChanges");
 	self:RegisterEvent("PARTY_LOOT_METHOD_CHANGED","ManageRaidChanges");

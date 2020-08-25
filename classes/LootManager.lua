@@ -10,8 +10,9 @@ LootManager = {
 	current_loot = nil, -- Loot object of loot that is being decided on
 	current_loot_timer = nil, -- timer used to track when decision time has expired for ALL players (each player also has separate timer associated w/ loot gui)
 	loot_target = nil, -- name of current target for loot distribution
-	auto_loot_pickup = false, -- flags that loot distribution is an auto pickup CURRENTLY NOT USED
-	auto_loot_backup = true, -- flag used to indicate if backup loot distribution was necessary CURRENTLY DISABLED
+	loot_dist_confirm_timer = nil, -- ticker used to check if loot has been successfully sent
+	CONFIRM_DELAY = nil, -- number of seconds waited after loot distribution to confirm that loot was sent
+	confirmed_dist = nil, -- boolean used to confirm that loot has been looted
 }; 
 LootManager.__index = LootManager;
 
@@ -23,8 +24,9 @@ function LootManager:new(loot_manager)
 		obj.current_loot = Loot:new(nil);
 		obj.current_loot_timer = nil;
 		obj.loot_target = nil;
-		obj.auto_loot_pickup = false;
-		obj.auto_loot_backup = true;
+		obj.loot_dist_confirm_timer = nil;
+		obj.CONFIRM_DELAY = 2.0;
+		obj.confirmed_dist = false;
 		setmetatable(obj,LootManager);
 		return obj;
 	else
@@ -41,13 +43,26 @@ end
 --------------------------------------
 function LootManager:Reset()
 	-- reset loot manager
+	self.master_looter = nil;
+	self.current_loot = nil;
 	if self.current_loot_timer ~= nil then self.current_loot_timer:Cancel() end
 	self.current_loot_timer = nil;
-	self.current_loot = nil;
-	self.master_looter = nil;
 	self.loot_target = nil;
-	self.auto_loot_pickup = false;
-	self.auto_loot_backup = true; -- DISABLED (will not try to auto give loot to ML, will just stay on corpse if failed)
+	if self.loot_dist_confirm_timer ~= nil then self.loot_dist_confirm_timer:Cancel() end
+	self.loot_dist_confirm_timer = nil;
+	self.confirmed_dist = false;
+	return;
+end
+
+function LootManager:ForceClose()
+	-- called when loot manager is forced to close (from player closing loot for example)
+	-- cancel timers
+	if self.current_loot_timer ~= nil and not self.current_loot_timer:IsCancelled() then self.current_loot_timer:Cancel() end
+	if self.loot_dist_confirm_timer ~= nil and not self.loot_dist_confirm_timer:IsCancelled() then self.loot_dist_confirm_timer:Cancel() end 
+	-- hide GUI
+	SKC:ForceCloseLootDecisionGUI();
+	-- reset self
+	self:Reset();
 	return;
 end
 
@@ -210,18 +225,14 @@ end
 
 function LootManager:LootDecisionPending(verbose)
 	-- returns true if there is still loot currently being decided on
-	if self.current_loot_timer == nil then
-		-- no pending loot decision
-		return false;
+	if (self.current_loot_timer ~= nil and not self.current_loot_timer:IsCancelled()) or 
+	   (self.loot_dist_confirm_timer ~= nil and not self.loot_dist_confirm_timer:IsCancelled()) then
+		-- pending loot decision or confirmation timers
+		if verbose then SKC:Error("Still waiting on loot distribution for "..self:GetCurrentLootLink()) end
+		return true;
 	else
-		if self.current_loot_timer:IsCancelled() then
-			-- no pending loot decision
-			return false;
-		else
-			-- pending loot decision
-			if verbose then SKC:Error("Still waiting on loot decision for "..self:GetCurrentLootLink()) end
-			return true;
-		end
+		-- no pending loot decision or confirmation timers		
+		return false;
 	end
 end
 
@@ -439,8 +450,6 @@ function LootManager:DetermineOutcome()
 		-- log and send message
 		self:LogNonWinnerOutcome(event_details,self.loot_target,loot_name,loot_link);
 	end
-	-- mark loot as awarded in GUI (prevents restart of loot decision)
-	_G["LootButton"..self:GetCurrentLootIndex()].Awarded = true;
 	-- attempt to give loot to loot_target
 	self:GiveLoot();
 	return;
@@ -451,94 +460,96 @@ local function ConfirmLootDistributed()
 	-- if loot is not present, write confirmed distribution to log
 	-- if loot is present, attempt to award to master looter if not already attempted
 	if not SKC:isML() then return end
-	local current_loot_index = SKC.db.char.LM:GetCurrentLootIndex();
-	local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(current_loot_index);
-	-- check that loot is gone
-	local success = lootName == nil;
-	if success then
+	-- check if loot is gone
+	if SKC.db.char.LM.confirmed_dist then
 		-- confirmed
-		local loot_target = SKC.db.char.LM.loot_target;
-		if SKC.db.char.LM.auto_loot_pickup then
-			-- auto loot pickup
-			SKC.db.char.LM:LogDist(SKC.LOG_OPTIONS["Event Details"].Options.ALP,loot_target);
-		elseif SKC.db.char.LM.auto_loot_backup then
-			-- auto loot backup
-			SKC.db.char.LM:LogDist(SKC.LOG_OPTIONS["Event Details"].Options.ALB,loot_target);
-		else
-			-- auto loot winner
-			local loot_target_decision = SKC.db.char.LM.current_loot.decisions[loot_target];
+		-- cancel ticker
+		SKC.db.char.LM:CancelDistConfirmTimer()
+		-- log
+		SKC.db.char.LM:LogDist(true);
+		-- perform SK (if necessary)
+		local loot_target_decision = SKC.db.char.LM.current_loot.decisions[loot_target];
+		if loot_target_decision == SKC.LOOT_DECISION.SK then
+			-- perform SK on winner (below current live bottom)
 			local sk_list = SKC.db.char.LM:GetCurrentLootSKList();
-			SKC.db.char.LM:LogDist(SKC.LOG_OPTIONS["Event Details"].Options.ALW,loot_target);
-			-- perform SK (if necessary)
-			if loot_target_decision == SKC.LOOT_DECISION.SK then
-				-- perform SK on winner (below current live bottom)
-				local sk_success = SKC.db.char[sk_list]:LiveSK(loot_target);
-				if not sk_success then
-					SKC:Error(sk_list.." for "..loot_target.." failed");
-				end
-				-- log SK
-				SKC.db.char.LM:LogWinnerSK();
-				-- populate data
-				SKC:PopulateData();
-			end			
-		end
+			local sk_success = SKC.db.char[sk_list]:LiveSK(loot_target);
+			if not sk_success then
+				local loot_target = SKC.db.char.LM.loot_target;
+				SKC:Error(sk_list.." for "..loot_target.." failed");
+			end
+			-- log SK
+			SKC.db.char.LM:LogWinnerSK();
+			-- populate data
+			SKC:PopulateData();
+		end	
 	else
 		-- failed
-		if SKC.db.char.LM.auto_loot_pickup or SKC.db.char.LM.auto_loot_backup then
-			-- dont try again
-			SKC:Send("Could not give loot to "..SKC:FormatWithClassColor(SKC.db.char.LM.loot_target)..", loot distribution |cffff0000FAILED|r.",SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
-		else
-			-- attempt to award to master looter if not already in backup loot mode
-			SKC:Send("Could not give loot to "..SKC:FormatWithClassColor(SKC.db.char.LM.loot_target)..", sending to the master looter ("..SKC:FormatWithClassColor(UnitName("player"))..").",SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
-			SKC.db.char.LM.auto_loot_backup = true;
-			SKC.db.char.LM.loot_target = UnitName("player");
-			SKC.db.char.LM:GiveLoot();
-			return;
-		end
+		SKC.db.char.LM:LogDist(false);
 	end
-	-- complete
-	SKC.db.char.LM:Reset();
+	-- reset
+	SKC.db.char.LM:Reset();		
+	return;
+end
+
+function LootManager:ManageOnLootSlotClear()
+	-- manages the LOOT_SLOT_CLEARED event
+	-- checks if current loot was item cleared
+	if (self.loot_dist_confirm_timer == nil or self.loot_dist_confirm_timer:IsCancelled()) then return end
+	local current_loot_index = self:GetCurrentLootIndex();
+	local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(current_loot_index);
+	self.confirmed_dist = lootName == nil;
+	if self.confirmed_dist then
+		-- loot item cleared, early call to confirmation function
+		ConfirmLootDistributed();
+	end
+	return;
+end
+
+function LootManager:StartDistConfirmTimer()
+	self.loot_dist_confirm_timer = C_Timer.NewTicker(self.CONFIRM_DELAY,ConfirmLootDistributed);
+	return;
+end
+
+function LootManager:CancelDistConfirmTimer()
+	self.loot_dist_confirm_timer:Cancel();
+	self.loot_dist_confirm_timer = nil;
 	return;
 end
 
 function LootManager:GiveLoot()
 	-- sends current loot to current target
-	-- TODO:
-	-- Start a timer here to wait for ~1-2s
-	-- At end of timer, check if item still exists in loot window
-	-- If item still exists, give to ML (do not perform SK)
-	-- ML give should also do this check with same confirm delay after (can cause infinite loop)
-	-- If item doesnt exist, give to winner (perform SK)
-	-- only log / print out who received item once item is confirmed to no longer be in loot window
 	if not SKC:isML() then 
 		SKC:Error("GiveLoot failed. Current player is not Master Looter.");
+		LootManager:LogDist(false);
 		return;
 	end
 	if self.loot_target == nil then
 		SKC:Error("GiveLoot failed. loot_target is nil.");
+		LootManager:LogDist(false);
 		return;
 	end
-	local success = self.current_loot ~= nil;
-	if not success then
+	if self.current_loot == nil then
 		SKC:Error("GiveLoot failed. current_loot is nil.");
-		return(success);
+		LootManager:LogDist(false);
+		return;
 	end
 	-- confirm item is at given index
 	local lootIndex = self:GetCurrentLootIndex();
-	success = lootIndex ~= nil;
-	if not success then
+	if lootIndex == nil then
 		SKC:Error("GiveLoot failed. LootIndex is nil.");
-		return(success);
+		LootManager:LogDist(false);
+		return;
 	end
 	local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(lootIndex);
-	success = lootName == self:GetCurrentLootName();
-	if not success then
+	if lootName ~= self:GetCurrentLootName() then
 		local loot_name_str = lootName or "NULL";
 		local curr_loot_name_str = self:GetCurrentLootName() or "NULL";
 		SKC:Error("GiveLoot failed. Current loot index ("..lootIndex..") is "..loot_name_str.." which is not current loot ("..curr_loot_name_str..").");
-		return(success);
+		LootManager:LogDist(false);
+		return;
 	end
 	-- find character in raid and give loot
+	local success = false;
 	for i_char = 1,40 do
 		if GetMasterLootCandidate(lootIndex, i_char) == self.loot_target then
 			if SKC.DEV.LOOT_DIST_DISABLE or SKC.DEV.LOOT_SAFE_MODE then
@@ -551,25 +562,11 @@ function LootManager:GiveLoot()
 	end
 	if not success then
 		SKC:Error("GiveLoot failed. "..self.loot_target.." not found in possible master looter candidates.");
+		LootManager:LogDist(false);
 		return;
 	end
-	-- after some delay, confirm that loot has been distributed
-	local confirm_loot_dist_delay = 1.0;
-	C_Timer.After(confirm_loot_dist_delay,ConfirmLootDistributed);
-	return success;
-end
-
-function LootManager:GiveLootToML(event_details)
-	-- sends loot to ML (and optionally writes to log)
-	-- CURRENTLY NOT USED
-	if not SKC:isML() then 
-		SKC:Error("Current player is not Master Looter.");
-		return;
-	end
-	-- mark as auto loot
-	self.auto_loot_pickup = true;
-	-- attempt to give loot
-	self:GiveLoot();
+	-- constantly check if loot dist was successful, failure if not confirmed in this time
+	self:StartDistConfirmTimer();
 	return;
 end
 
@@ -715,9 +712,17 @@ function LootManager:LogNonWinnerOutcome(event_details,loot_target,loot_name,loo
 	return;
 end
 
-function LootManager:LogDist(event_details,loot_target)
+function LootManager:LogDist(success)
 	-- writes distribution event to log and sends message to raid
 	-- fetch data
+	local loot_name = self:GetCurrentLootName();
+	local loot_target = self.loot_target;
+	local event_details;
+	if success then
+		event_details = SKC.LOG_OPTIONS["Event Details"].Options.ALS;
+	else
+		event_details = SKC.LOG_OPTIONS["Event Details"].Options.ALF;
+	end 
 	-- write to log
 	SKC:WriteToLog( 
 		SKC.LOG_OPTIONS["Event Type"].Options.LD, --event_type,
@@ -732,6 +737,15 @@ function LootManager:LogDist(event_details,loot_target)
 	);
 	-- construct message
 	-- send message
-	SKC:Send(msg,SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
+	local loot_link = self:GetCurrentLootLink() or "NULL";
+	local loot_target_formatted = "NULL";
+	if loot_target ~= nil then
+		loot_target_formatted = SKC:FormatWithClassColor(loot_target);
+	end
+	if success then
+		SKC:Send("Gave "..loot_link.." to "..loot_target_formatted..", loot distribution |cff00ff00SUCCESS|r.",SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
+	else
+		SKC:Send("Could not give "..loot_link.." to "..loot_target_formatted..", loot distribution |cffff0000FAILURE|r.",SKC.CHANNELS.LOOT_OUTCOME_PRINT,"RAID");
+	end
 	return;
 end

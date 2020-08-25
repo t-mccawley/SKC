@@ -297,21 +297,28 @@ function SKC:WriteToLog(
 	end
 	self.db.char.LOG[idx][3] = event_type or "";
 	self.db.char.LOG[idx][4] = event_details or "";
-	self.db.char.LOG[idx][5] = subject or "";
-	if class_txt == nil then
-		self.db.char.LOG[idx][6] = self.db.char.GD:GetClass(subject) or "";
+	if subject == nil then
+		self.db.char.LOG[idx][5] = "";
+		self.db.char.LOG[idx][6] = "";
+		self.db.char.LOG[idx][7] = "";
+		self.db.char.LOG[idx][8] = "";
 	else
-		self.db.char.LOG[idx][6] = class_txt;
-	end
-	if spec_txt == nil then
-		self.db.char.LOG[idx][7] = self.db.char.GD:GetSpecName(subject) or "";
-	else
-		self.db.char.LOG[idx][7] = spec_txt;
-	end
-	if status_txt == nil then
-		self.db.char.LOG[idx][8] = self.db.char.GD:GetData(subject,"Status");
-	else
-		self.db.char.LOG[idx][8] = status_txt;
+		self.db.char.LOG[idx][5] = subject
+		if class_txt == nil then
+			self.db.char.LOG[idx][6] = self.db.char.GD:GetClass(subject) or "";
+		else
+			self.db.char.LOG[idx][6] = class_txt;
+		end
+		if spec_txt == nil then
+			self.db.char.LOG[idx][7] = self.db.char.GD:GetSpecName(subject) or "";
+		else
+			self.db.char.LOG[idx][7] = spec_txt;
+		end
+		if status_txt == nil then
+			self.db.char.LOG[idx][8] = self.db.char.GD:GetData(subject,"Status");
+		else
+			self.db.char.LOG[idx][8] = status_txt;
+		end
 	end
 	self.db.char.LOG[idx][9] = item or "";
 	self.db.char.LOG[idx][10] = sk_list or "";

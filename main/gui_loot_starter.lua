@@ -12,7 +12,7 @@ local function OnClick_StartLoot(self,button,down)
 	if not self:IsEnabled() then return end
 
 	--Check validity
-	if not SKC:LootDistValid() then return end
+	if not SKC:LootDistValid(true) then return end
 
 	-- Check if read in progress
 	local sync_status = SKC:GetSyncStatus()
@@ -171,7 +171,7 @@ function SKC:LootDistValid(verbose)
 end
 
 function SKC:OnOpenLoot()
-	-- Fires on LOOT_OPENED for first time loot is opened
+	-- Fires on LOOT_OPENED
 	--Check validity
 	if not self:LootDistValid(verbose) then return end
 
@@ -216,6 +216,19 @@ function SKC:OnOpenLoot()
 
 	-- start managing the loot window
 	self:ManageLootWindow();
+	return;
+end
+
+function SKC:OnLootSlotCleared()
+	-- fires on LOOT_SLOT_CLEARED
+	self.db.char.LM:ManageOnLootSlotClear();
+	self:ManageLootWindow();
+	return;
+end
+
+function SKC:OnCloseLoot()
+	-- fires on LOOT_CLOSED
+	self.db.char.LM:ForceClose();
 	return;
 end
 

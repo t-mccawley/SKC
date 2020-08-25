@@ -154,6 +154,13 @@ function SKC:HideLootDecisionGUI()
 	return;
 end
 
+function SKC:ForceCloseLootDecisionGUI()
+	-- force close loot decision gui
+	SKC:CancelLootTimer();
+	self:HideLootDecisionGUI();
+	return;
+end
+
 function SKC:DisplayLootDecisionGUI(open_roll,sk_list)
 	-- ensure LootGUI is created
 	self:CreateLootGUI();

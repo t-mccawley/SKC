@@ -21,8 +21,8 @@ SKC.DEV = {
     LOOT_DIST_DISABLE = false, -- true if loot distribution is disabled
     LOG_ACTIVE_OVRD = false, -- true to force logging
 	GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
-		-- Skc = true,
-		-- Freznic = true,
+		Skc = true,
+		Freznic = true,
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
@@ -738,9 +738,8 @@ SKC.LOG_OPTIONS = {
 			ManFullSK = "Manual Full SK",
 			ManSingleSK = "Manual Single SK",
 			-- Loot Distribution
-			ALP = "Auto Loot Pickup",
-			ALB = "Auto Loot Backup",
-			ALW = "Auto Loot Winner",
+			ALS = "Auto Loot Success",
+			ALF = "Auto Loot Failure",
 		},
 	},
 	["Subject"] = {
