@@ -1,75 +1,77 @@
-Item,SK List,Reserved,Disenchant,Open Roll,Balance Druid,Resto Druid,Feral Tank Druid,Feral DPS Druid,Any Hunter,Any Mage,Holy Paladin,Prot Paladin,Ret Paladin,Holy Priest,Shadow Priest,Any Rogue,Daggers Rogue,Swords Rogue,Ele Shaman,Enh Shaman,Resto Shaman,Any Warlock,DPS Warrior,Prot Warrior,Two Handed Warrior,Dual Wield Warrior
-Cenarion Raiment,TSK,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,,,,,,,,,,,,,
-Stormrage Raiment,TSK,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,,,,,,,,,,,,,
-Giantstalker Armor,TSK,TRUE,TRUE,TRUE,,,,,1,,,,,,,,,,,,,,,,,
-Dragonstalker Armor,TSK,TRUE,TRUE,TRUE,,,,,1,,,,,,,,,,,,,,,,,
-Arcanist Regalia,TSK,TRUE,TRUE,TRUE,,,,,,1,,,,,,,,,,,,,,,,
-Netherwind Regalia,TSK,TRUE,TRUE,TRUE,,,,,,1,,,,,,,,,,,,,,,,
-Vestments of Prophecy,TSK,TRUE,TRUE,TRUE,,,,,,,,,,1,OS,,,,,,,,,,,
-Vestments of Transcendence,TSK,TRUE,TRUE,TRUE,,,,,,,,,,1,OS,,,,,,,,,,,
-Nightslayer Armor,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,1,1,1,,,,,,,,
-Bloodfang Armor,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,1,1,1,,,,,,,,
-The Earthfury,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,OS,1,,,,,
-The Ten Storms,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,OS,1,,,,,
-Felheart Raiment,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,1,,,,
-Nemesis Raiment,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,1,,,,
-Battlegear of Might,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
-Battlegear of Wrath,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
-Eskhandar's Collar,MSK,FALSE,TRUE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,,,,
-Deathbringer,MSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,1,OS,,1,1,OS,1
-Head of Onyxia,MSK,FALSE,FALSE,TRUE,1,1,1,1,1,1,,,,1,1,1,1,1,1,1,1,1,1,1,1,1
-Sapphiron Drape,MSK,FALSE,TRUE,TRUE,OS,1,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,OS,OS,OS,OS
-Shard of the Scale,MSK,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,1,1,,,,1,OS,1,,,,,
-Ring of Binding,MSK,FALSE,TRUE,TRUE,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-Vis'kag the Bloodletter,MSK,TRUE,TRUE,TRUE,,,,,,,,,,,,1,OS,1,,,,,1,1,OS,1
-Robe of Volatile Power,MSK,TRUE,TRUE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,,,,
-Manastorm Leggings,MSK,FALSE,TRUE,TRUE,1,OS,OS,OS,,1,,,,1,1,,,,1,1,1,1,,,,
-Mana Igniting Cord,MSK,TRUE,TRUE,TRUE,1,1,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,,,,
-Aged Core Leather Gloves,MSK,FALSE,TRUE,TRUE,OS,OS,1,1,,,,,,,,1,1,1,,,,,1,1,1,1
-Wristguards of Stability,MSK,FALSE,TRUE,TRUE,OS,OS,1,1,,,,,,,,,,,,,,,1,1,1,1
-Salamander Scale Pants,MSK,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,,,,,,OS,OS,1,,,,,
-Deep Earth Spaulders,MSK,FALSE,TRUE,TRUE,,,,,,,,,,,,,,,1,OS,OS,,,,,
-Flameguard Gauntlets,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,1,1,1,1
-Fire Runed Grimoire,MSK,FALSE,TRUE,TRUE,1,1,OS,OS,,1,,,,1,1,,,,1,OS,1,1,,,,
-Obsidian Edged Blade,MSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,1,1,1,1
-Sorcerous Dagger,MSK,FALSE,TRUE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,,,,
-Ring of Spell Power,MSK,TRUE,TRUE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,OS,OS,OS,OS
-Heavy Dark Iron Ring,MSK,FALSE,TRUE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,OS,1,OS,OS
-Talisman of Ephemeral Power,MSK,TRUE,TRUE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,,,,
-Quick Strike Ring,MSK,TRUE,TRUE,TRUE,OS,OS,1,1,1,,,,,,,1,1,1,OS,1,OS,,1,1,1,1
-Choker of Enlightenment,MSK,FALSE,TRUE,TRUE,1,1,OS,OS,,,,,,1,1,,,,1,OS,1,,OS,OS,OS,OS
-Earthshaker,MSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,1,OS,,1,OS,1,OS
-Eskhandar's Right Claw,MSK,FALSE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
-Medallion of Steadfast Might,MSK,FALSE,TRUE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,OS,1,OS,OS
-Striker's Mark,MSK,TRUE,TRUE,TRUE,,,,,1,,,,,,,1,1,1,,,,,1,1,1,1
-Aurastone Hammer,MSK,TRUE,TRUE,TRUE,1,1,OS,OS,,,,,,1,1,,,,1,OS,1,,OS,OS,OS,OS
-Brutality Blade,MSK,TRUE,TRUE,TRUE,,,,,1,,,,,,,1,OS,1,,,,,1,1,OS,1
-Drillborer Disk,MSK,FALSE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
-Gutgore Ripper,MSK,FALSE,TRUE,TRUE,,,,,,,,,,,,1,1,OS,,,,,1,1,OS,1
-Seal of the Archmagus,MSK,FALSE,TRUE,TRUE,1,1,OS,OS,1,1,,,,1,1,OS,OS,OS,1,1,1,1,OS,OS,OS,OS
-Azuresong Mageblade,MSK,TRUE,TRUE,TRUE,,,,,,1,,,,,,,,,,,,1,OS,OS,OS,OS
-Blastershot Launcher,MSK,FALSE,TRUE,TRUE,,,,,1,,,,,,,1,1,1,,,,,1,1,1,1
-Staff of Dominance,MSK,TRUE,TRUE,TRUE,1,1,OS,OS,,1,,,,1,1,,,,1,OS,1,1,,,,
-Shadowstrike,MSK,FALSE,TRUE,FALSE,1,1,1,1,1,1,,,,1,1,1,1,1,1,1,1,1,1,1,1,1
-Cauterizing Band,MSK,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,1,OS,,,,OS,OS,1,,OS,OS,OS,OS
-Core Forged Greaves,MSK,FALSE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
-Core Hound Tooth,MSK,TRUE,TRUE,TRUE,,,,,1,,,,,,,1,1,OS,,,,,OS,1,OS,OS
-Finkle's Lava Dredger,MSK,FALSE,TRUE,TRUE,OS,1,OS,OS,,,,,,,,,,,1,1,1,,,,,
-Fireguard Shoulders,MSK,FALSE,TRUE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,OS,1,OS,OS
-Gloves of the Hypnotic Flame,MSK,FALSE,TRUE,TRUE,,,,,,1,,,,,,,,,,,,1,,,,
-Sash of Whispered Secrets,MSK,TRUE,TRUE,TRUE,,,,,,,,,,OS,1,,,,,,,1,,,,
-The Eye of Divinity,TSK,TRUE,FALSE,TRUE,,,,,,,,,,1,1,,,,,,,,,,,
-Wild Growth Spaulders,MSK,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,,,,,,OS,OS,1,,,,,
-Ancient Petrified Leaf,TSK,TRUE,FALSE,TRUE,,,,,1,,,,,,,,,,,,,,,,,
-Wristguards of True Flight,MSK,TRUE,TRUE,TRUE,,,,,1,,,,,,,,,,,,,,1,1,1,1
-Band of Accuria,MSK,TRUE,TRUE,TRUE,OS,OS,1,1,1,,,,,,,1,1,1,,1,,,1,1,1,1
-Band of Sulfuras,MSK,FALSE,TRUE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,OS,OS,OS,OS
-Bonereaver's Edge,MSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,1,OS,1,OS
-Choker of the Fire Lord,MSK,TRUE,TRUE,TRUE,1,1,OS,OS,,1,,,,1,1,,,,1,OS,1,1,OS,OS,OS,OS
-Cloak of the Shrouded Mists,MSK,FALSE,TRUE,TRUE,OS,OS,1,1,1,,,,,,,1,1,1,,,,,1,1,1,1
-Crown of Destruction,MSK,FALSE,TRUE,TRUE,,,,,1,,,,,,,,,,OS,1,OS,,1,OS,1,1
-Dragon's Blood Cape,MSK,TRUE,TRUE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,OS,1,OS,OS
-Malistar's Defender,MSK,FALSE,TRUE,TRUE,,,,,,,,,,,,,,,1,OS,1,,,,,
-Onslaught Girdle,TSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,1,1,1,1
-Perdition's Blade,MSK,TRUE,TRUE,TRUE,,,,,,,,,,,,1,1,OS,,,,,1,1,OS,1
-Spinal Reaper,MSK,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,1,OS,,1,OS,1,OS
+Item,SK List,SK Reserved,Open Roll,Roll Reserved,Disenchant,Balance Druid,Resto Druid,Feral Tank Druid,Feral DPS Druid,Any Hunter,Any Mage,Holy Paladin,Prot Paladin,Ret Paladin,Holy Priest,Shadow Priest,Any Rogue,Daggers Rogue,Swords Rogue,Ele Shaman,Enh Shaman,Resto Shaman,Any Warlock,DPS Warrior,Prot Warrior,Two Handed Warrior,Dual Wield Warrior
+Cenarion Raiment,TSK,TRUE,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,,,,,,,,,,,,,
+Stormrage Raiment,TSK,TRUE,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,,,,,,,,,,,,,
+Giantstalker Armor,TSK,TRUE,TRUE,TRUE,TRUE,,,,,1,,,,,,,,,,,,,,,,,
+Dragonstalker Armor,TSK,TRUE,TRUE,TRUE,TRUE,,,,,1,,,,,,,,,,,,,,,,,
+Arcanist Regalia,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,1,,,,,,,,,,,,,,,,
+Netherwind Regalia,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,1,,,,,,,,,,,,,,,,
+Vestments of Prophecy,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,1,OS,,,,,,,,,,,
+Vestments of Transcendence,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,1,OS,,,,,,,,,,,
+Nightslayer Armor,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,1,1,1,,,,,,,,
+Bloodfang Armor,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,1,1,1,,,,,,,,
+The Earthfury,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,OS,1,,,,,
+The Ten Storms,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,OS,1,,,,,
+Felheart Raiment,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,1,,,,
+Nemesis Raiment,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,1,,,,
+Battlegear of Might,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
+Battlegear of Wrath,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
+Eskhandar's Collar,MSK,FALSE,TRUE,FALSE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,,,,
+Deathbringer,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,1,OS,,1,OS,OS,1
+Head of Onyxia,MSK,FALSE,TRUE,FALSE,FALSE,1,1,1,1,1,1,,,,1,1,1,1,1,1,1,1,1,1,1,1,1
+Sapphiron Drape,MSK,FALSE,TRUE,FALSE,TRUE,OS,OS,OS,OS,,1,,,,OS,1,,,,OS,OS,OS,1,OS,OS,OS,OS
+Shard of the Scale,MSK,TRUE,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,1,OS,,,,OS,OS,1,,,,,
+Ring of Binding,MSK,FALSE,TRUE,FALSE,TRUE,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+Vis'kag the Bloodletter,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,1,OS,1,,,,,1,1,OS,1
+Onyxia Hide Backpack,NONE,FALSE,TRUE,FALSE,FALSE,,,,,,,,,,,,,,,,,,,,,,
+Robe of Volatile Power,MSK,TRUE,TRUE,TRUE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,,,,
+Manastorm Leggings,MSK,FALSE,TRUE,FALSE,TRUE,1,OS,OS,OS,,1,,,,1,1,,,,1,1,1,1,,,,
+Mana Igniting Cord,MSK,TRUE,TRUE,TRUE,TRUE,1,1,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,,,,
+Aged Core Leather Gloves,MSK,FALSE,TRUE,FALSE,TRUE,OS,OS,1,1,,,,,,,,1,1,1,,,,,1,1,1,1
+Wristguards of Stability,MSK,FALSE,TRUE,FALSE,TRUE,OS,OS,1,1,,,,,,,,,,,,,,,1,1,1,1
+Salamander Scale Pants,MSK,TRUE,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,,,,,,OS,OS,1,,,,,
+Deep Earth Spaulders,MSK,FALSE,TRUE,FALSE,TRUE,,,,,,,,,,,,,,,1,OS,OS,,,,,
+Flameguard Gauntlets,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,1,1,1,1
+Fire Runed Grimoire,MSK,FALSE,TRUE,FALSE,TRUE,1,1,OS,OS,,1,,,,1,1,,,,1,OS,1,1,,,,
+Obsidian Edged Blade,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,1,1,1,1
+Sorcerous Dagger,MSK,FALSE,TRUE,FALSE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,,,,
+Ring of Spell Power,MSK,TRUE,TRUE,TRUE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,OS,OS,OS,OS
+Heavy Dark Iron Ring,MSK,FALSE,TRUE,FALSE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,OS,1,OS,OS
+Talisman of Ephemeral Power,MSK,TRUE,TRUE,TRUE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,,,,
+Quick Strike Ring,MSK,TRUE,TRUE,TRUE,TRUE,OS,OS,1,1,1,,,,,,,1,1,1,OS,1,OS,,1,1,1,1
+Choker of Enlightenment,MSK,FALSE,TRUE,FALSE,TRUE,1,1,OS,OS,,,,,,1,1,,,,1,OS,1,,OS,OS,OS,OS
+Earthshaker,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,1,OS,,1,OS,1,OS
+Eskhandar's Right Claw,MSK,FALSE,TRUE,FALSE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
+Medallion of Steadfast Might,MSK,FALSE,TRUE,FALSE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,OS,1,OS,OS
+Striker's Mark,MSK,TRUE,TRUE,TRUE,TRUE,,,,,1,,,,,,,1,1,1,,,,,1,1,1,1
+Aurastone Hammer,MSK,TRUE,TRUE,TRUE,TRUE,1,1,OS,OS,,,,,,1,1,,,,1,OS,1,,OS,OS,OS,OS
+Brutality Blade,MSK,TRUE,TRUE,TRUE,TRUE,,,,,1,,,,,,,1,OS,1,,,,,1,1,OS,1
+Drillborer Disk,MSK,FALSE,TRUE,FALSE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
+Gutgore Ripper,MSK,FALSE,TRUE,FALSE,TRUE,,,,,,,,,,,,1,1,OS,,,,,1,1,OS,1
+Seal of the Archmagus,MSK,FALSE,TRUE,FALSE,TRUE,1,1,OS,OS,1,1,,,,1,1,OS,OS,OS,1,1,1,1,OS,OS,OS,OS
+Azuresong Mageblade,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,1,,,,,,,,,,,,1,OS,OS,OS,OS
+Blastershot Launcher,MSK,FALSE,TRUE,FALSE,TRUE,,,,,1,,,,,,,1,1,1,,,,,1,1,1,1
+Staff of Dominance,MSK,TRUE,TRUE,TRUE,TRUE,1,1,OS,OS,,1,,,,1,1,,,,1,OS,1,1,,,,
+Shadowstrike,MSK,FALSE,FALSE,FALSE,TRUE,1,1,1,1,1,1,,,,1,1,1,1,1,1,1,1,1,1,1,1,1
+Cauterizing Band,MSK,TRUE,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,1,OS,,,,OS,OS,1,,OS,OS,OS,OS
+Core Forged Greaves,MSK,FALSE,TRUE,FALSE,TRUE,,,,,,,,,,,,,,,,,,,OS,1,OS,OS
+Core Hound Tooth,MSK,TRUE,TRUE,TRUE,TRUE,,,,,1,,,,,,,1,1,OS,,,,,OS,1,OS,OS
+Finkle's Lava Dredger,MSK,FALSE,TRUE,FALSE,TRUE,OS,1,OS,OS,,,,,,,,,,,1,1,1,,,,,
+Fireguard Shoulders,MSK,FALSE,TRUE,FALSE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,OS,1,OS,OS
+Gloves of the Hypnotic Flame,MSK,FALSE,TRUE,FALSE,TRUE,,,,,,1,,,,,,,,,,,,1,,,,
+Sash of Whispered Secrets,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,OS,1,,,,,,,1,,,,
+The Eye of Divinity,TSK,TRUE,TRUE,TRUE,FALSE,,,,,,,,,,1,1,,,,,,,,,,,
+Wild Growth Spaulders,MSK,TRUE,TRUE,TRUE,TRUE,OS,1,OS,OS,,,,,,,,,,,OS,OS,1,,,,,
+Ancient Petrified Leaf,TSK,TRUE,TRUE,TRUE,FALSE,,,,,1,,,,,,,,,,,,,,,,,
+Wristguards of True Flight,MSK,TRUE,TRUE,TRUE,TRUE,,,,,1,,,,,,,,,,,,,,1,1,1,1
+Band of Accuria,MSK,TRUE,TRUE,TRUE,TRUE,OS,OS,1,1,1,,,,,,,1,1,1,,1,,,1,1,1,1
+Band of Sulfuras,MSK,FALSE,TRUE,FALSE,TRUE,1,OS,OS,OS,,1,,,,OS,1,,,,1,OS,OS,1,OS,OS,OS,OS
+Bonereaver's Edge,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,1,OS,1,OS
+Choker of the Fire Lord,MSK,TRUE,TRUE,TRUE,TRUE,1,1,OS,OS,,1,,,,1,1,,,,1,OS,1,1,OS,OS,OS,OS
+Cloak of the Shrouded Mists,MSK,FALSE,TRUE,FALSE,TRUE,OS,OS,1,1,1,,,,,,,1,1,1,,,,,1,1,1,1
+Crown of Destruction,MSK,FALSE,TRUE,FALSE,TRUE,,,,,1,,,,,,,,,,OS,1,OS,,1,OS,1,1
+Dragon's Blood Cape,MSK,TRUE,TRUE,TRUE,TRUE,OS,OS,1,OS,,,,,,,,,,,,,,,OS,1,OS,OS
+Malistar's Defender,MSK,FALSE,TRUE,FALSE,TRUE,,,,,,,,,,,,,,,1,OS,1,,,,,
+Onslaught Girdle,TSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,,,,,1,1,1,1
+Perdition's Blade,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,1,1,OS,,,,,1,1,OS,1
+Spinal Reaper,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,,,,OS,1,OS,,1,OS,1,OS
+Maladath,MSK,TRUE,TRUE,TRUE,TRUE,,,,,,,,,,,,1,1,1,,,,,1,1,1,1

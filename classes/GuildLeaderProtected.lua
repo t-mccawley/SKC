@@ -10,8 +10,7 @@ GuildLeaderProtected = {
 	loot_decision_time = nil, -- time in seconds that the loot GUI will wait before timeout
 	loot_officers = nil, -- map of player names who are loot officers
 	active_instances = nil, -- map of instance acronyms which enable the addon
-	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
-	edit_ts_generic = nil, -- timestamp of most recent edit (non-raid)
+	edit_ts = nil, -- timestamp of most recent edit
 };
 GuildLeaderProtected.__index = GuildLeaderProtected;
 
@@ -29,8 +28,7 @@ function GuildLeaderProtected:new(glp)
 			AQ40 = true,
 			NAXX = true,
 		};
-		obj.edit_ts_raid = 0;
-		obj.edit_ts_generic = 0;
+		obj.edit_ts = 0;
 		setmetatable(obj,GuildLeaderProtected);
 		return obj;
 	else
@@ -43,9 +41,7 @@ end
 -- METHODS
 --------------------------------------
 function GuildLeaderProtected:SetEditTime()
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC:CheckActive() then self.edit_ts_raid = ts end
+	self.edit_ts = time();
 	return;
 end
 

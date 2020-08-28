@@ -269,7 +269,7 @@ local function OnClick_ImportLootPrio()
 	local valid = true;
 	while txt_rem ~= nil do
 		line, txt_rem = strsplit("\n",txt_rem,2);
-		local item, sk_list, res, de, open_roll, prios_txt = strsplit(",",line,6);
+		local item, sk_list, sk_res, open_roll, roll_res, de, prios_txt = strsplit(",",line,7);
 		-- clean input data
 		item = SKC:StrOut(item);
 		sk_list = SKC:StrOut(sk_list);
@@ -278,21 +278,43 @@ local function OnClick_ImportLootPrio()
 			valid = false;
 			SKC:Error("Invalid Item (line: "..line_count..")");
 			break;
-		elseif not (sk_list == "MSK" or sk_list == "TSK") then
+		elseif not (sk_list == "MSK" or sk_list == "TSK" or sk_list == "NONE") then
 			valid = false;
 			SKC:Error("Invalid SK List for "..item.." (line: "..line_count..")");
 			break;
-		elseif not (res == "TRUE" or res == "FALSE") then
+		elseif not (sk_res == "TRUE" or sk_res == "FALSE") then
 			valid = false;
-			SKC:Error("Invalid Reserved for "..item.." (line: "..line_count..")");
+			SKC:Error("Invalid SK Reserved for "..item.." (line: "..line_count..")");
+			break;
+		elseif not (open_roll == "TRUE" or open_roll == "FALSE") then
+			valid = false;
+			SKC:Error("Invalid Open Roll for "..item.." (line: "..line_count..")");
+			break;
+		elseif not (roll_res == "TRUE" or roll_res == "FALSE") then
+			valid = false;
+			SKC:Error("Invalid Roll Reserved for "..item.." (line: "..line_count..")");
 			break;
 		elseif not (de == "TRUE" or de == "FALSE") then
 			valid = false;
 			SKC:Error("Invalid Disenchant for "..item.." (line: "..line_count..")");
 			break;
-		elseif not (open_roll == "TRUE" or open_roll == "FALSE") then
+		end
+		-- check if no SK or ROLL option
+		if sk_list == "NONE" and open_roll == "FALSE" then
 			valid = false;
-			SKC:Error("Invalid Open Roll for "..item.." (line: "..line_count..")");
+			SKC:Error(item.." (line: "..line_count..") cannot have SK List NONE and Open Roll FALSE");
+			break;
+		end
+		-- check if SK List is NONE and sk_res is TRUE
+		if sk_list == "NONE" and sk_res == "TRUE" then
+			valid = false;
+			SKC:Error(item.." (line: "..line_count..") cannot have SK List NONE and SK Reserved TRUE");
+			break;
+		end
+		-- check if open_roll is FALSE and roll_res is TRUE
+		if open_roll == "FALSE" and roll_res == "TRUE" then
+			valid = false;
+			SKC:Error(item.." (line: "..line_count..") cannot have Open Roll FALSE and Roll Reserved TRUE");
 			break;
 		end
 		-- Check if item imported is an item with a comma in the name
@@ -303,9 +325,10 @@ local function OnClick_ImportLootPrio()
 		-- write meta data for item
 		temp_lp.items[item] = Prio:new(nil);
 		temp_lp.items[item].sk_list = sk_list;
-		temp_lp.items[item].reserved = SKC:BoolOut(res);
-		temp_lp.items[item].DE = SKC:BoolOut(de);
+		temp_lp.items[item].sk_res = SKC:BoolOut(sk_res);
 		temp_lp.items[item].open_roll = SKC:BoolOut(open_roll);
+		temp_lp.items[item].roll_res = SKC:BoolOut(roll_res);
+		temp_lp.items[item].de = SKC:BoolOut(de);
 		-- read prios
 		local spec_class_cnt = 0;
 		while prios_txt ~= nil do
@@ -361,13 +384,13 @@ local function OnClick_ImportLootPrio()
 	end
 	-- copy temp variable
 	SKC.db.char.LP = SKC:DeepCopy(temp_lp)
-	-- update edit timestamp
-	local ts = time();
-	SKC.db.char.LP.edit_ts_raid = ts;
-	SKC.db.char.LP.edit_ts_generic = ts;
+	-- update edit timestamp to ensure sync
+	SKC.db.char.LP.edit_ts = time();
 	SKC:Print("Loot Prio Import Complete");
 	SKC:Print(SKC.db.char.LP:length().." items added");
+	-- Refresh
 	SKC:RefreshStatus();
+	SKC:ManageLootWindow();
 	-- close import GUI
 	SKC.CSVGUI[name]:Hide();
 	return;

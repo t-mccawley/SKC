@@ -9,8 +9,7 @@ SK_List = {
 	top = nil, -- top name in list
 	bottom = nil, -- bottom name in list
 	list = {}, -- list of SK_Node
-	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
-	edit_ts_generic = nil, -- timestamp of most recent edit
+	edit_ts = nil, -- timestamp of most recent edit
 };
 SK_List.__index = SK_List;
 
@@ -21,8 +20,7 @@ function SK_List:new(sk_list)
 		obj.top = nil; 
 		obj.bottom = nil;
 		obj.list = {};
-		obj.edit_ts_raid = 0;
-		obj.edit_ts_generic = 0;
+		obj.edit_ts = 0;
 		setmetatable(obj,SK_List);
 		return obj;
 	else
@@ -38,9 +36,7 @@ end
 -- METHODS
 --------------------------------------
 function SK_List:SetEditTime()
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC:CheckActive() then self.edit_ts_raid = ts end
+	self.edit_ts = time();
 	return;
 end
 

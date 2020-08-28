@@ -46,10 +46,11 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
 - For a given item, a loot prio can be assigned for the 22 predefined Class / Spec combinations found in the Appendix
 - Loot prio can be assigned a value of 1 (highest main spec priority) to 5 (lowest main spec priority) and OS. Omitting a prio value means that Spec / Class is inelligible for the item and will not receive a loot decision GUI.
 - Additionally, can configure the following options for a given item
-    - **SK List** (MSK or TSK): What list the item is associated with
-    - **Reserved** (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters, otherwise there is no distinction betweel Mains and Alts.
-    - **Disenchant** (TRUE or FALSE): In the event that everyone passes on this item, TRUE will cause SKC to give the item to the Disenchanter, otherwise given to Guild Banker
-    - **Open Roll** (TRUE or FALSE): TRUE enables the "Roll" loot decision option to be selected for the given item, otherwise it is disabled.
+    - **SK List** (MSK, TSK, or NONE): What list the item is associated with. If NONE, there will not be an SK option for the item.
+    - **SK Reserved** (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters for SK decisions, otherwise there is no distinction between Mains and Alts.
+    - **Open Roll** (TRUE or FALSE): TRUE enables the "Roll" loot decision option to be selected for the given item, otherwise it is disabled. **Note**: If SK List is NONE and Open Roll is TRUE, all players in the raid will receive a decision prompt.
+    - **Roll Reserved** (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters for ROLL decisions, otherwise there is no distinction between Mains and Alts. **Note**: If SK List is NONE, Open Roll is TRUE, and Roll Reserved is TRUE, players without a loot prio assigned will be considered OS by default.
+    - **Disenchant** (TRUE or FALSE): In the event that everyone passes on this item, TRUE will cause SKC to give the item to the Disenchanter, otherwise given to Guild Banker.
 ### Guild Roster Management
 - SKC provides an in game GUI for the Guild Leader to manage details about the guild members
 - Some of these details are used in the automatic loot distribution process.
@@ -67,7 +68,7 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
 - The Loot Officers can manually add characters to the bench (see slash commands)
 ### Automatic Loot Activity Log
 - SKC automatically records all loot distribution events made by the addon during a raid
-- The log is saved until the start of next raid
+- The log is saved until the next time SKC becomes **Active**
 - The log is exportable as a CSV (see slash commands)
 ### SK Usage Control
 - The guild leader can control the usage of SKC as a loot distribution system through the following means:
@@ -86,7 +87,7 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
     - **Inactive (AI)**: SKC is inactive due to not being in an instance specified in the Active Instances
 ### Security
 - The addon has built in security to ensure that players cannot maliciously manipulate the SK lists.
-- Only the Guild Leader can manage the Loot Officers, and only the Loot Officers can manage the SK lists and provide synchronization data.
+- Only the Guild Leader can manage the Loot Officers, and only the Loot Officers can manage the SK lists and send data during synchronization.
 
 ## FAQ
 ### Where is the TSK list?
@@ -107,7 +108,7 @@ SKC automatically syncs with online Loot Officers. If there are significant chan
 ### Why is the Synchronization Status Stuck on Sending?
 See above question. The amount of data that a player can send is throttled, so large chunks of data can take a while to send. You can monitor the percent complete in the synchronization status on the main GUI.
 ### Why did the automatic loot distribution fail?
-Most likely the player who was supposed to receive the item had no inventory space. In this case, the distribution fails and the item stays on the corpse. The Master Looter can then ensure there is bagspace, and manually send the loot via the master looter interface (or trade directly). *NOTE* When loot fails to distribute, the SK (if necessary) is not automatically performed, the Master Looter will need to do this manually.
+Most likely the player who was supposed to receive the item had no inventory space. In this case, the distribution fails and the item stays on the corpse. The Master Looter can then ensure there is bagspace, and manually send the loot via the master looter interface, trade diretly, or restart the decision process if desired. *NOTE* When loot fails to distribute, the SK (if necessary) is not automatically performed, the Master Looter will need to do this manually, or the decision process must be restarted.
 ### What about items with a comma in the name?
 The Loot Prio is imported via CSV, so therefore items with a comma in the name impose a unique issue. When importing these items, please use just the first part of the item name before the comma. For example, instead of Ashkandi, Greatsword of the Brotherhood, just use Ashkandi. Instead of Ashjre'thul, Crossbow of Smiting, just use Ashjre'thul. Internally these items are stored by their real name and the comma is handled correctly.
 

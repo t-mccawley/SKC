@@ -3,6 +3,7 @@
 --------------------------------------
 -- Addon definition
 -- TODO:
+-- add SK off field to LP (turn off SK button, check that both sk cant be off and roll off)
 -- clean out text fields after import? (kinda useful for testing)
 --------------------------------------
 -- ADDON CONSTRUCTOR
@@ -21,8 +22,6 @@ SKC.DEV = {
     LOOT_DIST_DISABLE = false, -- true if loot distribution is disabled
     LOG_ACTIVE_OVRD = false, -- true to force logging
 	GUILD_CHARS_OVRD = { -- characters which are pushed into GuildData
-		Skc = true,
-		Freznic = true,
 	},
     ACTIVE_INSTANCE_OVRD = false, -- true if SKC can be used outside of active instances
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
@@ -760,6 +759,7 @@ SKC.LOG_OPTIONS = {
 	["SK List"] = {
 		Text = "SK List",
 		Options = {
+			NONE = "NONE",
 			MSK = "MSK",
 			TSK = "TSK",
 		}
@@ -908,8 +908,7 @@ for _,db in ipairs(SKC.DB_SYNC_ORDER) do
 	SKC.Timers.Sync.SyncTicks[db] = 0;
 	SKC.SyncCandidate[db] = {};
 	SKC.SyncCandidate[db].name = UnitName("player");
-	SKC.SyncCandidate[db].edit_ts_raid = 0;
-	SKC.SyncCandidate[db].edit_ts_generic = 0;
+	SKC.SyncCandidate[db].edit_ts = 0;
 end
 --------------------------------
 -- DB INIT

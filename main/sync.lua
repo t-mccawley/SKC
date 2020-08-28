@@ -58,7 +58,7 @@ function SKC:SyncTick()
 			end
 			if not self.ReadStatus[db] and self:isLO() then
 				-- not currently reading and loot officer --> send out sync check for guild (i.e. does anyone want this data?)
-				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db..","..self:NilToStr(self.db.char[db].edit_ts_raid)..","..self:NilToStr(self.db.char[db].edit_ts_generic);
+				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db..","..self:NilToStr(self.db.char[db].edit_ts);
 				self:Send(msg,self.CHANNELS.SYNC_CHECK,"GUILD");
 			end
 		end
@@ -75,8 +75,7 @@ function SKC:ResetRead(db)
 	self.SyncPartner[db] = nil;
 	-- initialize sync candidate with self data
 	self.SyncCandidate[db].name = UnitName("player");
-	self.SyncCandidate[db].edit_ts_raid = self.db.char[db].edit_ts_raid;
-	self.SyncCandidate[db].edit_ts_generic = self.db.char[db].edit_ts_generic;
+	self.SyncCandidate[db].edit_ts = self.db.char[db].edit_ts;
 	return;
 end
 
@@ -104,13 +103,12 @@ function SKC:ReadSyncCheck(addon_channel,msg,game_channel,sender)
 	local data = self:Read(msg);
 	if data == nil then return end
 	-- parse
-	local their_addon_ver, db_name, their_edit_ts_raid, their_edit_ts_generic = strsplit(",",data,4);
+	local their_addon_ver, db_name, their_edit_ts = strsplit(",",data,3);
 	-- check for malformed message
 	if 
 	self:CheckIfEffectivelyNil(their_addon_ver) or 
 	self:CheckIfEffectivelyNil(db_name) or 
-	self:CheckIfEffectivelyNil(their_edit_ts_raid) or 
-	self:CheckIfEffectivelyNil(their_edit_ts_generic) then
+	self:CheckIfEffectivelyNil(their_edit_ts) then
 		self:Debug("Reject ReadSyncCheck, malformed message",self.DEV.VERBOSE.SYNC_LOW);
 		return;
 	 end
@@ -143,23 +141,19 @@ function SKC:ReadSyncCheck(addon_channel,msg,game_channel,sender)
 		end
 	end
 	-- determine if their database is newer than current sync candidate
-	their_edit_ts_raid = self:NumOut(their_edit_ts_raid);
-	their_edit_ts_generic = self:NumOut(their_edit_ts_generic);
-	if their_edit_ts_raid > self.SyncCandidate[db_name].edit_ts_raid or 
-	   (their_edit_ts_raid == self.SyncCandidate[db_name].edit_ts_raid and 
-	   their_edit_ts_generic > self.SyncCandidate[db_name].edit_ts_generic) then
-		-- they have newer raid data OR they have the same raid data but newer generic data
+	their_edit_ts = self:NumOut(their_edit_ts);
+	if their_edit_ts > self.SyncCandidate[db_name].edit_ts then
+		-- they have newer generic data
 		-- mark as sync candidate
 		self:Debug("New sync candidate for "..db_name..": "..sender,self.DEV.VERBOSE.SYNC_LOW);
 		self.SyncCandidate[db_name].name = sender;
-		self.SyncCandidate[db_name].edit_ts_raid = their_edit_ts_raid;
-		self.SyncCandidate[db_name].edit_ts_generic = their_edit_ts_generic;
+		self.SyncCandidate[db_name].edit_ts = their_edit_ts;
 	end
 	return;
 end
 
 function SKC:ReadSyncRqst(addon_channel,msg,game_channel,sender)
-	-- read SYNC_RQST and send that player requested database
+	-- read SYNC_RQST and send the requested database out on GUILD
 	-- reject self messages
 	if sender == UnitName("player") then return end
 	self:Debug("ReadSyncRqst",self.DEV.VERBOSE.SYNC_LOW);
@@ -210,8 +204,7 @@ function SKC:ReadSyncRqst(addon_channel,msg,game_channel,sender)
 end
 
 function SKC:ReadSyncPush(addon_channel,msg,game_channel,sender)
-	-- read SYNC_PUSH and save database
-	-- note that 
+	-- read SYNC_PUSH (GUILD) and save database
 	if sender == UnitName("player") then return end
 	self:Debug("ReadSyncPush",self.DEV.VERBOSE.SYNC_LOW);
 	-- read message
@@ -220,6 +213,7 @@ function SKC:ReadSyncPush(addon_channel,msg,game_channel,sender)
 	-- parse
 	local db_name = payload.db_name;
 	local their_addon_ver = payload.addon_ver;
+	local their_edit_ts = payload.edit_ts;
 	-- check addon version
 	if their_addon_ver ~= self.db.char.ADDON_VERSION then
 		self:Debug("Reject ReadSyncCheck, mismatch addon version",self.DEV.VERBOSE.SYNC_LOW);
@@ -242,6 +236,11 @@ function SKC:ReadSyncPush(addon_channel,msg,game_channel,sender)
 			self:Debug("Reject ReadSyncCheck for "..db_name..", "..sender.." is not a Loot Officer",self.DEV.VERBOSE.SYNC_LOW);
 			return;
 		end
+	end
+	-- confirm that incoming database is in fact newer than current database
+	if self.db.char[db_name].edit_ts > their_edit_ts then
+		self:Debug("Reject ReadSyncCheck, incoming "..db_name.." from "..sender.." was older",self.DEV.VERBOSE.SYNC_LOW);
+		return;
 	end
 	-- copy
 	self:CopyDB(db_name,payload.data)
@@ -282,6 +281,7 @@ function SKC:SendDB(db_name)
 	local payload = {
 		db_name = db_name,
 		addon_ver = self.db.char.ADDON_VERSION,
+		edit_ts = self.db.char[db_name].edit_ts,
 		data = self.db.char[db_name],
 	};
 	self.SendStatus[db_name] = 0.0;

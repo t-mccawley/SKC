@@ -166,8 +166,13 @@ function SKC:DisplayLootDecisionGUI(open_roll,sk_list)
 	self:CreateLootGUI();
 	-- Enable correct buttons
 	self.LootGUI.loot_decision_pass_btn:Enable(); -- OnClick_PASS
-	self.LootGUI.loot_decision_sk_btn:Enable(); -- OnClick_SK
-	self.LootGUI.loot_decision_sk_btn:SetText(sk_list);
+	if sk_list == "MSK" or sk_list == "TSK" then
+		self.LootGUI.loot_decision_sk_btn:Enable(); -- OnClick_SK
+		self.LootGUI.loot_decision_sk_btn:SetText(sk_list);
+	else
+		self.LootGUI.loot_decision_sk_btn:Disable();
+		self.LootGUI.loot_decision_sk_btn:SetText("SK");
+	end
 	if open_roll then
 		self.LootGUI.loot_decision_roll_btn:Enable(); -- OnClick_ROLL
 	else

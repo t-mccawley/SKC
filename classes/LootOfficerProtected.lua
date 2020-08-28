@@ -8,8 +8,7 @@
 LootOfficerProtected = {
     enabled = nil, -- primary manual control over SKC
     bench = nil, -- map of player names who are loot officers
-    edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
-    edit_ts_generic = nil, -- timestamp of most recent edit (non-raid)
+    edit_ts = nil, -- timestamp of most recent edit
 };
 LootOfficerProtected.__index = LootOfficerProtected;
 
@@ -19,8 +18,7 @@ function LootOfficerProtected:new(lop)
         local obj = {};
         obj.enabled = true;
         obj.bench = {};
-        obj.edit_ts_raid = 0;
-        obj.edit_ts_generic = 0;
+        obj.edit_ts = 0;
         setmetatable(obj,LootOfficerProtected);
         return obj;
     else
@@ -33,9 +31,7 @@ end
 -- METHODS
 --------------------------------------
 function LootOfficerProtected:SetEditTime()
-	local ts = time();
-	self.edit_ts_generic = ts;
-	if SKC:CheckActive() then self.edit_ts_raid = ts end
+	self.edit_ts = time();
 	return;
 end
 

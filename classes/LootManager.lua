@@ -58,7 +58,10 @@ function LootManager:ForceClose()
 	-- called when loot manager is forced to close (from player closing loot for example)
 	-- cancel timers
 	if self.current_loot_timer ~= nil and not self.current_loot_timer:IsCancelled() then self.current_loot_timer:Cancel() end
-	if self.loot_dist_confirm_timer ~= nil and not self.loot_dist_confirm_timer:IsCancelled() then self.loot_dist_confirm_timer:Cancel() end 
+	if self.loot_dist_confirm_timer ~= nil and not self.loot_dist_confirm_timer:IsCancelled() then
+		self.loot_dist_confirm_timer:Cancel();
+		self:LogDist(false);
+	end 
 	-- hide GUI
 	SKC:ForceCloseLootDecisionGUI();
 	-- reset self
@@ -136,7 +139,10 @@ function LootManager:AddCharacter(char_name)
 	-- set player decision to pending
 	self.current_loot.decisions[char_name] = SKC.LOOT_DECISION.PENDING;
 	-- save player position
-	self.current_loot.sk_pos[char_name] = SKC.db.char[self.current_loot.sk_list]:GetPos(char_name);
+	local sk_list = self:GetCurrentLootSKList();
+	if sk_list == "MSK" or sk_list == "TSK" then
+		self.current_loot.sk_pos[char_name] = SKC.db.char[sk_list]:GetPos(char_name);
+	end
 	-- roll for character
 	self.current_loot.rolls[char_name] = math.random(100); -- random number between 1 and 100
 	return;
@@ -311,7 +317,10 @@ function LootManager:ReadLootDecision(msg,sender)
 	end
 	-- confirm that loot decision is for current loot
 	if self:GetCurrentLootName() ~= loot_name then
-		SKC:Error("Received decision for item other than Current Loot");
+		-- silently reject if current loot is nil
+		if self:GetCurrentLootName() ~= nil then
+			SKC:Error("Received decision for item other than Current Loot ("..self:GetCurrentLootName()..")");
+		end
 		return;
 	end
 	self.current_loot.decisions[char_name] = loot_decision;
@@ -338,18 +347,19 @@ function LootManager:DeterminePrio(char_name)
 	-- start with base prio of item for given spec, then adjust based on character attributes
 	local loot_name = self.current_loot.lootName;
 	local prio = SKC.db.char.LP:GetPrio(loot_name,spec);
-	local reserved = SKC.db.char.LP:GetReserved(loot_name);
-	local spec_type = "MS";
-	if prio == SKC.PRIO_TIERS.SK.Main.OS then spec_type = "OS" end
+	local sk_res = SKC.db.char.LP:GetSKReserved(loot_name);
+	local roll_res = SKC.db.char.LP:GetRollReserved(loot_name);
+	local spec_type = "OS";
+	if prio >= SKC.PRIO_TIERS.SK.Main.P5 then spec_type = "MS" end
 	-- get character main / alt status
 	local status = SKC.db.char.GD:GetData(char_name,"Status"); -- text version (Main or Alt)
 	local loot_decision = self.current_loot.decisions[char_name];
 	if loot_decision == SKC.LOOT_DECISION.SK then
-		if reserved and status == "Alt" then
+		if sk_res and status == "Alt" then
 			prio = prio + SKC.PRIO_TIERS.SK.Main.OS; -- increase prio past that for any main
 		end
 	elseif loot_decision == SKC.LOOT_DECISION.ROLL then
-		if reserved then
+		if roll_res then
 			prio = SKC.PRIO_TIERS.ROLL[status][spec_type];
 		else
 			prio = SKC.PRIO_TIERS.ROLL["Main"][spec_type];

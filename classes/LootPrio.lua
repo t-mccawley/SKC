@@ -7,8 +7,7 @@
 --------------------------------------
 LootPrio = {
 	items = {},-- hash table mapping lootName to Prio object
-	edit_ts_raid = nil, -- timestamp of most recent edit (in a raid)
-	edit_ts_generic = nil, -- timestamp of most recent edit (non-raid)
+	edit_ts = nil, -- timestamp of most recent edit
 }; 
 LootPrio.__index = LootPrio;
 
@@ -17,8 +16,7 @@ function LootPrio:new(loot_prio)
 		-- initalize fresh
 		local obj = {};
 		obj.items = {};
-		obj.edit_ts_raid = 0;
-		obj.edit_ts_generic = 0;
+		obj.edit_ts = 0;
 		setmetatable(obj,LootPrio);
 		return obj;
 	else
@@ -50,10 +48,16 @@ function LootPrio:GetSKList(lootName)
 	return self.items[lootName].sk_list;
 end
 
-function LootPrio:GetReserved(lootName)
+function LootPrio:GetSKReserved(lootName)
 	if lootName == nil then return nil end
 	if not self:Exists(lootName) then return nil end
-	return self.items[lootName].reserved;
+	return self.items[lootName].sk_res;
+end
+
+function LootPrio:GetRollReserved(lootName)
+	if lootName == nil then return nil end
+	if not self:Exists(lootName) then return nil end
+	return self.items[lootName].roll_res;
 end
 
 function LootPrio:GetDE(lootName)
@@ -75,7 +79,10 @@ function LootPrio:GetPrio(lootName,spec_idx)
 end
 
 function LootPrio:IsElligible(lootName,char_name)
-	-- character is elligible if their spec is non null in the loot prio
+	-- character is elligible if their spec is non null in the loot prio OR item is just open roll with NONE sk list
+	if self:GetSKList(lootName) == "NONE" and self:GetOpenRoll(lootName) then
+		return(true);
+	end
 	local spec_idx = SKC.db.char.GD:GetSpecIdx(char_name);
 	local elligible = false;
 	if spec_idx == nil then 
@@ -105,23 +112,29 @@ function LootPrio:PrintPrio(lootName,lootLink)
 	end
 	-- print associated sk list
 	print("|cff"..SKC.THEME.PRINT.HELP.hex.."SK List:|r "..data.sk_list);
-	-- print reserved states
-	if data.reserved then
-		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Reserved:|r TRUE");
+	-- print SK reserved state
+	if data.sk_res then
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."SK Reserved:|r TRUE");
 	else
-		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Reserved:|r FALSE");
-	end
-	-- print disenchant or guild bank default
-	if data.DE then
-		print("|cff"..SKC.THEME.PRINT.HELP.hex.."All Pass:|r Disenchant");
-	else
-		print("|cff"..SKC.THEME.PRINT.HELP.hex.."All Pass:|r Guild Bank");
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."SK Reserved:|r FALSE");
 	end
 	-- print open roll
 	if data.open_roll then
 		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Open Roll:|r TRUE");
 	else
 		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Open Roll:|r FALSE");
+	end
+	-- print Roll reserved state
+	if data.roll_res then
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Roll Reserved:|r TRUE");
+	else
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Roll Reserved:|r FALSE");
+	end
+	-- print disenchant or guild bank default
+	if data.DE then
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."All Pass:|r Disenchant");
+	else
+		print("|cff"..SKC.THEME.PRINT.HELP.hex.."All Pass:|r Guild Bank");
 	end
 	-- create map from prio level to concatenated string of SpecClass's
 	local spec_class_map = {};

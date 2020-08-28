@@ -7,9 +7,10 @@
 --------------------------------------
 Prio = {
 	sk_list = nil, -- associated sk_list
-	reserved = false, -- true if main prio over alts
-	DE = false, -- true if item should be disenchanted before going to guild banker
+	sk_res = false, -- true if main has prio over alts on SK decisions
 	open_roll = false, -- open roll for this tiem
+	roll_res = false, -- true if main has prio over alts on roll decisions
+	de = false, -- true if item should be disenchanted before going to guild banker
 	prio = {}, -- map of SpecClass to prio level (P1,P2,P3,P4,P5)
 };
 Prio.__index = Prio;
@@ -18,11 +19,12 @@ function Prio:new(prio)
 	if prio == nil then
 		-- initalize fresh
 		local obj = {};
-		obj.prio = {}; -- default is equal prio for all (considered OS for all)
-		obj.reserved = false;
-		obj.DE = false;
+		obj.sk_list = "NONE";
+		obj.sk_res = false;
 		obj.open_roll = false;
-		obj.sk_list = "MSK";
+		obj.roll_res = false;
+		obj.de = false;
+		obj.prio = {};
 		setmetatable(obj,Prio);
 		return obj;
 	else
