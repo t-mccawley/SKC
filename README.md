@@ -34,7 +34,7 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
     1. Master looter of a raid (who is a Loot Officer) clicks the SKC button next to an elligible item.
     2. SKC uses the Loot Prio to determine which characters are elligible for the given loot
     3. SKC prompts elligible characters with the possible loot decisions (SK, Roll, or Pass)
-    4. Characters have a configurable amount of time (see slash commands) to make a decision
+    4. Characters have a configurable amount of time (see slash commands) to make a decision (default 30s)
     5. SKC collects the decisions and arbitrates the winner based on Loot Prio and player decisions
     6. SKC sends the loot to the winner and performs the SK (if necessary)
     7. SKC logs the loot distribution event and player responses
