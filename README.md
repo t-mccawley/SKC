@@ -5,7 +5,7 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
 
 ![SKC GUI](/media/SKC_GUI.png)
 
-![SKC Starter](/media/SKC_Starter.png)
+![SKC Starter](/media/SKC_Starter_Button.png)
 
 ![SKC Loot](/media/SKC_Loot.png)
 
