@@ -40,16 +40,17 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
     7. SKC logs the loot distribution event and player responses
 ### Loot Prioritization System
 - Loot prio is a configurable input to SKC through a CSV import interface (see slash commands)
-- **Only items in the loot prio system will be automatically distributed by SKC**. All other green or rarer items will be automatically looted by the Master Looter.
-- Loot prio is used to give certain Class / Spec combinations priority over others regardless of their SK positions. Loot prio is only relevant for characters who decide to SK for an item (it is not used for rolling / passing).
-- Schema for loot prio CSV can be found here (TODO)
+- **Only items in the loot prio system will be automatically distributed by SKC**. All other items will need to be manually looted.
+- Loot prio is used to give certain Class / Spec combinations priority over others regardless of their SK positions.
+- Schema for loot prio CSV can be found [here](/schema/loot_prio_import_schema.txt)
 - For a given item, a loot prio can be assigned for the 22 predefined Class / Spec combinations found in the Appendix
-- Loot prio can be assigned a value of 1 (highest main spec priority) to 5 (lowest main spec priority) and OS. Omitting a prio value means that Spec / Class is inelligible for the item and will not receive a loot decision GUI.
-- Additionally, can configure the following options for a given item
+- Loot prio can be assigned a value of 1 (highest main spec priority) to 5 (lowest main spec priority) and OS. **Omitting a prio value means that Spec / Class is inelligible for the item and will not receive a loot decision GUI.**
+- For Roll decisions, the numeric value is interpreted as MS.
+- Additionally, the following options can be configured for a given item
     - **SK List** (MSK, TSK, or NONE): What list the item is associated with. If NONE, there will not be an SK option for the item.
     - **SK Reserved** (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters for SK decisions, otherwise there is no distinction between Mains and Alts.
-    - **Open Roll** (TRUE or FALSE): TRUE enables the "Roll" loot decision option to be selected for the given item, otherwise it is disabled. **Note**: If SK List is NONE and Open Roll is TRUE, all players in the raid will receive a decision prompt.
-    - **Roll Reserved** (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters for ROLL decisions, otherwise there is no distinction between Mains and Alts. **Note**: If SK List is NONE, Open Roll is TRUE, and Roll Reserved is TRUE, players without a loot prio assigned will be considered OS by default.
+    - **Open Roll** (TRUE or FALSE): TRUE enables the "Roll" loot decision option to be selected for the given item, otherwise it is disabled.
+    - **Roll Reserved** (TRUE or FALSE): TRUE if "Main" characters are given priority over "Alt" characters for ROLL decisions, otherwise there is no distinction between Mains and Alts.
     - **Disenchant** (TRUE or FALSE): In the event that everyone passes on this item, TRUE will cause SKC to give the item to the Disenchanter, otherwise given to Guild Banker.
 ### Guild Roster Management
 - SKC provides an in game GUI for the Guild Leader to manage details about the guild members

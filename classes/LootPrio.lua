@@ -79,10 +79,7 @@ function LootPrio:GetPrio(lootName,spec_idx)
 end
 
 function LootPrio:IsElligible(lootName,char_name)
-	-- character is elligible if their spec is non null in the loot prio OR item is just open roll with NONE sk list
-	if self:GetSKList(lootName) == "NONE" and self:GetOpenRoll(lootName) then
-		return(true);
-	end
+	-- character is elligible if their spec is non null in the loot prio
 	local spec_idx = SKC.db.char.GD:GetSpecIdx(char_name);
 	local elligible = false;
 	if spec_idx == nil then 
