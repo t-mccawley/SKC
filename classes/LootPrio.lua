@@ -63,7 +63,7 @@ end
 function LootPrio:GetDE(lootName)
 	if lootName == nil then return nil end
 	if not self:Exists(lootName) then return nil end
-	return self.items[lootName].DE;
+	return self.items[lootName].de;
 end
 
 function LootPrio:GetOpenRoll(lootName)
@@ -128,7 +128,7 @@ function LootPrio:PrintPrio(lootName,lootLink)
 		print("|cff"..SKC.THEME.PRINT.HELP.hex.."Roll Reserved:|r FALSE");
 	end
 	-- print disenchant or guild bank default
-	if data.DE then
+	if data.de then
 		print("|cff"..SKC.THEME.PRINT.HELP.hex.."All Pass:|r Disenchant");
 	else
 		print("|cff"..SKC.THEME.PRINT.HELP.hex.."All Pass:|r Guild Bank");

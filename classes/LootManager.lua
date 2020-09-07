@@ -331,7 +331,7 @@ function LootManager:ReadLootDecision(msg,sender)
 	-- check if still waiting on another player
 	for char_name_tmp,ld_tmp in pairs(self.current_loot.decisions) do
 		if ld_tmp == SKC.LOOT_DECISION.PENDING then 
-			SKC:Warn("Waiting on: "..char_name_tmp);
+			SKC:Debug("Waiting on: "..char_name_tmp,SKC.DEV.VERBOSE.LOOT);
 			return;
 		end
 	end

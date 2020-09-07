@@ -347,5 +347,8 @@ end
 function SKC:LootForceCloseHandler(addon_channel,msg,game_channel,sender)
 	-- triggered on LOOT_FORCE_CLOSE (sent from master looter)
 	-- closes loot gui (if open)
+	if self.LootGUI:IsShown() then
+		self:Alert("Loot decision was closed by Master Looter");
+	end
 	self.db.char.LM:ForceClose();
 end
