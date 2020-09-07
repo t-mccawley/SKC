@@ -173,7 +173,7 @@ end
 function SKC:OnOpenLoot()
 	-- Fires on LOOT_OPENED
 	--Check validity
-	if not self:LootDistValid(verbose) then return end
+	if not self:LootDistValid() then return end
 
 	-- ensure GUI is made
 	self:CreateLootStarterGUI();
@@ -221,6 +221,8 @@ end
 
 function SKC:OnLootSlotCleared()
 	-- fires on LOOT_SLOT_CLEARED
+	--Check that master looter
+	if not self:isML() then return end
 	self.db.char.LM:ManageOnLootSlotClear();
 	self:ManageLootWindow();
 	return;
@@ -228,6 +230,8 @@ end
 
 function SKC:OnCloseLoot()
 	-- fires on LOOT_CLOSED
+	--Check that master looter
+	if not self:isML() then return end
 	self.db.char.LM:ForceClose();
 	return;
 end
