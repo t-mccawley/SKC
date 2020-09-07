@@ -102,6 +102,7 @@ SKC.CHANNELS = { -- channels for inter addon communication (const)
 	LOOT_DECISION = "ksg(Ak2.*/@&+`8Q",
 	LOOT_DECISION_PRINT = "xP@&!9hQxY]1K&C4",
 	LOOT_OUTCOME_PRINT = "aP@yX9hQf}89K&C4",
+	LOOT_FORCE_CLOSE = "43@lPr1Qf}8-K&x4",
 };
 function OnClick_EditDropDownOption(field,value) -- Must be global
 	-- Triggered when drop down of edit button is selected

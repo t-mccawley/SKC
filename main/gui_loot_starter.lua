@@ -221,7 +221,7 @@ end
 
 function SKC:OnLootSlotCleared()
 	-- fires on LOOT_SLOT_CLEARED
-	--Check that master looter
+	--Check if master looter
 	if not self:isML() then return end
 	self.db.char.LM:ManageOnLootSlotClear();
 	self:ManageLootWindow();
@@ -230,9 +230,10 @@ end
 
 function SKC:OnCloseLoot()
 	-- fires on LOOT_CLOSED
-	--Check that master looter
+	--Check if master looter
 	if not self:isML() then return end
-	self.db.char.LM:ForceClose();
+	-- send force close to raid
+	self:Send("",self.CHANNELS.LOOT_FORCE_CLOSE,"RAID");
 	return;
 end
 
@@ -341,4 +342,10 @@ function SKC:PrintLootOutcome(addon_channel,msg,game_channel,sender)
 	if msg_out == nil then return end
 	self:Alert(msg_out);
 	return;
+end
+
+function SKC:LootForceCloseHandler(addon_channel,msg,game_channel,sender)
+	-- triggered on LOOT_FORCE_CLOSE (sent from master looter)
+	-- closes loot gui (if open)
+	self.db.char.LM:ForceClose();
 end
