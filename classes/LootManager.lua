@@ -189,7 +189,7 @@ function LootManager:KickOff()
 		return;
 	end
 	local msg = "Loot Decision: "..self:GetCurrentLootLink();
-	if UnitIsGroupLeader("player") then
+	if UnitIsGroupLeader("player") or UnitIsGroupAssistant("player") then
 		SendChatMessage(msg,"RAID_WARNING");
 	else
 		SendChatMessage(msg,"RAID");
