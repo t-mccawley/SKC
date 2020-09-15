@@ -178,11 +178,9 @@ Loot Prio Tiers (Prio 1 is highest priority):
 |  10  |    SK (Alt)   | MS Prio 4 |
 |  11  |    SK (Alt)   | MS Prio 5 |
 |  12  |    SK (Alt)   |     OS    |
-|  13  |  Roll (Main)  |     MS    |
-|  14  |  Roll (Main)  |     OS    |
-|  15  |   Roll (Alt)  |     MS    |
-|  16  |   Roll (Alt)  |     OS    |
-|  17  |      Pass     |     -     |
+|  13  |  Roll (Main)  |     -     |
+|  14  |   Roll (Alt)  |     -     |
+|  15  |      Pass     |     -     |
 
 Supported Instances:
 |         Raid        | Acronym |
