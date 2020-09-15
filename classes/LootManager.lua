@@ -349,8 +349,6 @@ function LootManager:DeterminePrio(char_name)
 	local prio = SKC.db.char.LP:GetPrio(loot_name,spec);
 	local sk_res = SKC.db.char.LP:GetSKReserved(loot_name);
 	local roll_res = SKC.db.char.LP:GetRollReserved(loot_name);
-	local spec_type = "OS";
-	if prio >= SKC.PRIO_TIERS.SK.Main.P5 then spec_type = "MS" end
 	-- get character main / alt status
 	local status = SKC.db.char.GD:GetData(char_name,"Status"); -- text version (Main or Alt)
 	local loot_decision = self.current_loot.decisions[char_name];
@@ -360,9 +358,9 @@ function LootManager:DeterminePrio(char_name)
 		end
 	elseif loot_decision == SKC.LOOT_DECISION.ROLL then
 		if roll_res then
-			prio = SKC.PRIO_TIERS.ROLL[status][spec_type];
+			prio = SKC.PRIO_TIERS.ROLL[status];
 		else
-			prio = SKC.PRIO_TIERS.ROLL["Main"][spec_type];
+			prio = SKC.PRIO_TIERS.ROLL["Main"]; -- default non reserved prio for roll is Main
 		end
 	elseif loot_decision == SKC.LOOT_DECISION.PASS then
 		prio = SKC.PRIO_TIERS.PASS;

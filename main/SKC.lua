@@ -691,16 +691,10 @@ SKC.PRIO_TIERS = { -- possible prio tiers and associated numerical ordering
 		},
 	},
 	ROLL = {
-		Main = {
-			MS = 13,
-			OS = 14,
-		},
-		Alt = {
-			MS = 15,
-			OS = 16,
-		},
+		Main = 13,
+		Alt = 14,
 	},
-	PASS = 17,
+	PASS = 15,
 };
 SKC.LOG_OPTIONS = {
 	["Timestamp"] = {
