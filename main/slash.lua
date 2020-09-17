@@ -609,8 +609,8 @@ function SKC:CSVImport(name,sk_list)
 end
 
 function SKC:ExportLog()
-    if not self:isML() then
-        self:Error("You must be the master looter to do that");
+    if not self:isLO() then
+        self:Error("You must be a loot officer to do that");
         return;
     end
 	local name = "Log Export";

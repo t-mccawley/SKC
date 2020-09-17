@@ -464,25 +464,22 @@ function LootManager:DetermineOutcome()
 end
 
 local function ConfirmLootDistributed()
-	-- checks if current_loot is gone from LootFrame at given index
-	-- if loot is not present, write confirmed distribution to log
-	-- if loot is present, attempt to award to master looter if not already attempted
+	-- checks if current_loot has been confirmed to have been distributed and write to log / chat accordingly
+	-- If loot confirmed to have been distributed, perform Live SK if SK decision
 	if not SKC:isML() then return end
 	-- check if loot is gone
-	if SKC.db.char.LM.confirmed_dist then
+	if SKC.db.char.LM.confirmed_dist or SKC.DEV.LOOT_DIST_DISABLE then
 		-- confirmed
-		-- cancel ticker
-		SKC.db.char.LM:CancelDistConfirmTimer()
 		-- log
 		SKC.db.char.LM:LogDist(true);
 		-- perform SK (if necessary)
+		local loot_target = SKC.db.char.LM.loot_target;
 		local loot_target_decision = SKC.db.char.LM.current_loot.decisions[loot_target];
 		if loot_target_decision == SKC.LOOT_DECISION.SK then
 			-- perform SK on winner (below current live bottom)
 			local sk_list = SKC.db.char.LM:GetCurrentLootSKList();
 			local sk_success = SKC.db.char[sk_list]:LiveSK(loot_target);
 			if not sk_success then
-				local loot_target = SKC.db.char.LM.loot_target;
 				SKC:Error(sk_list.." for "..loot_target.." failed");
 			end
 			-- log SK
@@ -494,7 +491,7 @@ local function ConfirmLootDistributed()
 		-- failed
 		SKC.db.char.LM:LogDist(false);
 	end
-	-- reset
+	-- reset (also resets confirm timer)
 	SKC.db.char.LM:Reset();		
 	return;
 end
@@ -505,7 +502,7 @@ function LootManager:ManageOnLootSlotClear()
 	if (self.loot_dist_confirm_timer == nil or self.loot_dist_confirm_timer:IsCancelled()) then return end
 	local current_loot_index = self:GetCurrentLootIndex();
 	local _, lootName, _, _, _, _, _, _, _ = GetLootSlotInfo(current_loot_index);
-	self.confirmed_dist = lootName == nil;
+	self.confirmed_dist = lootName == nil; -- loot is gone
 	if self.confirmed_dist then
 		-- loot item cleared, early call to confirmation function
 		ConfirmLootDistributed();
@@ -514,13 +511,7 @@ function LootManager:ManageOnLootSlotClear()
 end
 
 function LootManager:StartDistConfirmTimer()
-	self.loot_dist_confirm_timer = C_Timer.NewTicker(self.CONFIRM_DELAY,ConfirmLootDistributed);
-	return;
-end
-
-function LootManager:CancelDistConfirmTimer()
-	self.loot_dist_confirm_timer:Cancel();
-	self.loot_dist_confirm_timer = nil;
+	self.loot_dist_confirm_timer = C_Timer.NewTimer(self.CONFIRM_DELAY,ConfirmLootDistributed);
 	return;
 end
 
@@ -573,7 +564,7 @@ function LootManager:GiveLoot()
 		LootManager:LogDist(false);
 		return;
 	end
-	-- constantly check if loot dist was successful, failure if not confirmed in this time
+	-- after delay, check if item is still there, failure if not confirmed in this time (confirmed by loot slot cleared event)
 	self:StartDistConfirmTimer();
 	return;
 end
