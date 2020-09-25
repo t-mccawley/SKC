@@ -58,6 +58,7 @@ function SKC:SyncTick()
 			end
 			if not self.ReadStatus[db] and self:isLO() then
 				-- not currently reading and loot officer --> send out sync check for guild (i.e. does anyone want this data?)
+				self:ResetRead(db);
 				local msg = self:NilToStr(self.db.char.ADDON_VERSION)..","..db..","..self:NilToStr(self.db.char[db].edit_ts);
 				self:Send(msg,self.CHANNELS.SYNC_CHECK,"GUILD");
 			end
@@ -145,7 +146,7 @@ function SKC:ReadSyncCheck(addon_channel,msg,game_channel,sender)
 	if their_edit_ts > self.SyncCandidate[db_name].edit_ts then
 		-- they have newer generic data
 		-- mark as sync candidate
-		self:Debug("New sync candidate for "..db_name..": "..sender,self.DEV.VERBOSE.SYNC_LOW);
+		self:Debug("New sync candidate for "..db_name..": "..sender.." (their ts = "..their_edit_ts..") (my ts = "..self.SyncCandidate[db_name].edit_ts..")",self.DEV.VERBOSE.SYNC_LOW);
 		self.SyncCandidate[db_name].name = sender;
 		self.SyncCandidate[db_name].edit_ts = their_edit_ts;
 	end

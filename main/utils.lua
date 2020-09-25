@@ -359,11 +359,11 @@ function SKC:ManageLogging()
 		self.db.char.LoggingActive = true;
 		if not prev_log_state then
 			self:ResetLog();
-			self:Print("Loot logging turned on");
+			if self:isMLO() then self:Print("Loot logging turned on") end
 		end
 	else
 		self.db.char.LoggingActive = false;
-		if prev_log_state then self:Print("Loot logging turned off") end
+		if self:isMLO() and prev_log_state then self:Print("Loot logging turned off") end
 	end
 	return;
 end

@@ -29,7 +29,7 @@ You can download SKC on [CurseForge](https://www.curseforge.com/wow/addons/skc) 
 - Tier SK (TSK): Intended for tier set items or those usable by only a speicifc class / role. More generally can be used for common items or those that offer a relatively small upgrade.
 - Click MSK / TSK title in the GUI to cycle between them
 - The Guild Leader or a Loot Officer (when active Master Looter) can manually adjust the lists to correct for mistakes or to do manual loot distribution using the following GUI buttons (all buttons operate on the selected character in the main GUI, just click on the character SK card you wish to modify the position of):
-    - **Single SK**: Drops the targeted character down one SK position (e.x. will drop from position 5 to 6)
+    - **Live SK**: Drops the targeted character down to the bottom of the "Live" characters and only live characters move in the list. This option is enabled only for characters on the live list (in raid or benched).
     - **Full SK**: Drops the targeted character down to the bottom of the SK list (e.x. will drop the position from 5 to the bottom)
     - **Set SK**: Sets the SK position of the targeted character to the specified position (position selected by clicking on desired number in GUI). The character will be inserted between previous characters around the deired posiiton. (e.x. select character, then select desired position on list to insert target to that position)
 ### Automatic Loot Distribution

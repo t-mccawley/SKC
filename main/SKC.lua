@@ -730,7 +730,7 @@ SKC.LOG_OPTIONS = {
 			AutoSK = "Auto SK",
 			ManSetSK = "Manual Set SK",
 			ManFullSK = "Manual Full SK",
-			ManSingleSK = "Manual Single SK",
+			ManLiveSK = "Manual Live SK",
 			-- Loot Distribution
 			ALS = "Auto Loot Success",
 			ALF = "Auto Loot Failure",
