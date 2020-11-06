@@ -31,6 +31,8 @@ function SKC:SyncTick()
 	self:Debug("SyncTick",self.DEV.VERBOSE.SYNC_HIGH);
 	-- request updated guild roster
 	GuildRoster();
+	-- sync live list
+	self:ManageRaidChanges();
 	for _,db in ipairs(self.DB_SYNC_ORDER) do
 		-- check if need to increment in ticker for in progress read
 		if self.ReadStatus[db] then

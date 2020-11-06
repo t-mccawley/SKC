@@ -363,7 +363,7 @@ function SK_List:LiveSK(winner)
 	end
 	if SKC.DEV.VERBOSITY_LEVEL >= SKC.DEV.VERBOSE.MERGE then
 		SKC:Debug("Merged List:",SKC.DEV.VERBOSE.MERGE);
-		merged_list:PrintList();
+		-- merged_list:PrintList();
 	end
 
 	success = live_name == nil;
@@ -379,7 +379,7 @@ function SK_List:LiveSK(winner)
 	self.edit_ts = merged_list.edit_ts;
 	if SKC.DEV.VERBOSITY_LEVEL >= SKC.DEV.VERBOSE.MERGE then
 		SKC:Debug("Final List:",SKC.DEV.VERBOSE.MERGE);
-		self:PrintList();
+		-- self:PrintList();
 	end
 	SKC:Debug("Merge successful!",SKC.DEV.VERBOSE.MERGE);
 	

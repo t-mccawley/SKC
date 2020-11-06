@@ -573,6 +573,16 @@ function SKC:ManageLiveLists(name,live_status)
 	return;
 end
 
+function SKC:GetGUISelectedName()
+	-- returns selected name in Details GUI
+	-- returns nil if no name or invalid name
+	local selected_name = nil;
+	if self.MainGUI ~= nil then selected_name = self.MainGUI["Details_border"]["Name"].Data:GetText() end
+	-- check that name is valid (in guild data)
+	if not self.db.char.GD:Exists(selected_name) then selected_name = nil end
+	return(selected_name);
+end
+
 function SKC:UpdateLiveList()
 	-- Adds every player in raid to live list
 	-- All players update their own local live lists
@@ -592,7 +602,7 @@ function SKC:UpdateLiveList()
 		self:ManageLiveLists(char_name,true);
 	end
 
-	-- populate data
-	self:PopulateData();
+	-- populate data (with selected name preserved)
+	self:PopulateData(self:GetGUISelectedName());
 	return;
 end

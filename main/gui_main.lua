@@ -91,7 +91,9 @@ local function OnClick_FullSK(self)
 		SKC.event_states.SetSKInProgress = false;
 		local sk_list = SKC.MainGUI["sk_list_border"].Title.Text:GetText();
 		-- On click event for full SK of details targeted character
-		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+		local name = SKC:GetGUISelectedName();
+		-- check that name is valid
+		if name == nil then return end
 		-- Get initial position
 		local prev_pos = SKC.db.char[sk_list]:GetPos(name);
 		-- Execute full SK
@@ -124,7 +126,9 @@ local function OnClick_LiveSK(self)
 	if self:IsEnabled() then
 		SKC.event_states.SetSKInProgress = false;
 		-- get current character and SK list
-		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+		local name = SKC:GetGUISelectedName();
+		-- check that name is valid
+		if name == nil then return end
 		local sk_list = SKC.MainGUI["sk_list_border"].Title.Text:GetText();
 		-- check if live
 		if not SKC.db.char[sk_list]:GetLive(name) then
@@ -163,7 +167,12 @@ local function OnClick_SetSK(self)
 	-- Prompt user to click desired position number in list
 	if self:IsEnabled() then
 		SKC.event_states.SetSKInProgress = true;
-		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+		local name = SKC:GetGUISelectedName();
+		-- check that name is valid
+		if name == nil then
+			SKC.event_states.SetSKInProgress = false;
+			return;
+		end
 		SKC:Alert("Click desired position in SK list for "..SKC:FormatWithClassColor(name));
 	end
 	return;
@@ -172,7 +181,9 @@ end
 function OnClick_NumberCard(self)
 	-- On click event for number card in SK list
 	if SKC.event_states.SetSKInProgress and SKC.MainGUI["Details_border"]["Name"].Data ~= nil then
-		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+		local name = SKC:GetGUISelectedName();
+		-- check that name is valid
+		if name == nil then return end
 		local new_abs_pos = tonumber(self.Text:GetText());
 		local sk_list = SKC.MainGUI["sk_list_border"].Title.Text:GetText();
 		-- Get initial position
@@ -552,6 +563,8 @@ end
 function SKC:RefreshDetails(name)
 	-- populates the details fields
 	if not self:CheckMainGUICreated() then return end
+	-- check if name exists (write name to nil)
+	if not self.db.char.GD:Exists(name) then name = nil end
 	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status"};
 	if name == nil then
 		-- reset
@@ -576,14 +589,14 @@ function SKC:PopulateData(name)
 	self:Debug("PopulateData()",self.DEV.VERBOSE.GUI);
 	if not self:CheckAddonLoaded() then return end
 	if not self:CheckMainGUICreated() then return end
+	-- check if name exists (write name to nil)
+	if not self.db.char.GD:Exists(name) then name = nil end
 	-- Update Status
 	self:RefreshStatus();
 	-- Refresh details
 	self:RefreshDetails(name);
 	-- Update SK cards
 	self:UpdateSKUI();
-	-- Reset Set SK Flag
-	self.event_states.SetSKInProgress = false;
 	return;
 end
 

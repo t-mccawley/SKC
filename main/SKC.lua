@@ -106,7 +106,9 @@ SKC.CHANNELS = { -- channels for inter addon communication (const)
 };
 function OnClick_EditDropDownOption(field,value) -- Must be global
 	-- Triggered when drop down of edit button is selected
-	local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+	local name = SKC:GetGUISelectedName();
+	-- check that name is valid
+	if name == nil then return end
 	local class = SKC.MainGUI["Details_border"]["Class"].Data:GetText();
 	-- Edit GuildData
 	local prev_val = SKC.db.char.GD:GetData(name,field);
