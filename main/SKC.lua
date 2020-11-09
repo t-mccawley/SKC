@@ -782,8 +782,8 @@ SKC.INSTANCE_NAME_MAP = {
 	MC = "Molten Core",
 	BWL = "Blackwing Lair",
 	ZG = "Zul'Gurub",
-	AQ20 = "Ruins of Ahn'Qiraj",
-	AQ40 = "Temple of Ahn'Qiraj",
+	AQ20 = "Ahn'Qiraj Ruins",
+	AQ40 = "Ahn'Qiraj Temple",
 	NAXX = "Naxxramas",
 };
 SKC.ITEMS_WITH_COMMA = {
