@@ -274,9 +274,13 @@ local function OnClick_ImportLootPrio()
 		item = SKC:StrOut(item);
 		sk_list = SKC:StrOut(sk_list);
 		-- check input data validity
-		if item == nil then
+		if item == nil or item == "" or item == " " then
 			valid = false;
 			SKC:Error("Invalid Item (line: "..line_count..")");
+			break;
+		elseif string.sub(item, 1, 1) == "\"" or string.sub(item, 1, 1) == " " then
+			valid = false;
+			SKC:Error("Invalid character at start of item (line: "..line_count..")");
 			break;
 		elseif not (sk_list == "MSK" or sk_list == "TSK" or sk_list == "NONE") then
 			valid = false;
