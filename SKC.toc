@@ -3,7 +3,7 @@
 ## Title: SKC
 ## Notes: Suicide Kings Classic
 ## Author: https://github.com/t-mccawley
-## Version: v1.10b
+## Version: v1.10-beta
 ## X-Category: Guild
 ## X-Website: https://github.com/t-mccawley/SKC
 ## DefaultState: enabled
