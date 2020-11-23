@@ -37,8 +37,8 @@ local function OnClick_StartLoot(self,button,down)
 		if lootName ~= nil then
 			-- Only perform SK for items if they are found in loot prio and green or higher rarity
 			-- confirm item is the one expected
-			if lootName ~= self.lootName or lootLink ~= self.lootLink then
-				SKC:Error("Given item index at "..lootIndex.." and got "..lootName.." ["..lootLink.."] but expecting "..self.lootName.." ["..self.lootLink.."]");
+			if lootName ~= self.lootName then
+				SKC:Error("Given item index at "..lootIndex.." and got "..lootName.." but expecting "..self.lootName);
 				return;
 			end
 			-- Store item (necessary in order to store elligible characters)
@@ -133,7 +133,6 @@ function SKC:CreateLootStarterGUI()
 		-- initialize meta data
 		LootFrame.LootStarterGUI[lootBtnIndex].lootIndex = nil;
 		LootFrame.LootStarterGUI[lootBtnIndex].lootName = nil;
-		LootFrame.LootStarterGUI[lootBtnIndex].lootLink = nil;
 	end
 
 	
@@ -261,7 +260,6 @@ function SKC:ManageLootWindow()
 		LootFrame.LootStarterGUI[lootBtnIndex]:Disable();
 		LootFrame.LootStarterGUI[lootBtnIndex].lootIndex = nil;
 		LootFrame.LootStarterGUI[lootBtnIndex].lootName = nil;
-		LootFrame.LootStarterGUI[lootBtnIndex].lootLink = nil;
 	end
 
 	-- scan items by index and bind button functions for given page
@@ -269,51 +267,40 @@ function SKC:ManageLootWindow()
 	local last_lootIndex = visible_btns_per_page*(LootFrame.LootStarterGUI.Page + 1);
 	for lootIndex = 1, GetNumLootItems() do
 		-- get item data
-		local lootLink = GetLootSlotLink(lootIndex);
-		local item = Item:CreateFromItemLink(lootLink)
-		item:ContinueOnItemLoad(function()
-			local lootID = item:GetItemID() 
-			local lootType = GetLootSlotType(lootIndex); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
-			local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(lootIndex);
-			-- only perform for items that are higher rarity than current threshold
-			local valid_ml = lootName ~= nil and lootType == 1 and lootRarity >= GetLootThreshold();
-			local valid_skc = false;
+		local lootType = GetLootSlotType(lootIndex); -- 1 for items, 2 for money, 3 for archeology(and other currencies?)
+		local _, lootName, _, _, lootRarity, _, _, _, _ = GetLootSlotInfo(lootIndex);
+		-- only perform for items that are higher rarity than current threshold
+		local valid_ml = lootName ~= nil and lootType == 1 and lootRarity >= GetLootThreshold();
+		local valid_skc = false;
+		if valid_ml then
+			-- valid for master looter API
+			-- Check if item exists in LP
+			if self.db.char.LP:Exists(lootName) then
+				-- Scan all possible characters to determine elligible
+				for raidIndex = 1,40 do
+					if valid_skc then break end
+					local char_name = GetMasterLootCandidate(lootIndex,raidIndex);
+					if char_name ~= nil and self.db.char.LP:IsElligible(lootName,char_name) then
+						valid_skc = true;
+					end
+				end
+			end
+		end
+
+		-- manage button state (only for those items on current page)
+		if lootIndex >= first_lootIndex and lootIndex <= last_lootIndex then
+			local lootBtnIndex = ((lootIndex - 1) % visible_btns_per_page) + 1; -- stupid 1 based indexing
 			if valid_ml then
 				-- valid for master looter API
-				-- Store item
-				self.db.char.LM:Reset();
-				self.db.char.LM:AddLoot(lootID,lootName,lootIndex,lootLink)
-				
-				-- Check if item exists in LP
-				
-				if self.db.char.LP:Exists(lootName) then
-					-- Scan all possible characters to determine elligible
-					for raidIndex = 1,40 do
-						if valid_skc then break end
-						local char_name = GetMasterLootCandidate(lootIndex,raidIndex);
-						if char_name ~= nil and self.db.char.LP:IsElligible(lootName,char_name) then
-							valid_skc = true;
-						end
-					end
+				LootFrame.LootStarterGUI[lootBtnIndex]:Show();
+				if valid_skc then
+					-- valid for SKC
+					LootFrame.LootStarterGUI[lootBtnIndex]:Enable();
+					LootFrame.LootStarterGUI[lootBtnIndex].lootIndex = lootIndex;
+					LootFrame.LootStarterGUI[lootBtnIndex].lootName = lootName;
 				end
 			end
-
-			-- manage button state (only for those items on current page)
-			if lootIndex >= first_lootIndex and lootIndex <= last_lootIndex then
-				local lootBtnIndex = ((lootIndex - 1) % visible_btns_per_page) + 1; -- stupid 1 based indexing
-				if valid_ml then
-					-- valid for master looter API
-					LootFrame.LootStarterGUI[lootBtnIndex]:Show();
-					if valid_skc then
-						-- valid for SKC
-						LootFrame.LootStarterGUI[lootBtnIndex]:Enable();
-						LootFrame.LootStarterGUI[lootBtnIndex].lootIndex = lootIndex;
-						LootFrame.LootStarterGUI[lootBtnIndex].lootName = lootName;
-						LootFrame.LootStarterGUI[lootBtnIndex].lootLink = lootLink;
-					end
-				end
-			end
-		end)
+		end
 	end
 	return;
 end

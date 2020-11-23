@@ -3,8 +3,6 @@
 --------------------------------------
 -- Addon definition
 -- TODO:
--- add SK off field to LP (turn off SK button, check that both sk cant be off and roll off)
--- clean out text fields after import? (kinda useful for testing)
 --------------------------------------
 -- ADDON CONSTRUCTOR
 --------------------------------------
@@ -27,8 +25,8 @@ SKC.DEV = {
     LOOT_OFFICER_OVRD = false, -- true if SKC can be used without loot officer 
 	VERBOSITY_LEVEL = 0,-- verbosity level (debug messages at or below this level will print)
 	VERBOSE = { -- verbosity levels
-		COMM = 1,
-		LOOT = 2,
+		COMM = 5,
+		LOOT = 1,
 		SYNC_TICK = 3,
 		SYNC_LOW = 4,
 		SYNC_HIGH = 5,

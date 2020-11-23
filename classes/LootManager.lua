@@ -257,7 +257,7 @@ function LootManager:ReadLootMsg(msg,sender)
 	local item_id = msg.lootID;
 	local open_roll = msg.open_roll;
 	local sk_list = msg.sk_list;
-	local item = Item:CreateFromItemLink(lootLink)
+	local item = Item:CreateFromItemID(item_id)
 	item:ContinueOnItemLoad(function()
 		-- fetch data
 		local item_name = item:GetItemName();
@@ -278,7 +278,7 @@ function LootManager:ReadLootMsg(msg,sender)
 			self.current_loot = Loot:new(nil,item_id,item_name,nil,item_link,open_roll,sk_list);
 		else
 			-- current loot already exists, just check that item matches
-			if item_id ~= self.current_loot.loodID then
+			if item_id ~= self.current_loot.lootID then
 				SKC:Error("Received loot message for item that is not current_loot");
 			end
 		end
