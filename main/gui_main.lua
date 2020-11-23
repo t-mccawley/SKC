@@ -91,7 +91,9 @@ local function OnClick_FullSK(self)
 		SKC.event_states.SetSKInProgress = false;
 		local sk_list = SKC.MainGUI["sk_list_border"].Title.Text:GetText();
 		-- On click event for full SK of details targeted character
-		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+		local name = SKC:GetGUISelectedName();
+		-- check that name is valid
+		if name == nil then return end
 		-- Get initial position
 		local prev_pos = SKC.db.char[sk_list]:GetPos(name);
 		-- Execute full SK
@@ -113,28 +115,35 @@ local function OnClick_FullSK(self)
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
-			SKC:Error("Full SK on "..name.." rejected");
+			SKC:Error("Full SK on "..SKC:FormatWithClassColor(name).." rejected");
 		end
 	end
 	return;
 end
 
-local function OnClick_SingleSK(self)
+local function OnClick_LiveSK(self)
+	-- On click event for Live SK of details targeted character
 	if self:IsEnabled() then
 		SKC.event_states.SetSKInProgress = false;
-		-- On click event for full SK of details targeted character
-		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+		-- get current character and SK list
+		local name = SKC:GetGUISelectedName();
+		-- check that name is valid
+		if name == nil then return end
 		local sk_list = SKC.MainGUI["sk_list_border"].Title.Text:GetText();
+		-- check if live
+		if not SKC.db.char[sk_list]:GetLive(name) then
+			SKC:Error(SKC:FormatWithClassColor(name).." is not on the live list");
+			return;
+		end
 		-- Get initial position
 		local prev_pos = SKC.db.char[sk_list]:GetPos(name);
-		-- Execute full SK
-		local name_below = SKC.db.char[sk_list]:GetBelow(name);
-		local success = SKC.db.char[sk_list]:InsertBelow(name,name_below);
+		-- perform live SK
+		local success = SKC.db.char[sk_list]:LiveSK(name)
 		if success then 
 			-- log
 			SKC:WriteToLog( 
 				SKC.LOG_OPTIONS["Event Type"].Options.SK_Change, --event_type,
-				SKC.LOG_OPTIONS["Event Details"].Options.ManSingleSK, --event_details,
+				SKC.LOG_OPTIONS["Event Details"].Options.ManLiveSK, --event_details,
 				name, --subject
 				"", --item
 				sk_list, --sk_list
@@ -143,11 +152,11 @@ local function OnClick_SingleSK(self)
 				SKC.db.char[sk_list]:GetPos(name), --new_sk_pos
 				"" --roll
 			);
-			SKC:Print("Single SK on "..SKC:FormatWithClassColor(name));
+			SKC:Print("Live SK on "..SKC:FormatWithClassColor(name));
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
-			SKC:Error("Single SK on "..name.." rejected");
+			SKC:Error("Live SK on "..SKC:FormatWithClassColor(name).." failed");
 		end
 	end
 	return;
@@ -158,7 +167,12 @@ local function OnClick_SetSK(self)
 	-- Prompt user to click desired position number in list
 	if self:IsEnabled() then
 		SKC.event_states.SetSKInProgress = true;
-		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+		local name = SKC:GetGUISelectedName();
+		-- check that name is valid
+		if name == nil then
+			SKC.event_states.SetSKInProgress = false;
+			return;
+		end
 		SKC:Alert("Click desired position in SK list for "..SKC:FormatWithClassColor(name));
 	end
 	return;
@@ -167,7 +181,9 @@ end
 function OnClick_NumberCard(self)
 	-- On click event for number card in SK list
 	if SKC.event_states.SetSKInProgress and SKC.MainGUI["Details_border"]["Name"].Data ~= nil then
-		local name = SKC.MainGUI["Details_border"]["Name"].Data:GetText();
+		local name = SKC:GetGUISelectedName();
+		-- check that name is valid
+		if name == nil then return end
 		local new_abs_pos = tonumber(self.Text:GetText());
 		local sk_list = SKC.MainGUI["sk_list_border"].Title.Text:GetText();
 		-- Get initial position
@@ -187,11 +203,11 @@ function OnClick_NumberCard(self)
 				SKC.db.char[sk_list]:GetPos(name), --new_sk_pos
 				"" --roll
 			);
-			SKC:Print("Set SK position of "..SKC:FormatWithClassColor(name).." to "..SKC.db.char[sk_list]:GetPos(name));
+			SKC:Print("Set SK position of "..SKC:FormatWithClassColor(name).." from "..prev_pos.." to "..SKC.db.char[sk_list]:GetPos(name));
 			-- Refresh SK List
 			SKC:UpdateSKUI();
 		else
-			SKC:Error("Set SK on "..name.." rejected");
+			SKC:Error("Set SK on "..SKC:FormatWithClassColor(name).." rejected");
 		end
 		SKC.event_states.SetSKInProgress = false;
 	end
@@ -416,15 +432,15 @@ function SKC:CreateMainGUI()
 	self.MainGUI[details_border_key].manual_full_sk_btn:SetHighlightFontObject("GameFontHighlight");
 	self.MainGUI[details_border_key].manual_full_sk_btn:SetScript("OnMouseDown",OnClick_FullSK);
 	self.MainGUI[details_border_key].manual_full_sk_btn:Disable();
-	-- single SK
-	self.MainGUI[details_border_key].manual_single_sk_btn = CreateFrame("Button", nil, self.MainGUI, "GameMenuButtonTemplate");
-	self.MainGUI[details_border_key].manual_single_sk_btn:SetPoint("RIGHT",self.MainGUI[details_border_key].manual_full_sk_btn,"LEFT",-5,0);
-	self.MainGUI[details_border_key].manual_single_sk_btn:SetSize(self.UI_DIMS.BTN_WIDTH, self.UI_DIMS.BTN_HEIGHT);
-	self.MainGUI[details_border_key].manual_single_sk_btn:SetText("Single SK");
-	self.MainGUI[details_border_key].manual_single_sk_btn:SetNormalFontObject("GameFontNormal");
-	self.MainGUI[details_border_key].manual_single_sk_btn:SetHighlightFontObject("GameFontHighlight");
-	self.MainGUI[details_border_key].manual_single_sk_btn:SetScript("OnMouseDown",OnClick_SingleSK);
-	self.MainGUI[details_border_key].manual_single_sk_btn:Disable();
+	-- Live SK
+	self.MainGUI[details_border_key].manual_live_sk_btn = CreateFrame("Button", nil, self.MainGUI, "GameMenuButtonTemplate");
+	self.MainGUI[details_border_key].manual_live_sk_btn:SetPoint("RIGHT",self.MainGUI[details_border_key].manual_full_sk_btn,"LEFT",-5,0);
+	self.MainGUI[details_border_key].manual_live_sk_btn:SetSize(self.UI_DIMS.BTN_WIDTH, self.UI_DIMS.BTN_HEIGHT);
+	self.MainGUI[details_border_key].manual_live_sk_btn:SetText("Live SK");
+	self.MainGUI[details_border_key].manual_live_sk_btn:SetNormalFontObject("GameFontNormal");
+	self.MainGUI[details_border_key].manual_live_sk_btn:SetHighlightFontObject("GameFontHighlight");
+	self.MainGUI[details_border_key].manual_live_sk_btn:SetScript("OnMouseDown",OnClick_LiveSK);
+	self.MainGUI[details_border_key].manual_live_sk_btn:Disable();
 	-- set SK
 	self.MainGUI[details_border_key].manual_set_sk_btn = CreateFrame("Button", nil, self.MainGUI, "GameMenuButtonTemplate");
 	self.MainGUI[details_border_key].manual_set_sk_btn:SetPoint("LEFT",self.MainGUI[details_border_key].manual_full_sk_btn,"RIGHT",5,0);
@@ -547,6 +563,8 @@ end
 function SKC:RefreshDetails(name)
 	-- populates the details fields
 	if not self:CheckMainGUICreated() then return end
+	-- check if name exists (write name to nil)
+	if not self.db.char.GD:Exists(name) then name = nil end
 	local fields = {"Name","Class","Spec","Raid Role","Guild Role","Status"};
 	if name == nil then
 		-- reset
@@ -571,14 +589,14 @@ function SKC:PopulateData(name)
 	self:Debug("PopulateData()",self.DEV.VERBOSE.GUI);
 	if not self:CheckAddonLoaded() then return end
 	if not self:CheckMainGUICreated() then return end
+	-- check if name exists (write name to nil)
+	if not self.db.char.GD:Exists(name) then name = nil end
 	-- Update Status
 	self:RefreshStatus();
 	-- Refresh details
 	self:RefreshDetails(name);
 	-- Update SK cards
 	self:UpdateSKUI();
-	-- Reset Set SK Flag
-	self.event_states.SetSKInProgress = false;
 	return;
 end
 
@@ -590,7 +608,7 @@ function SKC:UpdateDetailsButtons(disable)
 		self.MainGUI["Details_border"]["Spec"].Btn:Disable();
 		self.MainGUI["Details_border"]["Guild Role"].Btn:Disable();
 		self.MainGUI["Details_border"]["Status"].Btn:Disable();
-		self.MainGUI["Details_border"].manual_single_sk_btn:Disable();
+		self.MainGUI["Details_border"].manual_live_sk_btn:Disable();
 		self.MainGUI["Details_border"].manual_full_sk_btn:Disable();
 		self.MainGUI["Details_border"].manual_set_sk_btn:Disable();
 	else
@@ -604,11 +622,11 @@ function SKC:UpdateDetailsButtons(disable)
 			self.MainGUI["Details_border"]["Status"].Btn:Disable();
 		end
 		if self:isGL() or self:isMLO() then
-			self.MainGUI["Details_border"].manual_single_sk_btn:Enable();
+			self.MainGUI["Details_border"].manual_live_sk_btn:Enable();
 			self.MainGUI["Details_border"].manual_full_sk_btn:Enable();
 			self.MainGUI["Details_border"].manual_set_sk_btn:Enable();
 		else
-			self.MainGUI["Details_border"].manual_single_sk_btn:Disable();
+			self.MainGUI["Details_border"].manual_live_sk_btn:Disable();
 			self.MainGUI["Details_border"].manual_full_sk_btn:Disable();
 			self.MainGUI["Details_border"].manual_set_sk_btn:Disable();
 		end

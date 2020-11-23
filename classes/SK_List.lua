@@ -302,18 +302,13 @@ end
 
 function SK_List:LiveSK(winner)
 	-- Performs SK on live list on winner
-	if LIVE_MERGE_VERBOSE then SKC:Alert("Live List Merge") end
-
 	local success = false;
-	if LIVE_MERGE_VERBOSE then SKC:Alert("Checking SK List") end
 	if self:CheckIfFucked() then return false end
 
 	-- create temporary live list
 	local live_list = SK_List:new(nil);
-	if LIVE_MERGE_VERBOSE then SKC:Alert("Temporary Live List Created") end
-
-	if LIVE_MERGE_VERBOSE then SKC:Alert("Checking Live List") end
 	if live_list:CheckIfFucked() then return false end
+	SKC:Debug("Live list created",SKC.DEV.VERBOSE.MERGE);
 
 	-- push all live characters into live list
 	-- scan list in order
@@ -327,49 +322,66 @@ function SK_List:LiveSK(winner)
 		end
 		current_name = self.list[current_name].below;
 	end
-	if LIVE_MERGE_VERBOSE then
-		SKC:Alert("Temporary Live List (Pre SK)")
+	if SKC.DEV.VERBOSITY_LEVEL >= SKC.DEV.VERBOSE.MERGE then
+		SKC:Debug("Live List (Pre SK):",SKC.DEV.VERBOSE.MERGE);
 		live_list:PrintList();
 	end
 
 	-- Perform SK on live list
 	success = live_list:PushBack(winner);
-	if LIVE_MERGE_VERBOSE then
-		SKC:Alert("Temporary Live List (Post SK)")
+	if not success then
+		SKC:Error("Live SK failed");
+		return false;
+	end
+	if SKC.DEV.VERBOSITY_LEVEL >= SKC.DEV.VERBOSE.MERGE then
+		SKC:Debug("Live List (Post SK):",SKC.DEV.VERBOSE.MERGE);
 		live_list:PrintList();
 	end
 
-	if not success then return false end
-
 	-- merge lists
-	-- scan live list in order and push back into original list
-	local current_live = live_list.top;
-	local live_idx = 1;
-	while current_live ~= nil do
-		local live_pos_tmp = live_pos[live_idx];
-		SKC:Debug(" ",SKC.DEV.VERBOSE.MERGE);
-		SKC:Debug("Live Character: "..current_live,SKC.DEV.VERBOSE.MERGE);
-		SKC:Debug("Current Pos: "..self:GetPos(current_live),SKC.DEV.VERBOSE.MERGE);
-		SKC:Debug("Planned Pos: "..live_pos_tmp,SKC.DEV.VERBOSE.MERGE);
-		-- set new position in original list
-		success = self:SetByPos(current_live,live_pos_tmp);
-		if not success then
-			SKC:Error("Failed to set "..current_live.." position to "..live_pos_tmp);
-			return false;
+	local merged_list = SK_List:new(nil);
+	current_name = self.top;
+	local live_name = live_list.top;
+	SKC:Debug("Merging Lists...",SKC.DEV.VERBOSE.MERGE);
+	while current_name ~= nil do
+		local current_pos_tmp = self:GetPos(current_name);
+		if live_name ~= nil and live_pos[live_list:GetPos(live_name)] == current_pos_tmp then
+			-- live position, append live node
+			merged_list:PushBack(live_name);
+			-- update live status
+			merged_list:SetLive(live_name,true);
+			SKC:Debug("["..current_pos_tmp.."] [LIVE] "..live_name,SKC.DEV.VERBOSE.MERGE);
+			-- increment
+			live_name = live_list.list[live_name].below;
 		else
-			SKC:Debug(current_live.." set to position "..self:GetPos(current_live),SKC.DEV.VERBOSE.MERGE);
-			SKC:Debug(" ",SKC.DEV.VERBOSE.MERGE);
+			-- not live position, append current node
+			merged_list:PushBack(current_name);
+			SKC:Debug("["..current_pos_tmp.."] "..current_name,SKC.DEV.VERBOSE.MERGE);
 		end
 		-- increment
-		current_live = live_list.list[current_live].below;
-		live_idx = live_idx + 1;
+		current_name = self.list[current_name].below;
+	end
+	if SKC.DEV.VERBOSITY_LEVEL >= SKC.DEV.VERBOSE.MERGE then
+		SKC:Debug("Merged List:",SKC.DEV.VERBOSE.MERGE);
+		-- merged_list:PrintList();
 	end
 
-	success = live_idx == (#live_pos + 1) and current_live == nil;
+	success = live_name == nil;
 	if not success then
-		SKC:Error("Entire live list was not merged")
+		SKC:Error("Entire live list was not merged");
 		return false;
 	end
+
+	-- deep copy
+	self.list = SKC:DeepCopy(merged_list.list);
+	self.top = merged_list.top;
+	self.bottom = merged_list.bottom;
+	self.edit_ts = merged_list.edit_ts;
+	if SKC.DEV.VERBOSITY_LEVEL >= SKC.DEV.VERBOSE.MERGE then
+		SKC:Debug("Final List:",SKC.DEV.VERBOSE.MERGE);
+		-- self:PrintList();
+	end
+	SKC:Debug("Merge successful!",SKC.DEV.VERBOSE.MERGE);
 	
 	return true;
 end
