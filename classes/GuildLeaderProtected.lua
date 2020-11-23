@@ -159,7 +159,7 @@ function GuildLeaderProtected:AddAI(ai_acro)
 		return false;
 	end
 	-- check if valid acro
-	if SKC.INSTANCE_NAME_MAP[ai_acro] == nil then
+	if SKC.INSTANCE_ID_MAP[ai_acro] == nil then
 		SKC:Error("That is not a valid acronym. Please choose one of the following:");
 		for acro,full_name in pairs(SKC.INSTANCE_NAME_MAP) do
 			SKC:Print(acro.." ("..full_name..")");
@@ -204,9 +204,9 @@ end
 
 function GuildLeaderProtected:IsActiveInstance()
 	-- returns true of current instance is active_instances
-	local raid_name = GetInstanceInfo();
+	local instance_name, _, _, _, _, _, _, instanceMapId, _ = GetInstanceInfo();
 	for ai_acro,_ in pairs(self.active_instances) do
-		if raid_name == SKC.INSTANCE_NAME_MAP[ai_acro] then
+		if instanceMapId == SKC.INSTANCE_ID_MAP[ai_acro] then
 			return true;
 		end
 	end

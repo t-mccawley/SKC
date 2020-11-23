@@ -772,8 +772,23 @@ SKC.LOG_OPTIONS = {
 		Text = "Roll",
 	},
 };
+-- Source: https://www.ownedcore.com/forums/world-of-warcraft/world-of-warcraft-emulator-servers/60814-list-map-ids-updataed.html
+SKC.INSTANCE_ID_MAP = {
+	RFC = 389,
+	SS = 34,
+	WC = 43,
+	VC = 36,
+	ONY = 249,
+	MC = 409,
+	BWL = 469,
+	ZG = 309,
+	AQ20 = 509,
+	AQ40 = 531,
+	NAXX = 533,
+};
 SKC.INSTANCE_NAME_MAP = {
 	RFC = "Ragefire Chasm",
+	SS = "Stormwind Stockades",
 	WC = "Wailing Caverns",
 	VC = "The Deadmines",
 	ONY = "Onyxia's Lair",

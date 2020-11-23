@@ -190,6 +190,7 @@ Supported Instances:
 |         Raid        | Acronym |
 |:-------------------:|:-------:|
 |    Ragefire Chasm   |   RFC   |
+| Stormwind Stockades |    SS   |
 |   Wailing Caverns   |    WC   |
 |    The Deadmines    |    VC   |
 |    Onyxia's Lair    |   ONY   |
