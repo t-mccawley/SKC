@@ -69,6 +69,14 @@ function LootManager:ForceClose()
 	return;
 end
 
+function LootManager:GetCurrentLootID()
+	if self.current_loot == nil then
+		SKC:Error("Current loot not set");
+		return nil;
+	end
+	return self.current_loot.lootID;
+end
+
 function LootManager:GetCurrentLootName()
 	if self.current_loot == nil then
 		SKC:Error("Current loot not set");
@@ -109,7 +117,7 @@ function LootManager:GetCurrentLootSKList()
 	return self.current_loot.sk_list;
 end
 
-function LootManager:AddLoot(item_name,loot_index,item_link)
+function LootManager:AddLoot(item_id,item_name,loot_index,item_link)
 	-- add loot as new current_loot
 	-- check if current loot is not empty
 	-- MASTER LOOTER ONLY
@@ -122,7 +130,7 @@ function LootManager:AddLoot(item_name,loot_index,item_link)
 	end
 	local open_roll =SKC.db.char.LP:GetOpenRoll(item_name);
 	local sk_list =SKC.db.char.LP:GetSKList(item_name);
-	self.current_loot = Loot:new(nil,item_name,loot_index,item_link,open_roll,sk_list);
+	self.current_loot = Loot:new(nil,item_id,item_name,loot_index,item_link,open_roll,sk_list);
 	self.master_looter = UnitName("player");
 	-- default, give loot to ML
 	self.loot_target = self.master_looter;
@@ -207,8 +215,7 @@ function LootManager:SendLootMsgs()
 	-- send loot message to all elligible characters on LOOT
 	-- construct message
 	local loot_msg = {
-		lootName = self.current_loot.lootName,
-		lootLink = self.current_loot.lootLink,
+		lootID = self.current_loot.lootID,
 		open_roll = self.current_loot.open_roll,
 		sk_list = self.current_loot.sk_list,
 	}
@@ -222,7 +229,7 @@ end
 function LootManager:SendLootDecision(loot_decision)
 	-- send decision to master looter
 	local msg = {
-		lootName = self:GetCurrentLootName(),
+		lootID = self:GetCurrentLootID(),
 		lootDecision = loot_decision,
 	};
 	SKC:Send(msg,SKC.CHANNELS.LOOT_DECISION,"WHISPER",self.master_looter);
@@ -247,40 +254,46 @@ function LootManager:ReadLootMsg(msg,sender)
 	-- saves item as current_loot
 	if msg == "BLANK" then return end
 	-- parse data
-	local item_name = msg.lootName;
-	local item_link = msg.lootLink;
+	local item_id = msg.lootID;
 	local open_roll = msg.open_roll;
 	local sk_list = msg.sk_list;
-	-- check if data is valid
-	if item_name == nil or type(item_name) ~= "string" 
-	  or item_link == nil or type(item_link) ~= "string"
-	  or open_roll == nil or type(open_roll) ~= "boolean"
-	  or sk_list == nil or type(sk_list) ~= "string" then
-		SKC:Error("Received malformed loot message");
-		return;
-	end
-	-- store data
-	if not SKC:isML() then
-		-- reset loot and add item
-		self:Reset();
-		self.current_loot = Loot:new(nil,item_name,nil,item_link,open_roll,sk_list);
-	else
-		-- current loot already exists, just check that item matches
-		if item_name ~= self.current_loot.lootName then
-			SKC:Error("Received loot message for item that is not current_loot");
+	local item = Item:CreateFromItemLink(lootLink)
+	item:ContinueOnItemLoad(function()
+		-- fetch data
+		local item_name = item:GetItemName();
+		local item_link = item:GetItemLink();
+		-- check if data is valid
+		if item_id == nil or type(item_id) ~= "number"
+		or item_name == nil or type(item_name) ~= "string" 
+		or item_link == nil or type(item_link) ~= "string"
+		or open_roll == nil or type(open_roll) ~= "boolean"
+		or sk_list == nil or type(sk_list) ~= "string" then
+			SKC:Error("Received malformed loot message");
+			return;
 		end
-	end
-	-- save ML
-	self.master_looter = SKC:StripRealmName(sender);
-	-- Check that SKC is active for client
-	if not SKC:CheckActive() then
-		-- Automatically pass
-		SKC:Warn("SKC is not active, automatically passing");
-		self:SendLootDecision(SKC.LOOT_DECISION.PASS);
-	else
-		-- start GUI
-		self:StartPersonalLootDecision();
-	end
+		-- store data
+		if not SKC:isML() then
+			-- reset loot and add item
+			self:Reset();
+			self.current_loot = Loot:new(nil,item_id,item_name,nil,item_link,open_roll,sk_list);
+		else
+			-- current loot already exists, just check that item matches
+			if item_id ~= self.current_loot.loodID then
+				SKC:Error("Received loot message for item that is not current_loot");
+			end
+		end
+		-- save ML
+		self.master_looter = SKC:StripRealmName(sender);
+		-- Check that SKC is active for client
+		if not SKC:CheckActive() then
+			-- Automatically pass
+			SKC:Warn("SKC is not active, automatically passing");
+			self:SendLootDecision(SKC.LOOT_DECISION.PASS);
+		else
+			-- start GUI
+			self:StartPersonalLootDecision();
+		end
+	end)
 	return;
 end
 
@@ -305,18 +318,18 @@ function LootManager:ReadLootDecision(msg,sender)
 	if not SKC:isML() then return end
 	-- parse data
 	local char_name = SKC:StripRealmName(sender);
-	local loot_name = msg.lootName;
+	local loot_id = msg.lootID;
 	local loot_decision = tonumber(msg.lootDecision);
 	-- check integrity
 	if char_name == nil or type(char_name) ~= "string"
-	  or loot_name == nil or type(loot_name) ~= "string"
+	  or loot_id == nil or type(loot_id) ~= "number"
 	  or loot_decision == nil or type(loot_decision) ~= "number" then
 		local sender_text = sender or "NULL";
 		SKC:Error("Received malformed decision from "..sender_text);
 		return;
 	end
 	-- confirm that loot decision is for current loot
-	if self:GetCurrentLootName() ~= loot_name then
+	if self:GetCurrentLootID() ~= loot_id then
 		-- silently reject if current loot is nil
 		if self:GetCurrentLootName() ~= nil then
 			SKC:Error("Received decision for item other than Current Loot ("..self:GetCurrentLootName()..")");

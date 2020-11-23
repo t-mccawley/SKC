@@ -6,6 +6,7 @@
 -- DEFINITION + CONSTRUCTOR
 --------------------------------------
 Loot = {
+	lootID = nil, -- loot ID
 	lootName = nil, -- item name
 	lootIndex = nil, -- index of loot in LootFrame
 	lootLink = nil, -- item link
@@ -18,10 +19,11 @@ Loot = {
 }; 
 Loot.__index = Loot;
 
-function Loot:new(loot,item_name,loot_index,item_link,open_roll,sk_list)
+function Loot:new(loot,item_id,item_name,loot_index,item_link,open_roll,sk_list)
 	if loot == nil then
 		-- initalize fresh
 		local obj = {};
+		obj.lootID = item_id;
 		obj.lootName = item_name;
 		obj.lootIndex = loot_index;
 		obj.lootLink = item_link;
