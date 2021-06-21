@@ -530,7 +530,7 @@ function SKC:ManageGuildData()
 		for idx = 1, GetNumGuildMembers() do
 			local full_name, _, _, level, class = GetGuildRosterInfo(idx);
 			local name = self:StripRealmName(full_name);
-			if level == 60 or self.DEV.GUILD_CHARS_OVRD[name] then
+			if level == 70 or self.DEV.GUILD_CHARS_OVRD[name] then
 				guild_roster[name] = true;
 				if not self.db.char.GD:Exists(name) then
 					-- new player, add to DB and SK lists
