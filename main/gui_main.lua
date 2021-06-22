@@ -284,9 +284,7 @@ function SKC:CreateMainGUI()
 	-- set position
 	self.MainGUI[filter_border_key]:SetPoint("TOPLEFT", self.MainGUI[status_border_key],"BOTTOMLEFT", 0, self.UI_DIMS.SK_FILTER_Y_OFFST);
 	-- create details fields
-	local faction_class;
-	if UnitFactionGroup("player") == "Horde" then faction_class="Shaman" else faction_class="Paladin" end
-	local filter_roles = {"DPS","Healer","Tank","Main","Alt","Live","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior",faction_class};
+	local filter_roles = {"DPS","Healer","Tank","Main","Alt","Live","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior","Shaman","Paladin"};
 	local num_cols = 3;
 	for idx,value in ipairs(filter_roles) do
 		if value ~= "SKIP" then
