@@ -785,6 +785,14 @@ SKC.INSTANCE_ID_MAP = {
 	AQ20 = 509,
 	AQ40 = 531,
 	NAXX = 533,
+	GRUUL = 565,
+	MAG = 544,
+	SSC = 548,
+	TK = 550,
+	ZA = 568,
+	HYJ = 534,
+	BT = 564,
+	SUN = 580,
 };
 SKC.INSTANCE_NAME_MAP = {
 	RFC = "Ragefire Chasm",
@@ -798,6 +806,14 @@ SKC.INSTANCE_NAME_MAP = {
 	AQ20 = "Ahn'Qiraj Ruins",
 	AQ40 = "Ahn'Qiraj Temple",
 	NAXX = "Naxxramas",
+	GRUUL = "Gruul's Lair",
+	MAG = "Magtheridon's Lair",
+	SSC = "Serpentshrine Cavern",
+	TK = "Tempest Keep",
+	ZA = "Zul'Aman",
+	HYJ = "The Battle for Mount Hyjal",
+	BT = "Black Temple",
+	SUN = "The Sunwell",
 };
 SKC.ITEMS_WITH_COMMA = {
 	["Ashjre'thul"] = "Ashjre'thul, Crossbow of Smiting",
@@ -809,6 +825,8 @@ SKC.ITEMS_WITH_COMMA = {
 	["Mish'undare"] = "Mish'undare, Circlet of the Mind Flayer",
 	Neretzek = "Neretzek, The Blood Drinker",
 	["Zin'rokh"] = "Zin'rokh, Destroyer of Worlds",
+	["Thori'dal"] = "Thori'dal, the Stars' Fury",
+	["Jin'rohk"] = "Jin'rohk, The Great Apocalypse",
 };
 SKC.STATUS_ENUM = {
 	ACTIVE = {
@@ -947,10 +965,10 @@ SKC.DB_DEFAULT = {
 			Druid = true,
 			Hunter = true,
 			Mage = true,
-			Paladin = UnitFactionGroup("player") == "Alliance",
+			Paladin = true,
 			Priest = true;
 			Rogue = true,
-			Shaman = UnitFactionGroup("player") == "Horde",
+			Shaman = true,
 			Warlock = true,
 			Warrior = true,
 		},
