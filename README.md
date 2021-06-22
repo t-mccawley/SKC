@@ -187,16 +187,24 @@ Loot Prio Tiers (Prio 1 is highest priority):
 |  15  |      Pass     |     -     |
 
 Supported Instances:
-|         Raid        | Acronym |
-|:-------------------:|:-------:|
-|    Ragefire Chasm   |   RFC   |
-| Stormwind Stockades |    SS   |
-|   Wailing Caverns   |    WC   |
-|    The Deadmines    |    VC   |
-|    Onyxia's Lair    |   ONY   |
-|     Molten Core     |    MC   |
-|    Blackwing Lair   |   BWL   |
-|      Zul'Gurub      |    ZG   |
-|  Ruins of Ahn'Qiraj |   AQ20  |
-| Temple of Ahn'Qiraj |   AQ40  |
-|      Naxxramas      |   NAXX  |
+|            Raid            | Acronym |
+|:--------------------------:|:-------:|
+|       Ragefire Chasm       |   RFC   |
+|     Stormwind Stockades    |   SS    |
+|       Wailing Caverns      |   WC    |
+|        The Deadmines       |   VC    |
+|        Onyxia's Lair       |   ONY   |
+|         Molten Core        |   MC    |
+|        Blackwing Lair      |   BWL   |
+|          Zul'Gurub         |   ZG    |
+|      Ruins of Ahn'Qiraj    |   AQ20  |
+|     Temple of Ahn'Qiraj    |   AQ40  |
+|         Naxxramas          |   NAXX  |
+|        Gruul's Lair        |   GRUUL |
+|     Magtheridon's Lair     |   MAG   |
+|    Serpentshrine Cavern    |   SSC   |
+|        Tempest Keep        |   TK    |
+|          Zul'Aman          |   ZA    |
+| The Battle for Mount Hyjal |   HYJ   |
+|        Black Temple        |   BT    |
+|        The Sunwell         |   SUN   |
