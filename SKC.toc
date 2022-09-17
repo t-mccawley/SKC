@@ -1,9 +1,9 @@
-## Interface: 20501
-## X-Min-Interface: 20501
+## Interface: 30400
+## X-Min-Interface: 30400
 ## Title: SKC
 ## Notes: Suicide Kings Classic
 ## Author: https://github.com/t-mccawley
-## Version: v2.0
+## Version: v3.0
 ## X-Category: Guild
 ## X-Website: https://github.com/t-mccawley/SKC
 ## DefaultState: enabled

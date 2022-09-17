@@ -24,8 +24,10 @@ end
 
 local function OnLoad_EditDropDown_Spec(self)
 	local class = SKC.MainGUI["Details_border"]["Class"].Data:GetText();
-	for key,value in pairs(SKC.CLASSES[class].Specs) do
-		UIDropDownMenu_AddButton(value);
+	if class ~= nil then
+		for key,value in pairs(SKC.CLASSES[class].Specs) do
+			UIDropDownMenu_AddButton(value);
+		end
 	end
 	return;
 end
