@@ -155,17 +155,18 @@ Some slash commands are protected by character privelages, see the available sla
 
 ## Appendix
 Supported Class / Specs:
-|  Class  |     Spec    |
-|:-------:|:-----------:|
-|  Druid  |   Balance, Restoration, Feral Tank, Feral DPS   |
-|  Hunter |     Any     |
-|   Mage  |     Any     |
-| Paladin |     Holy, Protection, Retribution    |
-|  Priest |     Holy, Shadow    |
-|  Rogue  |     Any, Daggers, Swords     |
-|  Shaman |  Elemental, Enhancement, Restoration  |
-| Warlock |     Any     |
-| Warrior |     DPS, Protection, Two Handed, Dual Wield     |
+|  Class       |     Spec    |
+|:------------:|:-----------:|
+| Death Knight |     Blood, Frost, Unholy    |
+|    Druid     |   Balance, Restoration, Feral Tank, Feral DPS   |
+|    Hunter    |     Any     |
+|    Mage      |     Any     |
+|    Paladin   |     Holy, Protection, Retribution    |
+|    Priest    |     Holy, Shadow    |
+|    Rogue     |     Any, Daggers, Swords     |
+|    Shaman    |  Elemental, Enhancement, Restoration  |
+|    Warlock   |     Any     |
+|    Warrior   |     DPS, Protection, Two Handed, Dual Wield     |
 
 Loot Prio Tiers (Prio 1 is highest priority):
 | Prio | Loot Decision | Spec Prio |
@@ -200,6 +201,7 @@ Supported Instances:
 |      Ruins of Ahn'Qiraj    |   AQ20  |
 |     Temple of Ahn'Qiraj    |   AQ40  |
 |         Naxxramas          |   NAXX  |
+|          Karazhan          |   KARA  |
 |        Gruul's Lair        |   GRUUL |
 |     Magtheridon's Lair     |   MAG   |
 |    Serpentshrine Cavern    |   SSC   |
@@ -208,3 +210,10 @@ Supported Instances:
 | The Battle for Mount Hyjal |   HYJ   |
 |        Black Temple        |   BT    |
 |        The Sunwell         |   SUN   |
+|     Icecrown Citadel       |   ICC   |
+|    The Eye of Eternity         |   EOE   |
+|       The Obsidian Sanctum         |   TOS   |
+|       The Ruby Sanctum         |   TRS   |
+|        Trial of the Crusader         |   TOTC  |
+|        Ulduar         |   ULD   |
+|        Vault of Archavon         |   VOA   |

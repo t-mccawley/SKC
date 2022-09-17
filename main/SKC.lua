@@ -358,6 +358,36 @@ SKC.CLASSES = { -- wow classes
 		},
 		DEFAULT_SPEC = "DPS",
 	},
+	DeathKnight = {
+		text = "",
+		color = {
+			r = 0.77, 
+			g = 0.12,
+			b = 0.23,
+			hex = "C41E3A"
+		},
+		Specs = {
+			Blood = {
+				val = 23,
+				text = "Blood",
+				RR = "Tank",
+				func = function (self) OnClick_EditDropDownOption("Spec","Blood") end
+			},
+			Frost = {
+				val = 24,
+				text = "Frost",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("Spec","Frost") end
+			},
+			Unholy = {
+				val = 25,
+				text = "Unholy",
+				RR = "DPS",
+				func = function (self) OnClick_EditDropDownOption("Spec","Unholy") end
+			},
+		},
+		DEFAULT_SPEC = "Blood",
+	},
 };
 SKC.TIER_ARMOR_SETS = { -- map from armor set name to ordered list of individual item names (used as a shortcut for prio doc import)
 	["Cenarion Raiment"] = {
@@ -565,6 +595,9 @@ SKC.CLASS_SPEC_MAP = { -- used to quickly get class spec name from value
 	"WarriorProt",
 	"WarriorTwoHanded",
 	"WarriorDualWield",
+	"DeathKnightBlood",
+	"DeathKnightFrost",
+	"DeathKnightUnholy",
 };
 SKC.SPEC_MAP = { -- used to quickly get spec name from value
 	"Balance",
@@ -589,6 +622,9 @@ SKC.SPEC_MAP = { -- used to quickly get spec name from value
 	"Prot",
 	"TwoHanded",
 	"DualWield",
+	"Blood",
+	"Frost",
+	"Unholy",
 };
 SKC.CHARACTER_DATA = { -- fields used to define character
 	Name = {
@@ -785,6 +821,7 @@ SKC.INSTANCE_ID_MAP = {
 	AQ20 = 509,
 	AQ40 = 531,
 	NAXX = 533,
+	KARA = 532,
 	GRUUL = 565,
 	MAG = 544,
 	SSC = 548,
@@ -793,6 +830,13 @@ SKC.INSTANCE_ID_MAP = {
 	HYJ = 534,
 	BT = 564,
 	SUN = 580,
+	ICC = 631,
+	EOE = 616,
+	TOS = 615,
+	TRS = 724,
+	TOTC = 649,
+	ULD = 603,
+	VOA = 624,
 };
 SKC.INSTANCE_NAME_MAP = {
 	RFC = "Ragefire Chasm",
@@ -806,6 +850,7 @@ SKC.INSTANCE_NAME_MAP = {
 	AQ20 = "Ahn'Qiraj Ruins",
 	AQ40 = "Ahn'Qiraj Temple",
 	NAXX = "Naxxramas",
+	KARA = "Karazhan",
 	GRUUL = "Gruul's Lair",
 	MAG = "Magtheridon's Lair",
 	SSC = "Serpentshrine Cavern",
@@ -814,6 +859,13 @@ SKC.INSTANCE_NAME_MAP = {
 	HYJ = "The Battle for Mount Hyjal",
 	BT = "Black Temple",
 	SUN = "The Sunwell",
+	ICC = "Icecrown Citadel",
+	EOE = "The Eye of Eternity",
+	TOS = "The Obsidian Sanctum",
+	TRS = "The Ruby Sanctum",
+	TOTC = "Trial of the Crusader",
+	ULD = "Ulduar",
+	VOA = "Vault of Archavon",
 };
 SKC.ITEMS_WITH_COMMA = {
 	["Ashjre'thul"] = "Ashjre'thul, Crossbow of Smiting",
@@ -827,6 +879,16 @@ SKC.ITEMS_WITH_COMMA = {
 	["Zin'rokh"] = "Zin'rokh, Destroyer of Worlds",
 	["Thori'dal"] = "Thori'dal, the Stars' Fury",
 	["Jin'rohk"] = "Jin'rohk, The Great Apocalypse",
+	Aesuga = "Aesuga, Hand of the Ardent Champion",
+	Glorenzelg = "Glorenzelg, High-Blade of the Silver Hand",
+	Archus = "Archus, Greatstaff of Antonidas",
+	Bloodsurge = "Bloodsurge, Kel'Thuzad's Blade of Agony",
+	["Fal'inrus"] = "Fal'inrush, Defender of Quel'thalas",
+	Oathbinder = "Oathbinder, Charge of the Ranger-General",
+	["Heaven's Fall"] = "Heaven's Fall, Kryss of a Thousand Lies",
+	["Havoc's Call"] = "Havoc's Call, Blade of Lordaeron Kings",
+	Mithrios = "Mithrios, Bronzebeard's Legacy",
+	["Val'anyr"] = "Val'anyr, Hammer of Ancient Kings",
 };
 SKC.STATUS_ENUM = {
 	ACTIVE = {
@@ -971,6 +1033,7 @@ SKC.DB_DEFAULT = {
 			Shaman = true,
 			Warlock = true,
 			Warrior = true,
+			DeathKnight = true,
 		},
 		LoggingActive = SKC.DEV.LOG_ACTIVE_OVRD, -- latches true when SKC is activated (controls LOG)
 		LOG = {}, -- data logging

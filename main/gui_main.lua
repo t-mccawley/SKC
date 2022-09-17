@@ -284,7 +284,7 @@ function SKC:CreateMainGUI()
 	-- set position
 	self.MainGUI[filter_border_key]:SetPoint("TOPLEFT", self.MainGUI[status_border_key],"BOTTOMLEFT", 0, self.UI_DIMS.SK_FILTER_Y_OFFST);
 	-- create details fields
-	local filter_roles = {"DPS","Healer","Tank","Main","Alt","Live","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior","Shaman","Paladin"};
+	local filter_roles = {"DPS","Healer","Tank","Main","Alt","Live","Druid","Hunter","Mage","Priest","Rogue","Warlock","Warrior","Shaman","Paladin","DeathKnight"};
 	local num_cols = 3;
 	for idx,value in ipairs(filter_roles) do
 		if value ~= "SKIP" then
@@ -310,7 +310,7 @@ function SKC:CreateMainGUI()
 	self.MainGUI[filter_border_key][filter_status_name] = CreateFrame("Frame",self.MainGUI[filter_border_key]);
 	self.MainGUI[filter_border_key][filter_status_name].Field = self.MainGUI[filter_border_key]:CreateFontString(nil,"ARTWORK");
 	self.MainGUI[filter_border_key][filter_status_name].Field:SetFontObject("GameFontNormal");
-	self.MainGUI[filter_border_key][filter_status_name].Field:SetPoint("BOTTOMLEFT",self.MainGUI[filter_border_key],"BOTTOMLEFT",25,22);
+	self.MainGUI[filter_border_key][filter_status_name].Field:SetPoint("BOTTOMLEFT",self.MainGUI[filter_border_key],"BOTTOMLEFT",120,22);
 	self.MainGUI[filter_border_key][filter_status_name].Field:SetText(filter_status_name..":");
 	-- data
 	self.MainGUI[filter_border_key][filter_status_name].Data = self.MainGUI[filter_border_key]:CreateFontString(nil,"ARTWORK");
